@@ -96,7 +96,12 @@ def check(P):
 
 def update(P):
     rec, now = load(P), current(P)
-    imgs = linkedin_images.main(["--data", str(P.data)])
+    args = ["--data", str(P.data)]
+    override = rec.get("grades_override") or {}
+    if override.get("grades"):  # the user's chosen split for the public grade image (see linkedin_images.py)
+        args += ["--grades", ",".join(f"{g}={n}" for g, n in override["grades"].items())]
+        print(f"Grade image uses the recorded override: {override['grades']} ({override.get('reason', 'no reason')})")
+    imgs = linkedin_images.main(args)
     ref = P.linkedin_dir / "linkedin-profile.md"
     text = ref.read_text(encoding="utf-8")
     if not NUMBERS.search(text):
