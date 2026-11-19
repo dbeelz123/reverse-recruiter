@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths, read_json, write_json
+from paths import Paths, blocklist, read_json, write_json
 from urllib.parse import quote
 
 import sys
@@ -122,7 +122,7 @@ def main():
     insights = [i for i in read_json(P.searches, {}, expect=dict).get("insights", []) if i.get("round") == args.round]
     # Every blocklist entry, proposed ones included, hides leads: proposed criteria count in reviews too
     # (engine/prompts/review-rubric.md, rule 3). rescreen.py flags only confirmed rules, to keep its flags firm.
-    blocked = {b["value"].split(" (")[0].lower() for b in spec.get("company_blocklist", [])}
+    blocked = {b["value"].split(" (")[0].lower() for b in blocklist(spec, P.spec)}
     rule = spec.get("work_arrangement", {}).get("machine_rule", {})
     c = rule.get("hybrid_onsite_center")
     center = (c["lat"], c["lon"]) if c else None

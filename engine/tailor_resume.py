@@ -41,8 +41,18 @@ def main():
     if not Path(dst).resolve().parent.is_dir():
         sys.exit(f"The output folder {Path(dst).resolve().parent} is missing; create it (or pick an existing "
                  f"folder) and rerun.")
-    zin = zipfile.ZipFile(src)
-    x = zin.read("word/document.xml").decode("utf-8")
+    try:
+        zin = zipfile.ZipFile(src)
+        x = zin.read("word/document.xml").decode("utf-8")
+    except (OSError, zipfile.BadZipFile, KeyError, UnicodeDecodeError) as e:
+        sys.exit(f"Can't read {src} as a Word document ({e}). Use the .docx saved from Word.")
+    try:
+        edits = json.load(open(edits_file, encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+        sys.exit(f"Can't read {edits_file} ({e}).")
+    if not (isinstance(edits, list) and all(isinstance(e, list) and len(e) == 5 and all(isinstance(v, str) for v in e)
+                                            for e in edits)):
+        sys.exit(f"{edits_file} must be a JSON list of edits, each [find, before, deleted, inserted, after] as text.")
     stamp = f'w:author="Claude" w:date="{dt.date.today().isoformat()}T00:00:00Z"'
     ids = [9000]
 
@@ -50,7 +60,7 @@ def main():
         ids[0] += 1
         return ids[0]
 
-    for find, before, deleted, inserted, after in json.load(open(edits_file, encoding="utf-8")):
+    for find, before, deleted, inserted, after in edits:
         m = next((mm for mm in RUN.finditer(x) if find in mm.group(2)), None)
         if not m:
             sys.exit(f"Not found in any single run: {find!r}")

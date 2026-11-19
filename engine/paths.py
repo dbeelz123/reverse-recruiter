@@ -53,6 +53,19 @@ def to_date(s):
         return None
 
 
+def blocklist(spec, path):
+    """spec.json's company_blocklist entries, each checked to be an object with a text 'value' (the company name).
+    A malformed entry stops the command and names it, rather than being skipped: a silently dropped entry would
+    let that company's jobs back in."""
+    entries = spec.get("company_blocklist", [])
+    if not isinstance(entries, list):
+        raise DataFileError(f"Malformed {path}: company_blocklist must be a list.")
+    for i, b in enumerate(entries):
+        if not (isinstance(b, dict) and isinstance(b.get("value"), str) and b["value"].strip()):
+            raise DataFileError(f"Malformed {path}: company_blocklist[{i}] needs a 'value' with the company name.")
+    return entries
+
+
 def tombstones(path):
     """removed.json entries that are usable: objects with a job_id. Anything else is skipped."""
     return [t for t in read_json(path, []) or [] if isinstance(t, dict) and t.get("job_id")]

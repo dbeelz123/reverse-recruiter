@@ -18,7 +18,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths, read_json
+from paths import Paths, blocklist, read_json
 
 
 def excerpt(text, m, width=90):
@@ -36,7 +36,7 @@ def main():
     rules = ([("DEALBREAKER", r) for r in spec.get("dealbreakers", []) if r.get("status") == "confirmed"]
              + [("NEGATIVE", r) for r in spec.get("negatives", []) if r.get("status") == "confirmed"]
              + [("QUALIFIER", r) for r in spec.get("qualifiers", []) if r.get("status") == "confirmed"])
-    blocked = [b["value"].split(" (")[0].lower() for b in spec.get("company_blocklist", [])
+    blocked = [b["value"].split(" (")[0].lower() for b in blocklist(spec, P.spec)
                if b.get("status") == "confirmed" and not b["value"].startswith("Companies owned")]
     # Check every rule's patterns once, up front, so a typo in spec.json names the rule instead of crashing midway.
     bad = []

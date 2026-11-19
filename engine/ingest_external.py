@@ -32,7 +32,11 @@ SALARY = re.compile(r"\$\s?\d[\d,.]*\s?[Kk]?(?:\s?(?:-|–|to)\s?\$\s?\d[\d,.]*\
 def read_text(path: Path) -> str:
     ext = path.suffix.lower()
     if ext == ".docx":
-        xml = zipfile.ZipFile(io.BytesIO(path.read_bytes())).read("word/document.xml").decode("utf-8")
+        try:
+            xml = zipfile.ZipFile(io.BytesIO(path.read_bytes())).read("word/document.xml").decode("utf-8")
+        except (zipfile.BadZipFile, KeyError, UnicodeDecodeError) as e:
+            sys.exit(f"Can't read {path} as a Word document ({e}). Re-save it from Word as .docx, or save the "
+                     f"description as .txt, and rerun.")
         out = []
         for p in re.findall(r"<w:p[ >].*?</w:p>", xml, re.S):
             p = re.sub(r"<w:br[^>]*/>", "<w:t>\n</w:t>", p)  # a line break inside a paragraph ("About the role" heading)

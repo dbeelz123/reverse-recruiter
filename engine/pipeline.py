@@ -76,7 +76,9 @@ def reached(pl, has_kit):
 
 
 def in_progress_count(P):
-    """Applications sent and still open (applied or further, not rejected/withdrawn), as published on LinkedIn."""
+    """Applications sent and still open (applied or further, not rejected/withdrawn), as published on LinkedIn.
+    An offer counts as in progress on purpose: it's still open until accepted or declined, and either outcome is
+    recorded as a new status (declining is 'passed'), which takes it out of this count."""
     jobs = [load(f) for f in P.jobs.glob("*.json")]
     return sum(1 for j in jobs if reached(j.get("pipeline"), False) >= STAGES.index("applied")
                and (j.get("pipeline") or {}).get("status") not in TERMINAL)

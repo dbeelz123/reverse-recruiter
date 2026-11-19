@@ -245,7 +245,10 @@ def stage_minutes(entry):
     """Active minutes per stage for one round (manual timing_minutes win)."""
     times = {}
     for e in entry.get("events", []):
-        times.setdefault(e["stage"], []).append(dt.datetime.fromisoformat(e["t"]))
+        try:  # a hand-edited or half-written event is skipped, never a crash
+            times.setdefault(e["stage"], []).append(dt.datetime.fromisoformat(e["t"]))
+        except (KeyError, TypeError, ValueError):
+            continue
     out = {}
     for s, ts in times.items():
         ts.sort()

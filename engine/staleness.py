@@ -105,9 +105,10 @@ def save(P, job):
 
 
 def set_check(P, job, result, date, source, note=None):
-    prev = job.get("open_check")
-    if prev and prev.get("date") and prev["date"] > date:
-        return False  # never let an older paste overwrite a newer check
+    prev = job.get("open_check") or {}
+    old, new = to_date(prev.get("date")), to_date(date)
+    if old and new and old > new:
+        return False  # never let an older paste overwrite a newer check (an unreadable stored date never blocks)
     job["open_check"] = {"date": date, "result": result, "source": source}
     if note:
         job["open_check"]["note"] = note
