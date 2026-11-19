@@ -36,7 +36,7 @@ import shutil
 from pathlib import Path
 
 import metrics
-from paths import Paths
+from paths import Paths, read_json, write_json
 
 VOLUME_LISTINGS, VOLUME_DAYS = 300, 14
 RULES_PER_100_MAX, RULES_ROUNDS = 1.0, 2       # fewer than 1 new rule per 100 listings, two rounds running
@@ -51,7 +51,7 @@ ALREADY = ("already dq", "viewed", "saved", "kept before", "dq after save")
 
 
 def mode(P):
-    d = json.loads(P.searches.read_text(encoding="utf-8"))
+    d = read_json(P.searches)
     return d.get("mode") or {"mode": "catch-up", "builder": True}
 
 
@@ -105,7 +105,7 @@ def rules_per_round(P):
 def card_stats(P):
     per = collections.defaultdict(collections.Counter)
     for f in sorted(P.search_runs.glob("*.json")):
-        d = json.loads(f.read_text(encoding="utf-8"))
+        d = read_json(f)
         if "round" not in d:
             continue
         c = per[int(d["round"])]
@@ -222,9 +222,9 @@ LOOKBACK = re.compile(r"^(week|month|any|\d+d)$")
 
 
 def save_mode(P, md):
-    d = json.loads(P.searches.read_text(encoding="utf-8"))
+    d = read_json(P.searches)
     d["mode"] = md
-    P.searches.write_text(json.dumps(d, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(P.searches, d, indent=1)
 
 
 def setup(P, a):
@@ -249,13 +249,13 @@ def backlog(P):
     """Listings LinkedIn reported but not yet captured, from each active search's latest run (result_count - cards)."""
     latest = {}
     for f in sorted(P.search_runs.glob("*.json")):
-        d = json.loads(f.read_text(encoding="utf-8"))
+        d = read_json(f)
         sid = str(d.get("search", "")).split()[0]
         if d.get("status") == "invalid" or not sid:
             continue
         if sid not in latest or (d.get("date", ""), f.name) >= (latest[sid].get("date", ""), latest[sid]["_f"]):
             latest[sid] = dict(d, _f=f.name)
-    active = {s["id"] for s in json.loads(P.searches.read_text(encoding="utf-8"))["searches"]
+    active = {s["id"] for s in read_json(P.searches)["searches"]
               if s.get("status") != "retired"}
     known, unknown = 0, []
     for sid in sorted(active):
@@ -372,7 +372,7 @@ def digest(P, a):
 
     Writes 2-reports/digest-<date>.md; earlier digests move to 2-reports/archive/ (folder hygiene)."""
     run_path = Path(a.run)
-    d = json.loads(run_path.read_text(encoding="utf-8"))
+    d = read_json(run_path)
     rows_ = [x for x in d.get("listings", []) if not str(x.get("status", "")).startswith(("invalid", "duplicate"))]
     skipped = [x for x in rows_ if str(x.get("status", "")).lower().startswith(ALREADY)]
     auto = [x for x in rows_ if str(x.get("status", "")).lower() == "auto dq"]
@@ -426,9 +426,9 @@ def tag(P):
     m = mode(P).get("mode", "catch-up")
     n = 0
     for f in sorted(P.search_runs.glob("*.json")):
-        d = json.loads(f.read_text(encoding="utf-8"))
+        d = read_json(f)
         if "mode" not in d:
-            f.write_text(json.dumps(with_mode(d, m), indent=1, ensure_ascii=False), encoding="utf-8")
+            write_json(f, with_mode(d, m), indent=1)
             n += 1
     mm = metrics.load(P)
     k = 0
@@ -436,7 +436,7 @@ def tag(P):
         if "mode" not in r:
             r["mode"] = m
             k += 1
-    P.metrics.write_text(json.dumps(mm, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(P.metrics, mm, indent=1)
     print(f"Tagged {n} search-run files and {k} metrics rounds as {m}.")
 
 

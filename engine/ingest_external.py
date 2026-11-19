@@ -3,7 +3,7 @@
 Usage:
   python engine/ingest_external.py <description file> --id ext-<slug> --company "..." --title "..."
          [--location "Springfield, IL"] [--workplace Remote|Hybrid|On-site] [--employment Full-time|Contract|...]
-         [--source "Acme Staffing (recruiter, via referral)"] [--status "interviewing"] [--stage "round 2 on 2026-01-15"]
+         [--source "Acme Staffing (recruiter, via referral)"] [--status interview] [--stage "round 2 on 2026-01-15"]
          [--pay "..."] [--data my-data]
 
 Input: .docx, .pdf or .txt/.md, anywhere under the data folder (usually the kit folder in 3-applications/).
@@ -19,11 +19,12 @@ import datetime as dt
 import io
 import json
 import re
+import sys
 import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
-from paths import Paths
+from paths import Paths, read_json, write_json
 
 SALARY = re.compile(r"\$\s?\d[\d,.]*\s?[Kk]?(?:\s?(?:-|–|to)\s?\$\s?\d[\d,.]*\s?[Kk]?)?")
 
@@ -49,6 +50,16 @@ def read_text(path: Path) -> str:
     raise SystemExit(f"Unsupported file type {ext}: use .docx, .pdf, .txt or .md")
 
 
+from pipeline import STAGES, TERMINAL, OTHER  # noqa: E402
+
+STATUSES = STAGES + OTHER + TERMINAL
+
+
+def normalize(argv):
+    """Accept the older spelling '--status interviewing' and store the pipeline's own name, 'interview'."""
+    return ["interview" if x == "interviewing" and i and argv[i - 1] == "--status" else x for i, x in enumerate(argv)]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
@@ -59,11 +70,12 @@ def main():
     ap.add_argument("--workplace", default=None, choices=["Remote", "Hybrid", "On-site"])
     ap.add_argument("--employment", default=None)
     ap.add_argument("--source", default=None)
-    ap.add_argument("--status", default=None, help="pipeline status, e.g. interviewing")
+    ap.add_argument("--status", default=None, choices=STATUSES,
+                    help="pipeline status (engine/pipeline.py stages), e.g. interview")
     ap.add_argument("--stage", default=None)
     ap.add_argument("--pay", default=None)
     ap.add_argument("--data", default=None)
-    a = ap.parse_args()
+    a = ap.parse_args(normalize(sys.argv[1:]))
     if not a.id.startswith("ext-"):
         raise SystemExit("External job IDs start with 'ext-' so they never collide with LinkedIn job IDs.")
     P = Paths(a.data)
@@ -77,7 +89,7 @@ def main():
     key = P.rel(src)
     text = read_text(src)
     out = P.jobs / f"{a.id}.json"
-    rec = json.loads(out.read_text(encoding="utf-8")) if out.exists() else {}
+    rec = read_json(out, {})
     now = dt.datetime.now().isoformat(timespec="seconds")
     rec.update({
         "job_id": a.id,
@@ -98,12 +110,12 @@ def main():
     if a.status or a.stage:
         rec["pipeline"] = {"status": a.status, "stage": a.stage, "updated": now[:10]}
     rec.setdefault("connections_1st", [])
-    out.write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
-    ledger = json.loads(P.ledger.read_text(encoding="utf-8")) if P.ledger.exists() else {}
+    write_json(out, rec, indent=2)
+    ledger = read_json(P.ledger, {})
     st = src.stat()
     ledger[key] = {"job_id": a.id, "kind": "external", "sig": {"size": st.st_size, "mtime": int(st.st_mtime)},
                    "processed_at": now}
-    P.ledger.write_text(json.dumps(ledger, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_json(P.ledger, ledger, indent=2)
     print(f"external {a.id}  {key}  ({len(text)} chars) -> {P.rel(out)}")
     print("Next: review it (engine/prompts/review-rubric.md) in the current round's reviews file, then rebuild the report.")
 

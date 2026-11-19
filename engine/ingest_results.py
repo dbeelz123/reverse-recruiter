@@ -25,6 +25,8 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import quote
 
+from paths import read_json, write_json
+
 STATUS = ("Viewed", "Saved", "Applied", "Promoted", "Easy Apply", "Be an early applicant", "Actively reviewing applicants")
 LOC = re.compile(r"\((Remote|Hybrid|On-site)\)$|^[A-Z][\w .'-]+, [A-Z]{2}$|Metropolitan Area$|^United States$|, United States$")
 
@@ -122,12 +124,12 @@ def main():
         with src.open(encoding="utf-8-sig", newline="") as f:
             cards = from_rows(csv.DictReader(f))
     elif ext == ".json":
-        cards = from_rows(json.loads(src.read_text(encoding="utf-8")))
+        cards = from_rows(read_json(src))
     else:
         sys.exit(f"Unsupported file type {ext}: use .txt/.md (pasted results), .csv or .json")
     for c in cards:
         c["find"] = find_link(c["title"], c["company"])
-    out.write_text(json.dumps(cards, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(out, cards, indent=1)
     banner = next((c["n"] for c in cards if c["section"] == "after banner"), None)
     print(f"{len(cards)} cards -> {out}")
     print("workplace:", dict(Counter(c["workplace"] for c in cards)))

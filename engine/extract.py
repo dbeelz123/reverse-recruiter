@@ -15,7 +15,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths
+from paths import Paths, read_json, write_json
 
 import pymupdf
 
@@ -238,7 +238,7 @@ def main():
     jobs_dir = P.jobs
     jobs_dir.mkdir(parents=True, exist_ok=True)
     ledger_path = P.ledger
-    ledger = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.exists() else {}
+    ledger = read_json(ledger_path, {})
     now = dt.datetime.now().isoformat(timespec="seconds")
     summary = []
 
@@ -251,13 +251,17 @@ def main():
             sig = {"size": st.st_size, "mtime": int(st.st_mtime)}
             if not args.all and ledger.get(key, {}).get("sig") == sig:
                 continue
-            job_id, printed, title_company, lines = page_lines(pdf)
+            try:
+                job_id, printed, title_company, lines = page_lines(pdf)
+            except Exception as e:  # damaged, password-protected or not really a PDF
+                summary.append(f"SKIP (unreadable PDF: {type(e).__name__}: {e}): {key}")
+                continue
             if not job_id:
                 summary.append(f"SKIP (no job URL found): {key}")
                 continue
             is_people = any(l.strip().startswith("Connections who work at") for l in lines)
             out = jobs_dir / f"{job_id}.json"
-            rec = json.loads(out.read_text(encoding="utf-8")) if out.exists() else {}
+            rec = read_json(out, {})
             rec.setdefault("job_id", job_id)
             rec["url"] = f"https://www.linkedin.com/jobs/view/{job_id}/"
             rec["list"] = list_name
@@ -280,7 +284,7 @@ def main():
                     if keep_old:
                         ledger[key] = {"job_id": job_id, "kind": "main-duplicate", "sig": sig, "processed_at": now}
                         rec["source_files"] = sorted(files)
-                        out.write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+                        write_json(out, rec, indent=2)
                         continue
                 if main_rec.get("workplace") is None and rec.get("workplace"):
                     # The page shows no workplace chip; keep the one set or confirmed earlier (e.g. a job confirmed remote
@@ -294,12 +298,12 @@ def main():
                 kind = "main"
             rec.setdefault("connections_1st", [])
             rec["extracted_at"] = now
-            out.write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+            write_json(out, rec, indent=2)
             ledger[key] = {"job_id": job_id, "kind": kind, "sig": sig, "processed_at": now}
             flag = "  [TRUNCATED: re-save with 'See more' expanded]" if rec.get("truncated") and kind == "main" else ""
             summary.append(f"{kind:6} {job_id}  {key}{flag}")
 
-    ledger_path.write_text(json.dumps(ledger, indent=2), encoding="utf-8")
+    write_json(ledger_path, ledger, indent=2, ensure_ascii=True)
     summary += repost_check(P, data, [s.split()[1] for s in summary if s.startswith("main ")],
                             [P.rel(p) for p in P.job_pdfs.glob(f"*{DUP_SUFFIX}.pdf")])
     print("\n".join(summary) if summary else "Nothing new to process.")
@@ -323,8 +327,8 @@ def repost_check(P, data, new_ids, dup_files):
         a, b = (a or "")[:4000], (b or "")[:4000]
         return round(difflib.SequenceMatcher(None, a, b, autojunk=False).ratio(), 2) if a and b else 0.0
 
-    jobs = {f.stem: json.loads(f.read_text(encoding="utf-8")) for f in P.jobs.glob("*.json")}
-    tombs = json.loads(P.removed.read_text(encoding="utf-8")) if P.removed.exists() else []
+    jobs = {f.stem: read_json(f) for f in P.jobs.glob("*.json")}
+    tombs = read_json(P.removed, [])
     out = []
     for f in dup_files:  # name-collision saves
         orig = f.replace(DUP_SUFFIX, "")
@@ -358,7 +362,7 @@ def repost_check(P, data, new_ids, dup_files):
                              "removed": t.get("removed"), "reason": t.get("reason")})
         if hits:
             rec["possible_repost_of"] = hits
-            (P.jobs / f"{jid}.json").write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+            write_json((P.jobs / f"{jid}.json"), rec, indent=2)
             for h in hits:
                 detail = (f"current, {h['tier']} {h['total']}, text {h['text_similarity']:.0%} alike" if h["where"] == "current"
                           else f"removed {h['removed']}: {h['reason']}")

@@ -17,7 +17,7 @@ from pathlib import Path
 import re
 import sys
 
-from paths import Paths, write_json
+from paths import Paths, write_json, read_json
 
 
 def main():
@@ -32,9 +32,9 @@ def main():
     data = P.data
 
     ledger_p = P.ledger
-    ledger = json.loads(ledger_p.read_text(encoding="utf-8")) if ledger_p.exists() else {}
+    ledger = read_json(ledger_p, {})
     tomb_p = P.removed
-    tombs = json.loads(tomb_p.read_text(encoding="utf-8")) if tomb_p.exists() else []
+    tombs = read_json(tomb_p, [])
 
     for jid in args.job_ids:
         if not re.fullmatch(r"[\w-]+", jid):
@@ -42,7 +42,7 @@ def main():
         done = []
         rec_p = P.jobs / f"{jid}.json"
         label = jid
-        rec = json.loads(rec_p.read_text(encoding="utf-8")) if rec_p.exists() else {}
+        rec = read_json(rec_p, {})
         company, title, pipeline = rec.get("company"), rec.get("title"), rec.get("pipeline")
         if rec:
             label = f"{company} - {title} ({jid})"
@@ -60,7 +60,7 @@ def main():
             tombs.append(tomb)
             write_json(tomb_p, tombs)
         for rv in sorted(P.reviews.glob("*.json")):
-            r = json.loads(rv.read_text(encoding="utf-8"))
+            r = read_json(rv)
             if jid in r.get("jobs", {}):
                 del r["jobs"][jid]
                 write_json(rv, r)

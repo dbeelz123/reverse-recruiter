@@ -18,7 +18,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths
+from paths import Paths, read_json
 
 
 def excerpt(text, m, width=90):
@@ -32,7 +32,7 @@ def main():
     ap.add_argument("--data", default=None)
     args = ap.parse_args()
     P = Paths(args.data)
-    spec = json.loads(P.spec.read_text(encoding="utf-8"))
+    spec = read_json(P.spec)
     rules = ([("DEALBREAKER", r) for r in spec.get("dealbreakers", []) if r.get("status") == "confirmed"]
              + [("NEGATIVE", r) for r in spec.get("negatives", []) if r.get("status") == "confirmed"]
              + [("QUALIFIER", r) for r in spec.get("qualifiers", []) if r.get("status") == "confirmed"])
@@ -43,7 +43,7 @@ def main():
     # are covered even before build_report.py has copied review blocks into the job records.
     reviews = {}
     for rf in sorted(P.reviews.glob("round-*.json")):
-        rd = json.loads(rf.read_text(encoding="utf-8"))
+        rd = read_json(rf)
         for jid, rv in rd.get("jobs", {}).items():
             total = (rv.get("fit") or 0) + rv.get("network_bonus", 0) + sum(a["points"] for a in rv.get("adjustments", []))
             reviews[jid] = dict(rv, round=rd.get("round"), total=total)
@@ -51,7 +51,7 @@ def main():
     print(f"Re-screen against spec v{spec.get('version')}\n")
     checked = 0
     for f in sorted(P.jobs.glob("*.json")):
-        j = json.loads(f.read_text(encoding="utf-8"))
+        j = read_json(f)
         r = reviews.get(j["job_id"]) or j.get("review")
         if not r:
             print(f"NOT REVIEWED: {j['company']} - {j['title']} ({j['job_id']})\n")

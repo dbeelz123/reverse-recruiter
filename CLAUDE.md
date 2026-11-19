@@ -43,5 +43,6 @@ Overview: [README.md](README.md). The full process: [docs/how-it-works.md](docs/
 
 ## Engine changes
 - Keep `engine/`, `docs/` and this file free of personal data and personal paths: say "the user", never a name.
-- After any engine change, run `python -B engine/privacy_scan.py` (0 hits) and test on a **copy** of the data folder, comparing outputs before and after.
+- After any engine change, run `python -B engine/privacy_scan.py` (0 hits) and `python -B -m unittest discover -s tests` (all pass), and test on a **copy** of the data folder, comparing outputs before and after. Add a test for every bug fixed.
+- Read and write data files only through `paths.read_json` / `paths.write_json` (clear errors, atomic writes); never delete outside the folder a file belongs to (`Paths.inside`).
 - The pre-commit hook (`scripts/hooks/pre-commit`) blocks personal-data paths and anything the privacy scan finds; never bypass it.

@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date  # noqa: E402
+from paths import Paths, iso_date, read_json, write_json  # noqa: E402
 
 STAGES = ["kit", "applied", "response", "interview", "offer"]
 TERMINAL = ["passed", "rejected", "withdrawn", "closed"]
@@ -36,7 +36,7 @@ QUEUE_TIERS = ("A", "B")
 
 
 def load(p, default=None):
-    return json.loads(Path(p).read_text(encoding="utf-8")) if Path(p).exists() else default
+    return read_json(Path(p), default)
 
 
 def md(s):
@@ -62,8 +62,9 @@ def kits(P):
 def reached(pl, has_kit):
     """Highest funnel stage a job has reached. A rejection after applying counts as a response."""
     stages = {e["stage"] for e in (pl or {}).get("events", [])}
-    if (pl or {}).get("status") in STAGES:
-        stages.add(pl["status"])
+    status = {"interviewing": "interview"}.get((pl or {}).get("status"), (pl or {}).get("status"))  # older records
+    if status in STAGES:
+        stages.add(status)
     if "rejected" in stages and stages & {"applied", "response", "interview", "offer"}:
         stages.add("response")
     if has_kit:
@@ -124,7 +125,7 @@ def record(P, a):
     if a.next:
         pl["next"] = a.next
     pl["updated"] = dt.date.today().isoformat()
-    (P.jobs / f"{jid}.json").write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_json((P.jobs / f"{jid}.json"), rec, indent=2)
     print(f"{rec['company']} - {rec['title']}: {a.stage} ({a.date or 'date unknown'})")
 
 

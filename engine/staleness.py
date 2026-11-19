@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date  # noqa: E402
+from paths import Paths, iso_date, read_json, write_json  # noqa: E402
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
 OLD_DAYS = 30     # listings at least this old (estimated) get a warning even when last seen open
@@ -37,7 +37,7 @@ TERMINAL = ("passed", "rejected", "withdrawn", "closed")
 
 
 def load(p, default=None):
-    return json.loads(Path(p).read_text(encoding="utf-8")) if Path(p).exists() else default
+    return read_json(Path(p), default)
 
 
 def days_from(text):
@@ -77,6 +77,8 @@ def verdict(job, today):
         checked = dt.date.fromisoformat(oc.get("date") or "")
     except ValueError:  # missing or hand-edited date: treat as never confirmed
         checked = None
+    if checked and checked > today:  # a date in the future is a typo, not evidence
+        return "check", f"open check dated {oc['date']}, which is in the future: check again"
     if oc.get("result") == "open" and checked:
         ago = (today - checked).days
         seen = f"seen open {oc['date']} ({oc.get('source')}, {ago} day{'' if ago == 1 else 's'} ago)"
@@ -100,7 +102,7 @@ def describe_age(job, today):
 
 
 def save(P, job):
-    (P.jobs / f"{job['job_id']}.json").write_text(json.dumps(job, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_json((P.jobs / f"{job['job_id']}.json"), job, indent=2)
 
 
 def set_check(P, job, result, date, source, note=None):

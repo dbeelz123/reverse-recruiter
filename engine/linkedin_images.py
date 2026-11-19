@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 
 import metrics
-from paths import Paths
+from paths import Paths, read_json
 
 W, H, SCALE = 1088, 707, 3
 BROWSERS = [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -125,7 +125,7 @@ def render(browser, html, out_png, tmp):
 
 
 def grade_counts(P):
-    jobs = [json.loads(f.read_text(encoding="utf-8")) for f in P.jobs.glob("*.json")]
+    jobs = [read_json(f) for f in P.jobs.glob("*.json")]
     counts = collections.Counter((j.get("review") or {}).get("tier") for j in jobs)
     return {g: counts.get(g, 0) for g, *_ in TIERS}
 

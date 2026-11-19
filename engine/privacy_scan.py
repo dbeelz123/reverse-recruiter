@@ -10,7 +10,8 @@ What it looks for:
     no list is found (the pre-commit hook uses it).
   - patterns that leak whatever the list misses: Windows or macOS home-folder paths, email addresses,
     LinkedIn profile links.
-A line containing "privacy-scan: ignore" is skipped; only the scanner's own pattern definitions use it.
+A line marked "privacy-scan: ignore" is skipped only inside privacy_scan.py itself (its own pattern
+definitions); anywhere else the marker does nothing.
 Deliberate exceptions (e.g. the author's name in LICENSE) go in an allow file, one per line: "<path> | <phrase>",
 paths relative to the folder being scanned. The phrase is removed from that file's lines before checking, so every
 other term in the same line is still caught. Default: .privacy-allow in the folder being scanned; --allow FILE
@@ -81,7 +82,7 @@ def scan(paths, words, allow_file=None):
             if rel == ".privacy-allow":  # the exceptions list names what it allows
                 continue
             for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-                if IGNORE in line:  # the scanner's own pattern definitions
+                if IGNORE in line and f.name == "privacy_scan.py":  # only the scanner's own pattern lines
                     continue
                 for phrase in allow.get(rel, []):
                     line = re.sub(re.escape(phrase), " ", line, flags=re.I)

@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths
+from paths import Paths, read_json, write_json
 from urllib.parse import quote
 
 import sys
@@ -61,7 +61,7 @@ def tiers_svg(reviewed, path, rnd):
 
 
 def load(p: Path, default=None):
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else default
+    return read_json(p, default)
 
 
 def md_cell(s):
@@ -112,7 +112,7 @@ def main():
                 r["tier"] = "A" if r["total"] >= 80 else "B" if r["total"] >= 65 else "C" if r["total"] >= 50 else "D"
             r["round"] = from_round
             rec["review"] = r
-            f.write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+            write_json(f, rec, indent=2)
         jobs[rec["job_id"]] = rec
 
     reviewed = [j for j in jobs.values() if "review" in j]
@@ -396,6 +396,21 @@ def main():
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(out), encoding="utf-8")
     print(f"Wrote {path}  ({len(reviewed)} jobs, {len(conn_leads)} connection leads)")
+    archive_earlier(P, args.round)
+
+
+def archive_earlier(P, rnd):
+    """Each round's report replaces the last: earlier rounds' reports and their images move to 2-reports/archive/.
+    Rebuilding the same round simply overwrites its own files."""
+    moved = []
+    for f in sorted(P.reports.glob("*-round-*")):
+        m = re.search(r"-round-(\d+)-(report\.md|funnel\.svg|tiers\.svg)$", f.name)
+        if f.is_file() and m and int(m.group(1)) < rnd:
+            (P.reports / "archive").mkdir(exist_ok=True)
+            f.replace(P.reports / "archive" / f.name)
+            moved.append(f.name)
+    if moved:
+        print("Archived earlier round files: " + ", ".join(moved))
 
 
 if __name__ == "__main__":

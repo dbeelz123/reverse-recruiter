@@ -26,7 +26,7 @@ import argparse
 import datetime as dt
 import json
 
-from paths import Paths
+from paths import Paths, read_json, write_json
 from triaged import key
 
 # Display names for the four stages (decided 2026-11-18; also used on the LinkedIn project images).
@@ -38,7 +38,7 @@ def funnel_from_runs(P):
     """Stages 1-2 per round from the search-run files, deduplicated across all runs in round order."""
     runs = []
     for f in sorted(P.search_runs.glob("*.json")):
-        d = json.loads(f.read_text(encoding="utf-8"))
+        d = read_json(f)
         if "round" in d:
             runs.append((d["round"], d.get("date", ""), f.name, d))
     runs.sort(key=lambda r: (r[0], r[1], r[2]))
@@ -64,8 +64,8 @@ def funnel_from_runs(P):
 
 
 def current_state(P):
-    jobs = [json.loads(f.read_text(encoding="utf-8")) for f in P.jobs.glob("*.json")]
-    removed = json.loads(P.removed.read_text(encoding="utf-8")) if P.removed.exists() else []
+    jobs = [read_json(f) for f in P.jobs.glob("*.json")]
+    removed = read_json(P.removed, [])
     removed = removed if isinstance(removed, list) else removed.get("removed", [])
     ids = {j["job_id"] for j in jobs} | {r["job_id"] for r in removed if r.get("job_id")}
     ranked = sum(1 for j in jobs if (j.get("review") or {}).get("tier") not in ("X", "?", None))
@@ -73,7 +73,7 @@ def current_state(P):
 
 
 def load(P):
-    return json.loads(P.metrics.read_text(encoding="utf-8")) if P.metrics.exists() else {"rounds": []}
+    return read_json(P.metrics, {"rounds": []})
 
 
 def done(m):
@@ -91,7 +91,7 @@ def record(P, rnd):
     if entry is None:
         entry = {"round": rnd}
         m["rounds"].append(entry)
-    searches = json.loads(P.searches.read_text(encoding="utf-8")) if P.searches.exists() else {}
+    searches = read_json(P.searches, {})
     entry.update({"date": dt.date.today().isoformat(), "source": "recorded by metrics.py",
                   "mode": (searches.get("mode") or {}).get("mode", "catch-up"),  # triage mode (docs/PLAN.md)
                   "pdfs_new": len(new_ids) if prev_ids else entry.get("pdfs_new", len(new_ids)),
@@ -100,7 +100,7 @@ def record(P, rnd):
     ev = [e for e in entry.get("events", []) if not (e.get("note") or "").startswith("file time:")]
     entry["events"] = sorted(ev + (file_events(P, rnd, new_ids) if prev_ids else []), key=lambda e: e["t"])
     m["rounds"].sort(key=lambda r: r["round"])
-    P.metrics.write_text(json.dumps(m, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(P.metrics, m, indent=1)
     return m
 
 
@@ -201,14 +201,14 @@ def add_event(P, rnd, stage, note=None, at=None):
         m["rounds"].sort(key=lambda r: r["round"])
     t = at or dt.datetime.now().isoformat(timespec="seconds")
     entry.setdefault("events", []).append({"t": t, "stage": stage, **({"note": note} if note else {})})
-    P.metrics.write_text(json.dumps(m, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(P.metrics, m, indent=1)
 
 
 def file_events(P, rnd, new_ids):
     """Capture and export events from file save times (pasted search results; PDFs of this round's new jobs)."""
     ev = []
     for f in P.search_runs.glob("*.json"):
-        d = json.loads(f.read_text(encoding="utf-8"))
+        d = read_json(f)
         if d.get("round") != rnd or not d.get("source"):
             continue
         src = P.data / d["source"].split(" (")[0]
@@ -219,7 +219,7 @@ def file_events(P, rnd, new_ids):
         jf = P.jobs / f"{jid}.json"
         if not jf.exists():
             continue
-        for rel in json.loads(jf.read_text(encoding="utf-8")).get("source_files", []):
+        for rel in read_json(jf).get("source_files", []):
             pdf = P.data / rel
             if pdf.exists() and pdf.suffix.lower() == ".pdf" and P.job_pdfs in pdf.parents:
                 ev.append({"t": dt.datetime.fromtimestamp(pdf.stat().st_mtime).isoformat(timespec="seconds"),

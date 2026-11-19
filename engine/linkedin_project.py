@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import linkedin_images  # noqa: E402
 import metrics  # noqa: E402
 import pipeline  # noqa: E402
-from paths import Paths  # noqa: E402
+from paths import Paths, read_json, write_json  # noqa: E402
 
 ASK_STAGE_MOVE = 2  # ask when any per-100 funnel stage moved by 2 or more (or qualified targets changed at all)
 # The sentence in the description that carries the number (section 7 of linkedin-profile.md).
@@ -38,11 +38,11 @@ NUMBERS = re.compile(r"about \d+ in every 100 listings processed make the cut as
 
 
 def load(P):
-    return json.loads(P.linkedin_project.read_text(encoding="utf-8")) if P.linkedin_project.exists() else {}
+    return read_json(P.linkedin_project, {})
 
 
 def save(P, rec):
-    P.linkedin_project.write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_json(P.linkedin_project, rec, indent=2)
 
 
 def current(P):

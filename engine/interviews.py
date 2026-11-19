@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date  # noqa: E402
+from paths import Paths, iso_date, read_json, write_json  # noqa: E402
 
 FOLLOW_APPLIED = 7
 FOLLOW_OUTREACH = 5
@@ -42,11 +42,11 @@ DEBRIEF_KEYS = ("how", "asked", "landed", "missed", "signals", "next", "lessons"
 
 
 def load(p, default=None):
-    return json.loads(Path(p).read_text(encoding="utf-8")) if Path(p).exists() else default
+    return read_json(Path(p), default)
 
 
 def save(P, job):
-    (P.jobs / f"{job['job_id']}.json").write_text(json.dumps(job, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_json((P.jobs / f"{job['job_id']}.json"), job, indent=2)
 
 
 def day(s):
@@ -140,7 +140,7 @@ def schedule(P, job, a):
 
 def debrief(P, job, a):
     iv = find_round(job, a.round, create=True)
-    data = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    data = read_json(Path(a.file))
     unknown = set(data) - set(DEBRIEF_KEYS)
     if unknown:
         sys.exit(f"Unknown debrief keys: {', '.join(sorted(unknown))}. Use: {', '.join(DEBRIEF_KEYS)}")

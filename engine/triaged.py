@@ -24,7 +24,7 @@ import re
 import sys
 from pathlib import Path
 
-from paths import Paths
+from paths import Paths, read_json, write_json
 
 P = Paths()
 ROOT = P.data.parent
@@ -113,22 +113,22 @@ def merge(entries, new):
 
 def load():
     if OUT.exists():
-        return json.loads(OUT.read_text(encoding="utf-8"))
+        return read_json(OUT)
     return {"updated": None, "note": __doc__.split("\n\n")[0], "entries": []}
 
 
 def save(db):
     db["entries"].sort(key=lambda e: (norm_company(e["company"]), norm_title(e["title"]) if e["title"] != "*" else ""))
-    OUT.write_text(json.dumps(db, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json(OUT, db, indent=1, newline=True)
 
 
 def seed():
     db = {"updated": None, "note": __doc__.split("\n\n")[0], "entries": []}
     files = sorted(P.search_runs.glob("*-triage-*.json")) + sorted(P.search_runs.glob("*-run-*.json"))
     for f in files:
-        a, u = merge(db["entries"], listing_entries(json.loads(f.read_text(encoding="utf-8")), P.rel(f)))
+        a, u = merge(db["entries"], listing_entries(read_json(f), P.rel(f)))
         print(f"{f.name}: {a} added, {u} already present")
-    removed = json.loads(P.removed.read_text(encoding="utf-8")) if P.removed.exists() else []
+    removed = read_json(P.removed, [])
     removed = [r for r in removed if isinstance(r, dict) and r.get("job_id")]  # skip malformed tombstones
     rem = []
     for r in removed:
@@ -151,13 +151,13 @@ def seed():
 
 def add(path):
     p = Path(path).resolve()
-    run = json.loads(p.read_text(encoding="utf-8"))
+    run = read_json(p)
     # Triage mode (docs/PLAN.md -> Triage modes): stamp the current mode on the run, and check that every card
     # The user decided in a batch carries the agent's own call ("likely"), so agreement can be measured.
     if "mode" not in run:
         import modes
         run = modes.with_mode(run, modes.mode(P).get("mode", "catch-up"))
-        p.write_text(json.dumps(run, indent=1, ensure_ascii=False), encoding="utf-8")
+        write_json(p, run, indent=1)
     missing = [x.get("id") for x in run.get("listings", []) if x.get("batch") and x.get("decision")
                and not x.get("likely") and not str(x.get("status", "")).startswith("saved")]
     if missing:
@@ -172,7 +172,7 @@ def add(path):
 
 
 def check(path):
-    cards = json.loads(Path(path).read_text(encoding="utf-8"))
+    cards = read_json(Path(path))
     db = load()
     by_key = {key(e["company"], e["title"]): e for e in db["entries"] if e["company"]}
     by_id = {e["job_id"]: e for e in db["entries"] if e.get("job_id")}
@@ -197,7 +197,7 @@ def check(path):
                             "action": "skip" if hit["decision"] == "dq" and not group_cut else "flag"}
         else:
             c["triaged"] = None
-    Path(path).write_text(json.dumps(cards, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(Path(path), cards, indent=1)
     acts = [c["triaged"]["action"] if c["triaged"] else "new" for c in cards]
     print(f"{len(cards)} cards: {acts.count('skip (saved)')} skip (Saved), {acts.count('skip (viewed)')} skip (Viewed), "
           f"{acts.count('skip (applied)')} skip (Applied), {acts.count('skip')} skip (DQ'd before), "
@@ -213,13 +213,13 @@ def match_saved(path):
     they still get the full review in the round, like every saved job.
     """
     p = Path(path)
-    run = json.loads(p.read_text(encoding="utf-8"))
+    run = read_json(p)
     rows = {}
     for e in run.get("listings", []):
         rows.setdefault(key(e["company"], e["title"]), []).append(e)
     linked, conflicts, outside = [], [], []
     for f in sorted(P.jobs.glob("*.json")):
-        j = json.loads(f.read_text(encoding="utf-8"))
+        j = read_json(f)
         hits = rows.get(key(j.get("company", ""), j.get("title", "")), [])
         for e in hits:
             if e.get("job_id") == j["job_id"]:
@@ -234,7 +234,7 @@ def match_saved(path):
                 linked.append(f'{e["id"]} {j["company"]} - {j["title"]} ({j["job_id"]})')
         if not hits and not j.get("review"):
             outside.append(f'{j["company"]} - {j["title"]} ({j["job_id"]})')
-    p.write_text(json.dumps(run, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_json(p, run, indent=1)
     print(f"{len(linked)} undecided rows now saved (off-batch):", *linked, sep="\n  ")
     print(f"{len(conflicts)} saved jobs DQ'd in this run (check):", *conflicts, sep="\n  ")
     print(f"{len(outside)} new saved jobs outside this triage:", *outside, sep="\n  ")
@@ -243,7 +243,7 @@ def match_saved(path):
 def keeps(path):
     """Save-check list at the end of a triage: every keep in the run, as a Markdown table with links,
     so the user can confirm each one is marked Saved on LinkedIn before saving the PDFs."""
-    run = json.loads(Path(path).read_text(encoding="utf-8"))
+    run = read_json(Path(path))
     rows = [e for e in run.get("listings", []) if e.get("decision") == "keep"]
     print(f"{len(rows)} keeps in {run.get('search', '?')} ({run.get('date', '?')}). Confirm each is Saved on LinkedIn.\n")
     print("| # | Job | Location | Batch | LinkedIn match | PDF saved |")

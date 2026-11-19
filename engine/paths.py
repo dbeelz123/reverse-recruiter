@@ -43,13 +43,41 @@ def iso_date(s):
         raise argparse.ArgumentTypeError(f"not a date (YYYY-MM-DD): {s!r}")
 
 
-def write_json(path, obj, indent=2):
+def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):
     """Write JSON atomically: a temporary file in the same folder, then os.replace, so a crash mid-write never
-    leaves a half-written record."""
+    leaves a half-written record. Every script writes its JSON through this."""
     path = Path(path)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(obj, indent=indent, ensure_ascii=False), encoding="utf-8")
+    tmp.write_text(json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii) + ("\n" if newline else ""),
+                   encoding="utf-8")
     os.replace(tmp, path)
+
+
+class DataFileError(SystemExit):
+    pass
+
+
+_REQUIRED = object()
+
+
+def read_json(path, default=_REQUIRED, expect=None):
+    """Read a JSON data file. A missing file returns `default` (or stops with a clear message when no default is
+    given); a damaged file, or one whose top level isn't `expect` (dict or list), stops with a message naming the
+    file instead of a raw traceback."""
+    path = Path(path)
+    if not path.exists():
+        if default is _REQUIRED:
+            raise DataFileError(f"Missing data file: {path}")
+        return default
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise DataFileError(f"Damaged data file: {path}\n  {e}\n  Fix it by hand or restore it from a backup, "
+                            f"then rerun.")
+    if expect is not None and not isinstance(data, expect):
+        raise DataFileError(f"Unexpected content in {path}: expected a JSON {expect.__name__}, "
+                            f"found {type(data).__name__}.")
+    return data
 
 
 class Paths:

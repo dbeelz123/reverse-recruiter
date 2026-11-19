@@ -9,6 +9,8 @@ import json
 import math
 import re
 
+from paths import read_json
+
 # (city, state) -> (lat, lon), filled by load_places() from the user's places.json.
 CITIES = {}
 
@@ -17,7 +19,7 @@ def load_places(P):
     """Load the user's gazetteer (5-criteria/places.json) into CITIES. Missing file: every city is 'unknown'."""
     CITIES.clear()
     if P.places.exists():
-        for c in json.loads(P.places.read_text(encoding="utf-8")).get("cities", []):
+        for c in read_json(P.places).get("cities", []):
             CITIES[(c["city"].lower(), c["state"].upper())] = (c["lat"], c["lon"])
     return CITIES
 

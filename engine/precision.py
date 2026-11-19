@@ -23,13 +23,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from modes import call_strength, likely_call, match_gated  # noqa: E402
-from paths import Paths  # noqa: E402
+from paths import Paths, read_json  # noqa: E402
 
 GOOD = ("A", "B")
 
 
 def load(p, default=None):
-    return json.loads(Path(p).read_text(encoding="utf-8")) if Path(p).exists() else default
+    return read_json(Path(p), default)
 
 
 def label(x):

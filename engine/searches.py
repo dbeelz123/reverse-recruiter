@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 from locations import US_STATES, home_state_of
-from paths import Paths
+from paths import Paths, read_json
 from urllib.parse import urlencode
 
 POSTED = {"day": "r86400", "week": "r604800", "month": "r2592000"}
@@ -79,8 +79,8 @@ def main():
     ap.add_argument("--data", default=None)
     args = ap.parse_args()
     P = Paths(args.data)
-    cfg = json.loads(P.searches.read_text(encoding="utf-8"))
-    spec = json.loads(P.spec.read_text(encoding="utf-8"))
+    cfg = read_json(P.searches)
+    spec = read_json(P.spec)
     c = spec["work_arrangement"]["machine_rule"]["hybrid_onsite_center"]
     st = home_state_of(c["name"])  # LinkedIn's location box wants the full state name: "Springfield, Illinois"
     center = re.sub(rf",\s*{st}\b", ", " + US_STATES[st].title(), c["name"]) if st in US_STATES else c["name"]

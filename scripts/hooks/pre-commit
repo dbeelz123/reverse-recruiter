@@ -7,6 +7,7 @@
 #
 # Blocks the commit when:
 #   - a staged path is a personal-data folder or a private-terms list;
+#   - a staged file is a document format the scan can't read (PDF, Word, Excel, PowerPoint, RTF, email);
 #   - engine/privacy_scan.py finds a private term, a home-folder path, an email address or a LinkedIn profile
 #     link in any staged text file;
 #   - no private-terms list is configured (the scan runs with --strict).
@@ -26,6 +27,15 @@ bad=$(printf '%s\n' "$files" | grep -E '(^|/)(my-data|private-data)/|private-ter
 if [ -n "$bad" ]; then
     echo "pre-commit: personal-data paths are staged:"
     printf '  %s\n' $bad
+    exit 1
+fi
+
+# Document formats the text scan can't read (resumes, saved postings, exports) never go in the repo.
+docs=$(printf '%s\n' "$files" | grep -iE '\.(pdf|docx?|rtf|odt|xlsx?|pptx?|msg|eml)$')
+if [ -n "$docs" ]; then
+    echo "pre-commit: document files are staged; the privacy scan can't read inside them:"
+    printf '  %s\n' $docs
+    echo "Keep resumes, saved postings and exports in your data folder, outside the repo."
     exit 1
 fi
 
