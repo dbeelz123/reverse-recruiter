@@ -53,10 +53,20 @@ def main():
     # Read reviews straight from reviews/round-NN.json (latest round wins), so jobs reviewed this round
     # are covered even before build_report.py has copied review blocks into the job records.
     reviews = {}
+    num = (int, float)
     for rf in sorted(P.reviews.glob("round-*.json")):
-        rd = read_json(rf)
-        for jid, rv in rd.get("jobs", {}).items():
-            total = (rv.get("fit") or 0) + rv.get("network_bonus", 0) + sum(a["points"] for a in rv.get("adjustments", []))
+        rd = read_json(rf, expect=dict)
+        jobs = rd.get("jobs", {})
+        if not isinstance(jobs, dict):
+            raise SystemExit(f"Malformed review file {rf}: 'jobs' must be an object keyed by job ID.")
+        for jid, rv in jobs.items():
+            adj = rv.get("adjustments", []) if isinstance(rv, dict) else None
+            if not (isinstance(rv, dict) and isinstance(rv.get("fit") or 0, num)
+                    and isinstance(rv.get("network_bonus", 0), num) and isinstance(adj, list)
+                    and all(isinstance(a, dict) and isinstance(a.get("points"), num) for a in adj)):
+                raise SystemExit(f"Malformed review for job {jid} in {rf}: needs a numeric 'fit' (or null), a "
+                                 f"numeric 'network_bonus' and 'adjustments' as a list of {{reason, points}}.")
+            total = (rv.get("fit") or 0) + rv.get("network_bonus", 0) + sum(a["points"] for a in adj)
             reviews[jid] = dict(rv, round=rd.get("round"), total=total)
 
     print(f"Re-screen against spec v{spec.get('version')}\n")

@@ -32,9 +32,10 @@ def main():
     data = P.data
 
     ledger_p = P.ledger
-    ledger = read_json(ledger_p, {})
+    # Both are checked up front, so a damaged file stops the removal before anything has changed.
+    ledger = read_json(ledger_p, {}, expect=dict)
     tomb_p = P.removed
-    tombs = read_json(tomb_p, [])
+    tombs = read_json(tomb_p, [], expect=list)
 
     for jid in args.job_ids:
         if not re.fullmatch(r"[\w-]+", jid):
@@ -69,10 +70,19 @@ def main():
             del ledger[key]
             done.append(f"ledger entry {key}")
         write_json(ledger_p, ledger)
+        locked = []
         for f in pdfs:
             if (data / f).exists():
-                (data / f).unlink()
-                done.append(f"deleted {f}")
+                try:
+                    (data / f).unlink()
+                    done.append(f"deleted {f}")
+                except OSError as e:  # e.g. open in a PDF viewer (Windows won't delete an open file)
+                    locked.append(f"{f} ({e.strerror or e})")
+        if locked:
+            # The job record is kept, so rerunning finds the remaining PDFs; the tombstone is already in place.
+            print(f"{label}: " + ", ".join(done))
+            sys.exit(f"Could not delete: {'; '.join(locked)}. Close the file (e.g. in a PDF viewer) and rerun the "
+                     f"same command to finish the removal.")
         if rec_p.exists():
             rec_p.unlink()
             done.append("deleted job record")

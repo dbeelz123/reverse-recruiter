@@ -248,6 +248,9 @@ def main():
         for pdf in sorted(folder.glob("*.pdf")):
             key = P.rel(pdf)
             st = pdf.stat()
+            # Size plus whole-second mtime: a re-saved posting differs in at least one of them in practice, and
+            # --all reprocesses everything. A content hash would change every stored signature, so every PDF
+            # would be re-extracted once, for a same-size, same-second replacement that manual saving doesn't produce.
             sig = {"size": st.st_size, "mtime": int(st.st_mtime)}
             if not args.all and isinstance(ledger.get(key), dict) and ledger[key].get("sig") == sig:
                 continue

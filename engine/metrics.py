@@ -67,6 +67,8 @@ def current_state(P):
     jobs = [read_json(f) for f in P.jobs.glob("*.json")]
     removed = tombstones(P.removed)
     removed = removed if isinstance(removed, list) else removed.get("removed", [])
+    # Removed jobs stay in the set on purpose: "PDFs saved" counts unique postings ever reviewed, so a job that is
+    # removed and later saved again (same job ID) isn't counted twice in the cumulative funnel.
     ids = {j["job_id"] for j in jobs} | {r["job_id"] for r in removed if r.get("job_id")}
     ranked = sum(1 for j in jobs if (j.get("review") or {}).get("tier") not in ("X", "?", None))
     return ids, ranked

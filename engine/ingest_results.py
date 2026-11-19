@@ -108,8 +108,10 @@ def from_rows(rows):
             sys.exit(f"row {n}: {', '.join(bad)} must be text" + (" (status and network may be a list of text)"
                      if {"status", "network"} & set(bad) else "") + "; fix the row and rerun")
         if not (r.get("title") and r.get("company")):
-            continue
-        loc = r.get("location") or ""
+            continue  # a blank or partial row (e.g. a trailing empty CSV line)
+        if not r.get("location"):  # required for CSV/JSON (see the docstring): the workplace filter guard needs it
+            sys.exit(f"row {n}: location is missing (required with title and company); fix the row and rerun")
+        loc = r["location"]
         st = r.get("status") or []
         cards.append({"n": len(cards) + 1, "title": r["title"], "company": r["company"], "location": loc,
                       "workplace": workplace(loc), "salary": r.get("salary") or None, "posted": r.get("posted") or None,

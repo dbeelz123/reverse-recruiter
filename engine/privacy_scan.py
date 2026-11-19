@@ -35,6 +35,7 @@ PATTERNS = {
 }
 TEXT = {".py", ".md", ".json", ".txt", ".html", ".svg", ".toml", ".cfg", ".yml", ".yaml", ".csv", ".tsv", ".xml",
         ".ini", ".sh", ".ps1", ".bat", ".gitignore", ".gitattributes", ""}
+IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp"}
 SKIP_DIRS = {"__pycache__", ".git"}  # archive/ folders are scanned too: old reports hold the same details
 
 
@@ -68,6 +69,21 @@ def allowed(f):
     return out
 
 
+def read_text(f):
+    """A file's text, or None when it isn't text. Every file is checked, whatever its extension: known text
+    types are read as text; anything else counts as text only if it has no NUL bytes and decodes as UTF-8, so an
+    archive or other binary can't slip past the scan just because its extension isn't listed."""
+    data = f.read_bytes()
+    if f.suffix.lower() in TEXT:
+        return data.decode("utf-8", errors="replace")
+    if b"\0" in data[:8192]:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
 def scan(paths, words, allow_file=None):
     rx = [(f"private term '{w}'", re.compile(rf"(?<![\w]){re.escape(w)}(?![\w])", re.I)) for w in words]
     rx += [(name, re.compile(p)) for name, p in PATTERNS.items()]
@@ -76,12 +92,22 @@ def scan(paths, words, allow_file=None):
         allow = allowed(allow_file or (root / ".privacy-allow" if root.is_dir() else None))
         files = [root] if root.is_file() else sorted(p for p in root.rglob("*") if p.is_file())
         for f in files:
-            if f.suffix.lower() not in TEXT or SKIP_DIRS & set(f.parts):
+            if SKIP_DIRS & set(f.parts):
                 continue
             rel = f.relative_to(root).as_posix() if root.is_dir() else f.name
             if rel == ".privacy-allow":  # the exceptions list names what it allows
                 continue
-            for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            shown = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
+            text = read_text(f)
+            if text is None:  # not text: an image is only flagged for a look; anything else can't be checked
+                if f.suffix.lower() in IMAGES:
+                    print(f"{shown}: image, not scanned: check it by eye for names, paths or screenshots of personal data")
+                else:
+                    hits += 1
+                    print(f"{shown}: binary file the scan can't read (archive or unknown format): keep it out of "
+                          f"shareable folders")
+                continue
+            for n, line in enumerate(text.splitlines(), 1):
                 if IGNORE in line and f.name == "privacy_scan.py":  # only the scanner's own pattern lines
                     continue
                 for phrase in allow.get(rel, []):
@@ -89,7 +115,7 @@ def scan(paths, words, allow_file=None):
                 for name, r in rx:
                     if r.search(line):
                         hits += 1
-                        print(f"{f.relative_to(ROOT) if f.is_relative_to(ROOT) else f}:{n}: {name}: {line.strip()[:120]}")
+                        print(f"{shown}:{n}: {name}: {line.strip()[:120]}")
     return hits
 
 

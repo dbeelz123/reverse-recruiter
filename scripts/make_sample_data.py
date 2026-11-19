@@ -20,6 +20,41 @@ REPO = Path(__file__).resolve().parent.parent
 ENGINE = REPO / "engine"
 
 
+MANIFEST = ".sample-manifest.json"
+
+
+def digest(path):
+    """SHA-256 of a file with line endings normalized, so a Windows checkout (CRLF) matches what was generated."""
+    import hashlib
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def write_manifest(out):
+    """Record every generated file and its hash. Only a folder whose files all still match is ever replaced."""
+    files = sorted(p for p in out.rglob("*") if p.is_file() and p.name != MANIFEST)
+    write(out / MANIFEST, {p.relative_to(out).as_posix(): digest(p) for p in files})
+
+
+def changes(out):
+    """Why `out` isn't an untouched folder made by this script ([] if it is). A copy of the README or of the whole
+    folder isn't enough: any file added or edited since generation means it holds someone's work."""
+    m = out / MANIFEST
+    if not m.is_file():
+        return [f"no {MANIFEST} (not made by this script)"]
+    try:
+        known = json.loads(m.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return [f"{MANIFEST} is damaged"]
+    out_of_place = []
+    for f in sorted(p for p in out.rglob("*") if p.is_file() and p.name != MANIFEST):
+        rel = f.relative_to(out).as_posix()
+        if rel not in known:
+            out_of_place.append(f"added: {rel}")
+        elif known[rel] != digest(f):
+            out_of_place.append(f"changed: {rel}")
+    return out_of_place
+
+
 def write(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(content, (dict, list)):
@@ -669,12 +704,15 @@ def main():
     ap.add_argument("--out", default=str(REPO / "sample-data"))
     out = Path(ap.parse_args().out).resolve()
     if out.exists():
-        # Only ever replace a folder this script made: never a filesystem root, the repo itself, or anything else.
-        made_here = (out / "README.md").is_file() and "scripts/make_sample_data.py" in (out / "README.md").read_text(
-            encoding="utf-8", errors="replace")
-        if out == Path(out.anchor) or out in (REPO, Path.home()) or not made_here:
-            sys.exit(f"Refusing to replace {out}: it isn't a sample-data folder made by this script. "
-                     "Choose a new or empty --out folder.")
+        # Only ever replace a folder this script made and nobody has changed since: never a filesystem root, the
+        # repo itself, or a folder holding anyone's work (checked file by file against the generation manifest).
+        if out == Path(out.anchor) or out in (REPO, Path.home()):
+            sys.exit(f"Refusing to replace {out}. Choose a new or empty --out folder.")
+        found = changes(out) if any(out.iterdir()) else []
+        if found:
+            sys.exit(f"Refusing to replace {out}: it isn't an unchanged sample-data folder made by this script ("
+                     + "; ".join(found[:5]) + ("; ..." if len(found) > 5 else "") + "). Choose a new or empty "
+                     "--out folder.")
         shutil.rmtree(out)
     D = out
     data = ["--data", D]
@@ -788,6 +826,7 @@ To try it without changing these files, copy the folder first:
     run(ENGINE / "build_report.py", *data, "--round", 2)
     run(ENGINE / "searches.py", *data)
     run(ENGINE / "pipeline.py", "queue", *data)
+    write_manifest(out)
     print(f"Sample data written to {out}")
 
 
