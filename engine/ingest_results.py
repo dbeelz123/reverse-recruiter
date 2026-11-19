@@ -124,7 +124,10 @@ def main():
         with src.open(encoding="utf-8-sig", newline="") as f:
             cards = from_rows(csv.DictReader(f))
     elif ext == ".json":
-        cards = from_rows(read_json(src))
+        rows = read_json(src, expect=list)
+        if not all(isinstance(r, dict) for r in rows):
+            sys.exit(f"{src}: every item must be an object with title, company and location")
+        cards = from_rows(rows)
     else:
         sys.exit(f"Unsupported file type {ext}: use .txt/.md (pasted results), .csv or .json")
     for c in cards:

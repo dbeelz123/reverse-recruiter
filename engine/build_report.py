@@ -64,6 +64,28 @@ def load(p: Path, default=None):
     return read_json(p, default)
 
 
+def check_review(path, jid, r):
+    """Stop with the file, job and field when a review entry is malformed, instead of a KeyError mid-report."""
+    num = (int, float)
+    problems = []
+    if not isinstance(r, dict):
+        problems.append("the entry isn't an object")
+    else:
+        if "fit" not in r or not (r["fit"] is None or isinstance(r["fit"], num)):
+            problems.append("'fit' must be a number (or null for an excluded job)")
+        if r.get("tier") not in TIER_ORDER:
+            problems.append(f"'tier' must be one of {', '.join(TIER_ORDER)}")
+        if not isinstance(r.get("network_bonus", 0), num):
+            problems.append("'network_bonus' must be a number")
+        adj = r.get("adjustments", [])
+        if not isinstance(adj, list) or not all(isinstance(a, dict) and isinstance(a.get("points"), num) for a in adj):
+            problems.append("'adjustments' must be a list of {reason, points}")
+        if not isinstance(r.get("summary", ""), str):
+            problems.append("'summary' must be text")
+    if problems:
+        raise SystemExit(f"Malformed review for job {jid} in {path}:\n  " + "\n  ".join(problems))
+
+
 def md_cell(s):
     return str(s).replace("|", "/").replace("\n", " ")
 
@@ -87,6 +109,7 @@ def main():
     for n in range(1, args.round + 1):
         rf = load(P.reviews / f"round-{n:02d}.json")
         for jid, entry in (rf or {}).get("jobs", {}).items():
+            check_review(P.reviews / f"round-{n:02d}.json", jid, entry)
             all_reviews[jid] = (entry, n)
     spec = load(P.spec, {})
     gaps = load(P.skills_gap, {"items": []})

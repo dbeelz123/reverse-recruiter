@@ -100,6 +100,16 @@ class Hook(SampleCase):
         self.stage("my-data/x.txt", "anything")
         self.assertNotEqual(self.hook().returncode, 0)
 
+    def test_data_folder_under_any_name_blocked(self):
+        self.stage("personal/6-system/jobs/1.json", "{}")
+        result = self.hook()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("personal-data paths", result.stdout)
+
+    def test_sample_data_layout_allowed(self):
+        self.stage("sample-data/6-system/jobs/1.json", "{}")
+        self.assertEqual(self.hook().returncode, 0)
+
     def test_staged_content_is_what_counts(self):
         self.stage("notes.md", "clean")
         (self.repo / "notes.md").write_text("Jordan Avery", encoding="utf-8")  # unstaged change

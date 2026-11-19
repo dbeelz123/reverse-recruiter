@@ -107,8 +107,10 @@ def main():
         "truncated": False, "leads": [], "main_file": key, "printed": None,
         "extracted_at": now,
     })
-    if a.status or a.stage:
-        rec["pipeline"] = {"status": a.status, "stage": a.stage, "updated": now[:10]}
+    if a.status or a.stage:  # merge: re-ingesting never erases recorded events or the next step
+        pl = rec.setdefault("pipeline", {})
+        pl.update({k: v for k, v in (("status", a.status), ("stage", a.stage)) if v})
+        pl["updated"] = now[:10]
     rec.setdefault("connections_1st", [])
     write_json(out, rec, indent=2)
     ledger = read_json(P.ledger, {})

@@ -50,7 +50,10 @@ def save(P, job):
 
 
 def day(s):
-    return dt.date.fromisoformat(s) if s else None
+    try:
+        return dt.date.fromisoformat(s) if s else None
+    except (TypeError, ValueError):  # "unknown" or a hand-edited value: treat as no date
+        return None
 
 
 def find_round(job, rnd, create=False):
@@ -124,7 +127,8 @@ def due_table(P, today, soon=0):
 
 def schedule(P, job, a):
     iv = find_round(job, a.round, create=True)
-    iv.update({k: v for k, v in (("date", a.date), ("with", a.with_), ("format", a.format)) if v})
+    date = None if a.date == "unknown" else a.date
+    iv.update({k: v for k, v in (("date", date), ("with", a.with_), ("format", a.format)) if v})
     iv["status"] = "scheduled"
     pl = job.setdefault("pipeline", {"events": []})
     if pl.get("status") not in ("interview", "offer"):

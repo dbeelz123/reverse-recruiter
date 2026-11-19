@@ -9,6 +9,9 @@ edits.json is a list of edits, each [find, before, deleted, inserted, after]:
   inserted  text shown as a tracked insertion ("" for a pure deletion)
   after     text kept after the change ("*" = the rest of the run)
 before + deleted + after must equal the run's text exactly (XML-escaped, e.g. "&amp;").
+Why only `inserted` is escaped: before, deleted and after are pieces of the run's existing XML text, which Word has
+already escaped, and the equality check above guarantees they are exactly that; escaping them again would turn
+"&amp;" into "&amp;amp;". `inserted` is new text, so it is escaped. The edited XML is parsed before writing.
 
 The source file is never modified. Check the output in Word afterwards: revisions count,
 one page with all changes accepted (Word COM: Revisions.Count, AcceptAllRevisions, ComputeStatistics(2)).
@@ -21,7 +24,8 @@ import sys
 import zipfile
 from xml.sax.saxutils import escape
 
-RUN = re.compile(r"<w:r(?: [^>]*)?>(<w:rPr>(?:(?!</w:rPr>|<w:r[ >]).)*</w:rPr>)"
+# A run with optional formatting (<w:rPr>), then its text. Runs without formatting are valid Word and common.
+RUN = re.compile(r"<w:r(?: [^>]*)?>(<w:rPr>(?:(?!</w:rPr>|<w:r[ >]).)*</w:rPr>)?"
                  r"<w:t(?: xml:space=\"preserve\")?>([^<]*)</w:t></w:r>")
 
 
@@ -47,7 +51,7 @@ def main():
         m = next((mm for mm in RUN.finditer(x) if find in mm.group(2)), None)
         if not m:
             sys.exit(f"Not found in any single run: {find!r}")
-        rpr, text = m.group(1), m.group(2)
+        rpr, text = m.group(1) or "", m.group(2)
         if before == "*":
             before = text[:text.index(find)]
         if after == "*":
@@ -68,6 +72,13 @@ def main():
         out += run(after)
         x = x[:m.start()] + out + x[m.end():]
 
+    # The edited XML must still parse before anything is written: a malformed result never reaches the output.
+    from xml.dom.minidom import parseString
+    from xml.parsers.expat import ExpatError
+    try:
+        parseString(x.encode("utf-8"))
+    except ExpatError as e:
+        sys.exit(f"The edited document.xml isn't well-formed ({e}); nothing was written. Check the edits.")
     with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
             zout.writestr(item, x.encode("utf-8") if item.filename == "word/document.xml" else zin.read(item.filename))

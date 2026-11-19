@@ -38,6 +38,17 @@ def main():
              + [("QUALIFIER", r) for r in spec.get("qualifiers", []) if r.get("status") == "confirmed"])
     blocked = [b["value"].split(" (")[0].lower() for b in spec.get("company_blocklist", [])
                if b.get("status") == "confirmed" and not b["value"].startswith("Companies owned")]
+    # Check every rule's patterns once, up front, so a typo in spec.json names the rule instead of crashing midway.
+    bad = []
+    for kind, rule in rules:
+        for field in ("title_regex", "rescreen_regex"):
+            if rule.get(field):
+                try:
+                    re.compile(rule[field])
+                except re.error as e:
+                    bad.append(f"  {kind} {rule.get('value', '?')[:60]!r}: {field} {rule[field]!r} ({e})")
+    if bad:
+        raise SystemExit(f"Invalid patterns in {P.spec}:\n" + "\n".join(bad))
 
     # Read reviews straight from reviews/round-NN.json (latest round wins), so jobs reviewed this round
     # are covered even before build_report.py has copied review blocks into the job records.

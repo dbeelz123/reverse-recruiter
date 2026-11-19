@@ -37,8 +37,8 @@ JUNK_LINES = {"Message", "Connect", "Follow", "Show all", "Show more", "Saved", 
 
 def page_lines(pdf: Path):
     """Text in reading order with LinkedIn's print header/footer lines removed."""
-    doc = pymupdf.open(pdf)
-    raw = "\n".join(p.get_text(sort=True) for p in doc)
+    with pymupdf.open(pdf) as doc:  # closed even when a page fails to read
+        raw = "\n".join(p.get_text(sort=True) for p in doc)
     job_id = (JOB_URL.search(raw) or [None, None])[1]
     m = PRINT_DATE.search(raw)
     printed = m.group(1) if m else None
