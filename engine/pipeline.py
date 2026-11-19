@@ -83,8 +83,11 @@ def in_progress_count(P):
 
 
 def last_event(pl):
-    ev = [(e["date"], i, e) for i, e in enumerate((pl or {}).get("events", [])) if e.get("date")]
-    return max(ev)[2] if ev else None  # same date: the one recorded later wins
+    """The latest dated step (same date: the one recorded later wins). Steps with no readable date ('unknown')
+    never beat a dated one; with no readable dates at all, the last step that has a date value, else None."""
+    events = [e for e in (pl or {}).get("events", []) if e.get("date")]
+    dated = [(to_date(e["date"]), i, e) for i, e in enumerate(events) if to_date(e["date"])]
+    return max(dated)[2] if dated else (events[-1] if events else None)
 
 
 def company_key(j):
@@ -208,7 +211,9 @@ def build(P):
     # Outcome funnel: current ranked jobs plus removed jobs that had got as far as an application.
     counts = collections.Counter()
     pool = [(j.get("pipeline"), j["job_id"] in kitmap) for j in ranked]
-    pool += [(t["pipeline"], True) for t in tombs if reached(t.get("pipeline"), False) >= STAGES.index("applied")]
+    # The funnel is cumulative: a job counts in every stage up to the furthest it reached, so an application counts
+    # as "Kit built" whether or not a kit folder exists (has_kit only matters for jobs not yet applied).
+    pool += [(t["pipeline"], False) for t in tombs if reached(t.get("pipeline"), False) >= STAGES.index("applied")]
     for pl, has_kit in pool:
         counts["ranked"] += 1
         for i in range(reached(pl, has_kit) + 1):

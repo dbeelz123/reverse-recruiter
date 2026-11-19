@@ -442,7 +442,8 @@ def tag(P):
 
 def main():
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--data", default=None)
+    # SUPPRESS: otherwise the subcommand's default (None) overwrites a --data given before the subcommand.
+    common.add_argument("--data", default=argparse.SUPPRESS)
     ap = argparse.ArgumentParser(parents=[common])
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("signals", "tag", "due", "progress"):
@@ -461,7 +462,7 @@ def main():
     s = sub.add_parser("digest", parents=[common], help="Keep-up check-in digest from a triaged run file")
     s.add_argument("run")
     a = ap.parse_args()
-    P = Paths(a.data)
+    P = Paths(getattr(a, "data", None))
     if a.cmd == "progress":
         print("\n".join(progress_md(P)) or "Not in Catch-up: no progress section.")
     elif a.cmd in ("setup", "set", "digest"):

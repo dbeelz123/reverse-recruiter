@@ -128,13 +128,14 @@ def live(P):
 
 def main():
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--data", default=None)
+    # SUPPRESS: otherwise the subcommand's default (None) overwrites a --data given before the subcommand.
+    common.add_argument("--data", default=argparse.SUPPRESS)
     ap = argparse.ArgumentParser(parents=[common])
     sub = ap.add_subparsers(dest="cmd", required=True)
     for c in ("check", "update", "live"):
         sub.add_parser(c, parents=[common])
     a = ap.parse_args()
-    P = Paths(a.data)
+    P = Paths(getattr(a, "data", None))
     {"check": check, "update": update, "live": live}[a.cmd](P)
 
 

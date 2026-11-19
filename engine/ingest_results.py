@@ -98,8 +98,15 @@ def parse_paste(text):
 
 def from_rows(rows):
     cards = []
-    for r in rows:
+    for n, r in enumerate(rows, 1):
         r = {k.strip().lower(): (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
+        bad = [k for k in ("title", "company", "location", "salary", "posted", "section")
+               if r.get(k) is not None and not isinstance(r[k], str)]
+        bad += [k for k in ("status", "network") if r.get(k) is not None and not (
+            isinstance(r[k], str) or (isinstance(r[k], list) and all(isinstance(x, str) for x in r[k])))]
+        if bad:
+            sys.exit(f"row {n}: {', '.join(bad)} must be text" + (" (status and network may be a list of text)"
+                     if {"status", "network"} & set(bad) else "") + "; fix the row and rerun")
         if not (r.get("title") and r.get("company")):
             continue
         loc = r.get("location") or ""

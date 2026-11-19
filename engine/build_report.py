@@ -111,10 +111,10 @@ def main():
         for jid, entry in (rf or {}).get("jobs", {}).items():
             check_review(P.reviews / f"round-{n:02d}.json", jid, entry)
             all_reviews[jid] = (entry, n)
-    spec = load(P.spec, {})
-    gaps = load(P.skills_gap, {"items": []})
-    calibration = load(P.calibration / f"{rnd}.json", {"questions": []})
-    insights = [i for i in load(P.searches, {}).get("insights", []) if i.get("round") == args.round]
+    spec = read_json(P.spec, {}, expect=dict)
+    gaps = read_json(P.skills_gap, {"items": []}, expect=dict)
+    calibration = read_json(P.calibration / f"{rnd}.json", {"questions": []}, expect=dict)
+    insights = [i for i in read_json(P.searches, {}, expect=dict).get("insights", []) if i.get("round") == args.round]
     blocked = {b["value"].split(" (")[0].lower() for b in spec.get("company_blocklist", [])}
     rule = spec.get("work_arrangement", {}).get("machine_rule", {})
     c = rule.get("hybrid_onsite_center")

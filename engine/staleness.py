@@ -151,11 +151,10 @@ def match_job(jobs, title, company):
     exact = [j for j in cands if norm(j.get("title")) == norm(title)]
     if len(exact) == 1:
         return exact[0]
-    best = max(cands, key=lambda j: difflib.SequenceMatcher(None, norm(j.get("title")), norm(title)).ratio(),
-               default=None)
-    if best and difflib.SequenceMatcher(None, norm(best.get("title")), norm(title)).ratio() >= 0.85:
-        return best
-    return None
+    # Fuzzy fallback only when exactly one job at the company is close: two near-identical titles (one posting at
+    # two levels, or a repost) would otherwise let a paste mark the wrong job open or closed.
+    close = [j for j in cands if difflib.SequenceMatcher(None, norm(j.get("title")), norm(title)).ratio() >= 0.85]
+    return close[0] if len(close) == 1 else None
 
 
 def tracker(P, path, date):

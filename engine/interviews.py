@@ -97,7 +97,9 @@ def due_items(job, today, soon=0):
     events = [(day(e.get("date")), e.get("stage")) for e in pl.get("events", [])]
     events += [(day(iv.get("date")), "interview-done") for iv in ivs if iv.get("status") == "done"]
     events = [e for e in events if e[0]]  # undated or unreadable dates can't start a timer
-    upcoming = any(iv.get("status") == "scheduled" and day(iv.get("date")) and day(iv["date"]) >= today for iv in ivs)
+    # A round still marked scheduled (upcoming, undated, or past and awaiting its debrief) means the ball isn't in
+    # the employer's court yet, so no "no news" timer runs; the debrief reminder above covers a past round.
+    upcoming = any(iv.get("status") == "scheduled" for iv in ivs)
     if events and not upcoming:
         last_date, last_stage = max(events)
         rule = {"applied": (FOLLOW_APPLIED, "no response since applying: send a short follow-up or ask your "
