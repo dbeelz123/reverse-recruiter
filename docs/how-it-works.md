@@ -11,7 +11,7 @@ This is the full process: the data folder, the round, the learning loop, triage,
 
 ## The data folder
 
-All personal data lives in one folder, outside the engine (default `my-data/`, git-ignored; any folder works with `--data <folder>`). Every script gets its paths from `engine/paths.py`. It's grouped by what you do with it:
+All personal data lives in one folder, outside the engine (default `my-data/`, git-ignored; any folder works with `--data <folder>`, or set `REVERSE_RECRUITER_DATA` to it once; `--data` wins when both are given). Every script gets its paths from `engine/paths.py`. It's grouped by what you do with it:
 
 ```
 <data>/

@@ -1,6 +1,7 @@
 """Where everything lives. Every script gets its locations from here, so a folder move is a one-line change.
 
-Layout of the data folder (default: <project>/my-data), set 2026-11-16:
+Layout of the data folder, set 2026-11-16. Which folder: --data <folder> if given, else the folder named by the
+REVERSE_RECRUITER_DATA environment variable, else <project>/my-data.
   1-inbox/job-pdfs/          saved LinkedIn job PDFs (you drop them here)
   1-inbox/search-results/    pasted search-result pages (.txt) for triage
   1-inbox/tracked-jobs/      pasted LinkedIn Job Tracker → Saved pages (.txt), used to check saves match the project
@@ -17,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA = ROOT / "my-data"
+DATA_ENV = "REVERSE_RECRUITER_DATA"  # set once (e.g. in Claude Code settings) when the data lives elsewhere
 
 # Relative to the data folder. JOB_PDFS is also the prefix stored in ledger keys and job records.
 JOB_PDFS = "1-inbox/job-pdfs"
@@ -110,7 +112,10 @@ def read_json(path, default=_REQUIRED, expect=None):
 
 class Paths:
     def __init__(self, data=None):
-        d = Path(data) if data else DEFAULT_DATA
+        env = os.environ.get(DATA_ENV, "").strip()
+        if not data and env and not Path(env).is_dir():  # a typo here must not quietly fall back to my-data/
+            raise DataFileError(f"{DATA_ENV} points to {env}, which isn't a folder. Fix the setting or pass --data.")
+        d = Path(data) if data else Path(env) if env else DEFAULT_DATA
         self.data = d
         # inbox
         self.job_pdfs = d / JOB_PDFS

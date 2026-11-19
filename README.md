@@ -91,7 +91,7 @@ What the numbers taught, and what changed because of them:
 | **Claude** (in Claude Code) | The judgment steps: reading each posting in full, scoring, writing caveats, calibration, resume and profile wording, application kits, primers. Rules for these are in `engine/prompts/` and `CLAUDE.md`. |
 | **You** | Saving jobs, answering calibration questions, approving every criteria change and removal, and everything outward-facing: applying, messaging, editing your profile. |
 
-Data and engine are separate. The engine never contains personal data; your data lives in its own folder (default `my-data/`, git-ignored) and every script takes `--data <folder>`. A pre-commit hook runs `engine/privacy_scan.py` so personal details can't be committed by accident.
+Data and engine are separate. The engine never contains personal data; your data lives in its own folder (default `my-data/`, git-ignored) and every script takes `--data <folder>`, or reads the folder from the `REVERSE_RECRUITER_DATA` environment variable when it's set (handy when your data lives outside the repo; set it once, for example in Claude Code's project settings). A pre-commit hook runs `engine/privacy_scan.py` so personal details can't be committed by accident.
 
 ## What it deliberately doesn't do
 

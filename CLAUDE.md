@@ -2,7 +2,7 @@
 
 Overview: [README.md](README.md). The full process: [docs/how-it-works.md](docs/how-it-works.md). Setup: [docs/setup.md](docs/setup.md).
 
-**Personal settings go in `CLAUDE.local.md`** (git-ignored, read by Claude Code alongside this file): where the user's data folder is, their name and how they like to work. If the data folder isn't `my-data/` in this repo, pass `--data <folder>` to every script. Never write personal facts into this file, the engine or the docs.
+**Personal settings go in `CLAUDE.local.md`** (git-ignored, read by Claude Code alongside this file): where the user's data folder is, their name and how they like to work. If the data folder isn't `my-data/` in this repo, set `REVERSE_RECRUITER_DATA` to it (e.g. in `.claude/settings.local.json` → `env`) or pass `--data <folder>` to every script. Never write personal facts into this file, the engine or the docs.
 
 ## Data and folders
 - All script paths come from `engine/paths.py`. Change a location there, never in individual scripts.
