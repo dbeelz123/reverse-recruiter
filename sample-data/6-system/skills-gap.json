@@ -1,0 +1,76 @@
+{
+ "method": "Requirements from every reviewed job, matched to the profile and weighted by how often and how strongly top jobs ask (sample).",
+ "items": [
+  {
+   "skill": "Carrier / partner API programs",
+   "category": "have",
+   "weight": 4,
+   "dq_demand": 0,
+   "jobs": [
+    "Cobalt Route",
+    "Arcadia Fleet",
+    "Harborline Logistics"
+   ],
+   "action": "Lead with it."
+  },
+  {
+   "skill": "Machine-learning products",
+   "category": "partial",
+   "weight": 2,
+   "dq_demand": 0,
+   "jobs": [
+    "Harborline Logistics",
+    "Pinecrest Health Supply"
+   ],
+   "action": "Describe the ETA model as a product decision, not a data-science project."
+  },
+  {
+   "skill": "Usage-based pricing",
+   "category": "have_not_on_resume",
+   "weight": 2,
+   "dq_demand": 0,
+   "jobs": [
+    "Harborline Logistics",
+    "Arcadia Fleet"
+   ],
+   "action": "Add the 22% new-revenue result to the resume."
+  },
+  {
+   "skill": "dbt",
+   "category": "missing",
+   "weight": 1,
+   "dq_demand": 1,
+   "jobs": [
+    "Tessellate Systems"
+   ],
+   "dq_jobs": [
+    "Kestrel Analytics"
+   ],
+   "action": "Low priority: only data-platform roles ask for it."
+  },
+  {
+   "skill": "Telematics / IoT devices",
+   "category": "missing",
+   "weight": 1,
+   "dq_demand": 0,
+   "jobs": [
+    "Arcadia Fleet"
+   ],
+   "action": "A short course would cover the vocabulary."
+  }
+ ],
+ "tracks": [
+  {
+   "track": "Fleet and telematics platforms",
+   "target": "fleet-platform PM roles",
+   "skills": [
+    "Telematics / IoT devices",
+    "Carrier / partner API programs"
+   ],
+   "steps": [
+    "Read two telematics data-standard overviews",
+    "Map the carrier API work to device data flows"
+   ]
+  }
+ ]
+}

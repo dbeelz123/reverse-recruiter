@@ -1,0 +1,111 @@
+{
+ "updated": "2026-11-14",
+ "defaults": {
+  "exclude": [
+   "crypto",
+   "\"security clearance\"",
+   "defense"
+  ],
+  "posted_within": "week",
+  "experience": [
+   "mid-senior"
+  ],
+  "sort": "most recent",
+  "pre_run_checklist": [
+   "Reset the filters: Location United States, any date, no workplace or experience filters.",
+   "Write down the result count LinkedIn reports.",
+   "Copy each results page in order into one .txt in 1-inbox/search-results/."
+  ],
+  "triage_tips": [
+   "A strong match line is a candidate, not a verdict: scan requirements and location first."
+  ],
+  "triage_flow": [
+   "1. Paste results; ingest_results.py makes cards; triaged.py check skips decided ones.",
+   "3b. Claude records its call on every batch card before the user decides: likely keep / lean keep / possible: <missing fact> / lean DQ / weak. Commit to a lean."
+  ]
+ },
+ "searches": [
+  {
+   "id": "S1",
+   "name": "Core: shipment visibility and carrier integrations",
+   "cluster": "core",
+   "status": "active",
+   "seed_jobs": [
+    "Harborline",
+    "Cobalt Route"
+   ],
+   "why": "The candidate's core domain; matches both A-tier saves.",
+   "titles": [
+    "\"product manager\""
+   ],
+   "any_of": [
+    "\"shipment visibility\"",
+    "\"carrier integration\"",
+    "\"supply chain\"",
+    "logistics"
+   ],
+   "where": "remote",
+   "linkedin_action": "Keep; set an alert"
+  },
+  {
+   "id": "S2",
+   "name": "Platform: B2B APIs in logistics",
+   "cluster": "platform",
+   "status": "testing",
+   "seed_jobs": [
+    "Cobalt Route"
+   ],
+   "why": "API and partner programs are a confirmed qualifier.",
+   "titles": [
+    "\"product manager\""
+   ],
+   "any_of": [
+    "API",
+    "\"developer platform\""
+   ],
+   "all_of": [
+    "logistics",
+    "freight",
+    "fleet"
+   ],
+   "where": "remote",
+   "linkedin_action": "Try once"
+  },
+  {
+   "id": "S3",
+   "name": "Local: product roles near Springfield",
+   "cluster": "local",
+   "status": "testing",
+   "seed_jobs": [
+    "Brightdock"
+   ],
+   "why": "Hybrid roles inside the 50-mile radius.",
+   "titles": [
+    "\"product manager\"",
+    "\"product owner\""
+   ],
+   "where": "local",
+   "linkedin_action": "Try once (the geoId in spec.json is a placeholder in this sample)"
+  }
+ ],
+ "insights": [
+  {
+   "date": "2026-11-14",
+   "round": 2,
+   "trend": "Fleet and telematics roles surfaced from S1",
+   "evidence": "Arcadia Fleet kept as a strong keep",
+   "proposal": "Add \"fleet\" to S1's any_of",
+   "decision": "open"
+  }
+ ],
+ "mode": {
+  "mode": "catch-up",
+  "since": "2026-11-10",
+  "builder": false,
+  "goal": 200,
+  "lookback": null,
+  "pace": "two sessions a week, about an hour each",
+  "cadence": null,
+  "last_asked": null
+ }
+}

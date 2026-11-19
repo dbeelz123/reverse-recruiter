@@ -1,0 +1,29 @@
+# Personal data never enters this repo. Your own data folder lives outside it (run the engine with --data <folder>)
+# or, if you keep it inside, under one of these names.
+my-data/
+private-data/
+private-terms.txt
+*.private.*
+CLAUDE.local.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Scratch and tool output
+scratch/
+*.tmp
+.claude/settings.local.json
+
+# OS and editors
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+~$*
+
+# Local copies of the sample data for trying things out
+demo-data/

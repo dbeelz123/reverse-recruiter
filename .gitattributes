@@ -1,0 +1,8 @@
+# Normalize text files to LF in the repo; check out with the platform's line endings.
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+scripts/hooks/* text eol=lf
+*.docx binary
+*.pdf binary
+*.png binary

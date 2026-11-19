@@ -1,0 +1,63 @@
+{
+  "job_id": "9100000009",
+  "url": "https://example.com/jobs/9100000009",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Senior Product Manager, Fleet Platform APIs _ Arcadia Fleet (sample).pdf"
+  ],
+  "title": "Senior Product Manager, Fleet Platform APIs",
+  "company": "Arcadia Fleet",
+  "location": "United States (Remote)",
+  "posted": "Posted 2 days ago",
+  "applicants": "19 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Arcadia Fleet's platform connects 80,000 trucks to the shippers that book them.\n\nWhat you'll do\n- Own the fleet platform's partner APIs and webhooks\n- Launch a carrier certification program\n- Work with telematics partners on data quality\n\nWhat we're looking for\n- 6+ years of product management on B2B platform or API products\n- Experience with carrier or partner integration programs\n- Data-informed decision making\n\nNice to have\n- Telematics or IoT device experience\n- Usage-based pricing",
+  "company_text": "Arcadia Fleet (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$165,000 - $195,000"
+  ],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Senior Product Manager, Fleet Platform APIs _ Arcadia Fleet (sample).pdf",
+  "printed": "11/13/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "open_check": {
+    "date": "2026-11-14",
+    "result": "open",
+    "source": "tracker paste",
+    "note": "Posted 5d ago"
+  },
+  "review": {
+    "fit": 80,
+    "pay": "$165K-$195K",
+    "summary": "Partner APIs and a carrier certification program on a fleet platform; a strong keep in triage, confirmed in calibration.",
+    "positives": [
+      "Carrier certification program: done before for 1,400 carriers",
+      "Usage-based pricing (nice to have) is a strength"
+    ],
+    "caveats": [
+      "Telematics devices are new territory"
+    ],
+    "gaps": [
+      "Telematics or IoT devices (nice to have; missing)"
+    ],
+    "adjustments": [
+      {
+        "reason": "core domain",
+        "points": 6
+      }
+    ],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "A",
+    "search": "S1",
+    "strength": "strong keep",
+    "total": 86,
+    "round": 2
+  }
+}

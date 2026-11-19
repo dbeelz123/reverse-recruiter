@@ -1,0 +1,208 @@
+{
+ "round": 1,
+ "date": "2026-11-10",
+ "method": "Each posting read in full against engine/prompts/review-rubric.md (sample: written by hand).",
+ "jobs": {
+  "9100000001": {
+   "fit": 80,
+   "pay": "$155K-$185K",
+   "summary": "Shipment-visibility platform: the candidate's core domain, including ETA prediction with data science.",
+   "positives": [
+    "Core domain: tracking, ETA and exception alerts",
+    "APIs and webhooks match the carrier-integration program",
+    "1st-degree connection (fictional)"
+   ],
+   "caveats": [
+    "Travel up to 10%"
+   ],
+   "gaps": [
+    "Machine-learning product depth (nice to have; partial)"
+   ],
+   "adjustments": [
+    {
+     "reason": "core domain",
+     "points": 6
+    },
+    {
+     "reason": "travel 10%",
+     "points": -4
+    }
+   ],
+   "network_bonus": 8,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "A",
+   "search": "S1"
+  },
+  "9100000002": {
+   "fit": 82,
+   "pay": "$170K-$200K",
+   "summary": "Public carrier API and certification program at a carrier network; a near-exact match for the carrier-integration program.",
+   "positives": [
+    "Carrier API, SDKs and certification: done before at scale",
+    "API pricing and packaging (nice to have) is a strength"
+   ],
+   "caveats": [
+    "Staff level: ask about scope and how the role is leveled"
+   ],
+   "gaps": [],
+   "adjustments": [
+    {
+     "reason": "core domain",
+     "points": 6
+    }
+   ],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "A",
+   "search": "S1"
+  },
+  "9100000003": {
+   "fit": 74,
+   "pay": "$150K-$175K",
+   "summary": "Warehouse execution system for robotic picking; hybrid in Decatur, inside the radius.",
+   "positives": [
+    "WMS integrations match the Parcelwise years",
+    "Local hybrid, 2 days a week"
+   ],
+   "caveats": [
+    "Travel up to 15% to customer sites",
+    "Robotics hardware is new territory"
+   ],
+   "gaps": [
+    "Robotics or automation hardware (nice to have; missing)"
+   ],
+   "adjustments": [
+    {
+     "reason": "travel 15%",
+     "points": -6
+    }
+   ],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "B",
+   "search": "direct"
+  },
+  "9100000004": {
+   "fit": 70,
+   "pay": "$140K-$165K",
+   "summary": "Returns product; hybrid 3 days a week in Chicago.",
+   "positives": [
+    "Returns workflow experience from Parcelwise"
+   ],
+   "caveats": [],
+   "gaps": [],
+   "adjustments": [],
+   "network_bonus": 0,
+   "dealbreakers": [
+    "Hybrid in Chicago, about 185 miles from Springfield"
+   ],
+   "eligibility": [],
+   "tier": "X",
+   "search": "direct"
+  },
+  "9100000005": {
+   "fit": 60,
+   "pay": "not listed",
+   "summary": "Data platform for supply-chain analytics teams.",
+   "positives": [
+    "Supply-chain domain (nice to have)"
+   ],
+   "caveats": [
+    "Sells the data stack itself",
+    "Hands-on dbt required"
+   ],
+   "gaps": [
+    "dbt (required; missing)",
+    "Data warehouse product experience (required; missing)"
+   ],
+   "adjustments": [
+    {
+     "reason": "data-platform company",
+     "points": -8
+    }
+   ],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "C",
+   "search": "S1"
+  },
+  "9100000006": {
+   "fit": 62,
+   "pay": "$160K-$190K",
+   "summary": "Delivery options inside a consumer shopping app.",
+   "positives": [
+    "Last-mile logistics (nice to have)"
+   ],
+   "caveats": [
+    "Consumer app scope",
+    "Growth-metrics track record required"
+   ],
+   "gaps": [
+    "Consumer experimentation at scale (required; partial)"
+   ],
+   "adjustments": [
+    {
+     "reason": "consumer scope",
+     "points": -8
+    }
+   ],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "C",
+   "search": "S1"
+  },
+  "9100000007": {
+   "fit": null,
+   "pay": "not listed",
+   "summary": "Supply tracking for defense programs.",
+   "positives": [],
+   "caveats": [],
+   "gaps": [],
+   "adjustments": [],
+   "network_bonus": 0,
+   "dealbreakers": [
+    "Defense programs (and a required security clearance)"
+   ],
+   "eligibility": [
+    {
+     "requirement": "active security clearance",
+     "quote": "Active security clearance",
+     "applies_to": "person"
+    }
+   ],
+   "tier": "X",
+   "search": "S1"
+  },
+  "9100000008": {
+   "fit": 70,
+   "pay": "$145K-$170K",
+   "summary": "Demand forecasting and replenishment for a medical supply distributor.",
+   "positives": [
+    "Forecasting with data science matches the ETA-model work"
+   ],
+   "caveats": [
+    "Healthcare is a new domain"
+   ],
+   "gaps": [
+    "Inventory planning software (required; partial)"
+   ],
+   "adjustments": [],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [
+    {
+     "requirement": "background check and drug screening",
+     "quote": "This role requires a background check and drug screening.",
+     "applies_to": "person"
+    }
+   ],
+   "tier": "B",
+   "search": "S1"
+  }
+ }
+}

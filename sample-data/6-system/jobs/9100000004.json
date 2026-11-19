@@ -1,0 +1,48 @@
+{
+  "job_id": "9100000004",
+  "url": "https://example.com/jobs/9100000004",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Senior Product Manager, Returns _ Meridian Parcel (sample).pdf"
+  ],
+  "title": "Senior Product Manager, Returns",
+  "company": "Meridian Parcel",
+  "location": "Chicago, IL (Hybrid)",
+  "posted": "Posted 3 days ago",
+  "applicants": "Over 100 applicants",
+  "workplace": "Hybrid",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Meridian Parcel handles returns for 600 retailers.\n\nWhat you'll do\n- Own the returns portal and carrier label flows\n\nWhat we're looking for\n- 5+ years of product management\n- Returns or reverse-logistics experience\n\nHybrid: 3 days a week in our Chicago office.",
+  "company_text": "Meridian Parcel (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$140,000 - $165,000"
+  ],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Senior Product Manager, Returns _ Meridian Parcel (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 70,
+    "pay": "$140K-$165K",
+    "summary": "Returns product; hybrid 3 days a week in Chicago.",
+    "positives": [
+      "Returns workflow experience from Parcelwise"
+    ],
+    "caveats": [],
+    "gaps": [],
+    "adjustments": [],
+    "network_bonus": 0,
+    "dealbreakers": [
+      "Hybrid in Chicago, about 185 miles from Springfield"
+    ],
+    "eligibility": [],
+    "tier": "X",
+    "search": "direct",
+    "total": 70,
+    "round": 1
+  }
+}

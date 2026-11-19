@@ -1,0 +1,34 @@
+{
+ "round": 1,
+ "date": "2026-11-10",
+ "questions": [
+  {
+   "id": "q1",
+   "topic": "Core domain",
+   "question": "Should shipment visibility and carrier integrations score above other logistics roles?",
+   "answer": "Yes, +6.",
+   "answered": "2026-11-10"
+  },
+  {
+   "id": "q2",
+   "topic": "Defense",
+   "question": "Ironbridge builds logistics software for defense programs. Rule it out?",
+   "answer": "Yes: no defense or weapons work, ever.",
+   "answered": "2026-11-10"
+  },
+  {
+   "id": "q3",
+   "topic": "Travel",
+   "question": "Brightdock asks for up to 15% travel. Where's your limit?",
+   "answer": "Up to 30% is fine if it's worth it; above that, no.",
+   "answered": "2026-11-10"
+  },
+  {
+   "id": "q4",
+   "topic": "Company type",
+   "question": "Tessellate sells a data platform; Lumen Cart is a consumer app. Penalty or dealbreaker?",
+   "answer": "Penalty for both, not a dealbreaker.",
+   "answered": "2026-11-10"
+  }
+ ]
+}

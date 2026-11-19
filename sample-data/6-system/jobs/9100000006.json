@@ -1,0 +1,56 @@
+{
+  "job_id": "9100000006",
+  "url": "https://example.com/jobs/9100000006",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Senior Product Manager, Checkout and Delivery Options _ Lumen Cart (sample).pdf"
+  ],
+  "title": "Senior Product Manager, Checkout and Delivery Options",
+  "company": "Lumen Cart",
+  "location": "United States (Remote)",
+  "posted": "Posted 1 week ago",
+  "applicants": "Over 100 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Lumen Cart's mobile app helps shoppers pick delivery windows at checkout.\n\nWhat you'll do\n- Own delivery-option selection in the consumer app\n- Run A/B tests on conversion\n\nWhat we're looking for\n- 5+ years of product management for consumer app or e-commerce products\n- Strong experimentation and growth-metrics track record\n\nNice to have\n- Logistics or last-mile experience",
+  "company_text": "Lumen Cart (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$160,000 - $190,000"
+  ],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Senior Product Manager, Checkout and Delivery Options _ Lumen Cart (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 62,
+    "pay": "$160K-$190K",
+    "summary": "Delivery options inside a consumer shopping app.",
+    "positives": [
+      "Last-mile logistics (nice to have)"
+    ],
+    "caveats": [
+      "Consumer app scope",
+      "Growth-metrics track record required"
+    ],
+    "gaps": [
+      "Consumer experimentation at scale (required; partial)"
+    ],
+    "adjustments": [
+      {
+        "reason": "consumer scope",
+        "points": -8
+      }
+    ],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "C",
+    "search": "S1",
+    "total": 54,
+    "round": 1
+  }
+}

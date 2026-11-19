@@ -1,0 +1,412 @@
+{
+ "updated": "2026-11-10",
+ "note": "Already-triaged listings: skip jobs that earlier search runs already decided.",
+ "entries": [
+  {
+   "company": "Aislecraft Media",
+   "title": "Senior Product Manager, Retail Media",
+   "decision": "dq",
+   "reason": "ad tech",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-019"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Arcadia Fleet",
+   "title": "Senior Product Manager, Fleet Platform APIs",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-001"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Brightdock",
+   "title": "Principal Product Manager, Warehouse Automation",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-003"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Cobalt Route",
+   "title": "Staff Product Manager, Carrier Integrations API",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-002"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Copperline Yards",
+   "title": "Senior Product Manager, Yard Management",
+   "decision": "dq",
+   "reason": "rule: outside 50 miles",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-005"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Fernhill Pay",
+   "title": "Product Manager, Payments Risk",
+   "decision": "dq",
+   "reason": "fintech, not logistics",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-009"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Frostline IoT",
+   "title": "Product Manager, Cold Chain Sensors",
+   "decision": "dq",
+   "reason": "LinkedIn match below strong (not investigated)",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-018"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Granary Mutual",
+   "title": "Product Owner, Claims",
+   "decision": "dq",
+   "reason": "insurance claims",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-011"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Harborline Logistics",
+   "title": "Senior Product Manager, Shipment Visibility",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-001"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Ironbridge Defense Systems",
+   "title": "Product Manager, Logistics Software",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-007"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Kestrel Analytics",
+   "title": "Product Manager, Analytics",
+   "decision": "dq",
+   "reason": "requires hands-on dbt",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-004"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Lattice Haul",
+   "title": "Senior Product Manager, Freight Payments",
+   "decision": "dq",
+   "reason": "LinkedIn match below strong (not investigated)",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-003"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Ledgerline",
+   "title": "Senior Product Manager, Freight Audit",
+   "decision": "dq",
+   "reason": "LinkedIn match below strong (not investigated)",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-017"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Lumen Cart",
+   "title": "Senior Product Manager, Checkout and Delivery Options",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-006"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Meridian Parcel",
+   "title": "Senior Product Manager, Returns",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-004"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Nestfield",
+   "title": "Product Manager, Smart Home",
+   "decision": "dq",
+   "reason": "consumer devices",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-016"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Ostrava Carriers",
+   "title": "Director of Product, Logistics",
+   "decision": "dq",
+   "reason": "director level",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-013"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Pebblequay Kids",
+   "title": "Senior Product Manager, Growth",
+   "decision": "dq",
+   "reason": "consumer growth",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-012"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Pinecrest Health Supply",
+   "title": "Senior Product Manager, Inventory Planning",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-008"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Quillstone Software",
+   "title": "Group Product Manager, Supply Chain Planning",
+   "decision": "keep",
+   "reason": "manages PMs? check in calibration",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-002"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Relay Ledger",
+   "title": "Staff Product Manager, EDI Integrations",
+   "decision": "keep",
+   "reason": "saved; review next round",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-008"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Routeloom",
+   "title": "Product Manager, Dispatch Mobile App",
+   "decision": "dq",
+   "reason": "LinkedIn match below strong (not investigated)",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-020"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Tessellate Systems",
+   "title": "Product Manager, Logistics Data Platform",
+   "decision": "keep",
+   "reason": "candidate",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-005"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Thimbleroot Goods",
+   "title": "Senior PM, Shopper Experience",
+   "decision": "dq",
+   "reason": "consumer scope",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-007"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  },
+  {
+   "company": "Tidal Berth",
+   "title": "Senior Product Manager, Port Operations",
+   "decision": "dq",
+   "reason": "on-site, out of radius",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-015"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Velocity Rideshare Freight",
+   "title": "Product Manager, Field Ops",
+   "job_id": "9100000099",
+   "decision": "dq",
+   "reason": "removed: travel 50% (dealbreaker: above 30%)",
+   "seen": [
+    {
+     "search": "saved",
+     "date": "2026-11-10"
+    }
+   ],
+   "source": "removed.json"
+  },
+  {
+   "company": "Velvetine Media",
+   "title": "Senior Product Manager, Ad Platform",
+   "decision": "dq",
+   "reason": "ad tech",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-010"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Verdance Bio",
+   "title": "Product Manager, Clinical Trials",
+   "decision": "dq",
+   "reason": "regulated healthcare",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-09",
+     "id": "S1-014"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-09.json"
+  },
+  {
+   "company": "Waymarrow Labs",
+   "title": "Product Manager, Route Optimization",
+   "decision": "dq",
+   "reason": "LinkedIn match below strong (not investigated)",
+   "seen": [
+    {
+     "search": "S1",
+     "date": "2026-11-13",
+     "id": "S1-006"
+    }
+   ],
+   "source": "6-system/search-runs/s1-run-2026-11-13.json"
+  }
+ ]
+}

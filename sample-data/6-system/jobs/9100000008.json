@@ -1,0 +1,62 @@
+{
+  "job_id": "9100000008",
+  "url": "https://example.com/jobs/9100000008",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Senior Product Manager, Inventory Planning _ Pinecrest Health Supply (sample).pdf"
+  ],
+  "title": "Senior Product Manager, Inventory Planning",
+  "company": "Pinecrest Health Supply",
+  "location": "United States (Remote)",
+  "posted": "Posted 4 days ago",
+  "applicants": "37 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Pinecrest supplies 900 clinics with medical consumables.\n\nWhat you'll do\n- Own demand forecasting and replenishment planning\n- Work with clinic operations and suppliers\n\nWhat we're looking for\n- 6+ years of product management\n- Inventory planning or replenishment software experience\n- Comfort working with data science on forecasting models\n\nNice to have\n- Healthcare supply chain experience\n\nThis role requires a background check and drug screening.",
+  "company_text": "Pinecrest Health Supply (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$145,000 - $170,000"
+  ],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Senior Product Manager, Inventory Planning _ Pinecrest Health Supply (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 70,
+    "pay": "$145K-$170K",
+    "summary": "Demand forecasting and replenishment for a medical supply distributor.",
+    "positives": [
+      "Forecasting with data science matches the ETA-model work"
+    ],
+    "caveats": [
+      "Healthcare is a new domain"
+    ],
+    "gaps": [
+      "Inventory planning software (required; partial)"
+    ],
+    "adjustments": [],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [
+      {
+        "requirement": "background check and drug screening",
+        "quote": "This role requires a background check and drug screening.",
+        "applies_to": "person"
+      }
+    ],
+    "tier": "B",
+    "search": "S1",
+    "total": 70,
+    "round": 1
+  },
+  "open_check": {
+    "date": "2026-11-14",
+    "result": "open",
+    "source": "tracker paste",
+    "note": "Posted 1w ago"
+  }
+}

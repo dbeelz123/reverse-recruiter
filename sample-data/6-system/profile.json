@@ -1,0 +1,18 @@
+{
+ "name": "Jordan Avery (fictional sample)",
+ "headline": "Senior Product Manager, supply-chain and logistics software",
+ "skills": [
+  "shipment visibility",
+  "carrier integrations",
+  "REST APIs and webhooks",
+  "usage-based pricing",
+  "warehouse management integrations",
+  "ETA prediction (with data science)",
+  "SQL",
+  "customer discovery"
+ ],
+ "sources": {
+  "resume": "4-profile/resume/ (not included in the sample)",
+  "calibration": "6-system/calibration/"
+ }
+}

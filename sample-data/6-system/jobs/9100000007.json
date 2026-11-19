@@ -1,0 +1,50 @@
+{
+  "job_id": "9100000007",
+  "url": "https://example.com/jobs/9100000007",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Product Manager, Logistics Software _ Ironbridge Defense Systems (sample).pdf"
+  ],
+  "title": "Product Manager, Logistics Software",
+  "company": "Ironbridge Defense Systems",
+  "location": "United States (Remote)",
+  "posted": "Posted 6 days ago",
+  "applicants": "22 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Ironbridge builds logistics software for defense programs.\n\nWhat you'll do\n- Own supply tracking for munitions depots\n\nWhat we're looking for\n- 5+ years of product management\n- Active security clearance",
+  "company_text": "Ironbridge Defense Systems (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Product Manager, Logistics Software _ Ironbridge Defense Systems (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": null,
+    "pay": "not listed",
+    "summary": "Supply tracking for defense programs.",
+    "positives": [],
+    "caveats": [],
+    "gaps": [],
+    "adjustments": [],
+    "network_bonus": 0,
+    "dealbreakers": [
+      "Defense programs (and a required security clearance)"
+    ],
+    "eligibility": [
+      {
+        "requirement": "active security clearance",
+        "quote": "Active security clearance",
+        "applies_to": "person"
+      }
+    ],
+    "tier": "X",
+    "search": "S1",
+    "total": null,
+    "round": 1
+  }
+}

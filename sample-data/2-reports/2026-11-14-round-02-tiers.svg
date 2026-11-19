@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="150" viewBox="0 0 680 150" font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img">
+<title>8 jobs under consideration after round 2: 3 A, 3 B, 2 C, 0 D</title>
+<rect width="680" height="150" fill="#FFFFFF"/>
+<text x="16" y="30" font-size="16" font-weight="600" fill="#0B0B0B">8 jobs under consideration after round 2</text>
+<rect x="16.0" y="52" width="240.0" height="44" rx="3" fill="#0C447C"/>
+<text x="136.0" y="80" font-size="16" font-weight="600" fill="#FFFFFF" text-anchor="middle">A 3</text>
+<text x="18.0" y="118" font-size="12" fill="#52514E">strong fit</text><text x="18.0" y="134" font-size="12" fill="#898781">38%</text>
+<rect x="259.0" y="52" width="240.0" height="44" rx="3" fill="#378ADD"/>
+<text x="379.0" y="80" font-size="16" font-weight="600" fill="#FFFFFF" text-anchor="middle">B 3</text>
+<text x="261.0" y="118" font-size="12" fill="#52514E">good fit</text><text x="261.0" y="134" font-size="12" fill="#898781">38%</text>
+<rect x="502.0" y="52" width="159.0" height="44" rx="3" fill="#85B7EB"/>
+<text x="581.5" y="80" font-size="16" font-weight="600" fill="#0C447C" text-anchor="middle">C 2</text>
+<text x="504.0" y="118" font-size="12" fill="#52514E">possible</text><text x="504.0" y="134" font-size="12" fill="#898781">25%</text>
+</svg>

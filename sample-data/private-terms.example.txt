@@ -1,0 +1,4 @@
+# Terms the privacy scan must never find in shareable files (sample)
+Jordan Avery
+Tidewater Logistics Software
+Sam Ortiz

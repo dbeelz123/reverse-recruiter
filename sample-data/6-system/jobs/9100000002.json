@@ -1,0 +1,73 @@
+{
+  "job_id": "9100000002",
+  "url": "https://example.com/jobs/9100000002",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Staff Product Manager, Carrier Integrations API _ Cobalt Route (sample).pdf"
+  ],
+  "title": "Staff Product Manager, Carrier Integrations API",
+  "company": "Cobalt Route",
+  "location": "Denver, CO (Remote)",
+  "posted": "Posted 1 week ago",
+  "applicants": "Over 100 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Cobalt Route connects shippers to 5,000 carriers through one API.\n\nWhat you'll do\n- Own the public carrier API, SDKs and certification program\n- Set API versioning and deprecation policy\n- Grow carrier self-serve onboarding\n\nWhat we're looking for\n- 8+ years of product management, 3+ on API or platform products\n- Hands-on understanding of REST APIs and webhooks\n- Experience running partner or developer programs\n\nNice to have\n- Logistics or freight industry background\n- Pricing and packaging for API products",
+  "company_text": "Cobalt Route (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$170,000 - $200,000"
+  ],
+  "truncated": false,
+  "leads": [
+    {
+      "title": "Senior Product Manager, Tracking API",
+      "company": "Ferrous Freight Tech",
+      "location": "United States (Remote)",
+      "salary": ""
+    },
+    {
+      "title": "Product Manager, Freight Marketplace",
+      "company": "Lattice Haul",
+      "location": "Chicago, IL (Hybrid)",
+      "salary": ""
+    }
+  ],
+  "main_file": "1-inbox/job-pdfs/Staff Product Manager, Carrier Integrations API _ Cobalt Route (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 82,
+    "pay": "$170K-$200K",
+    "summary": "Public carrier API and certification program at a carrier network; a near-exact match for the carrier-integration program.",
+    "positives": [
+      "Carrier API, SDKs and certification: done before at scale",
+      "API pricing and packaging (nice to have) is a strength"
+    ],
+    "caveats": [
+      "Staff level: ask about scope and how the role is leveled"
+    ],
+    "gaps": [],
+    "adjustments": [
+      {
+        "reason": "core domain",
+        "points": 6
+      }
+    ],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "A",
+    "search": "S1",
+    "total": 88,
+    "round": 1
+  },
+  "open_check": {
+    "date": "2026-11-14",
+    "result": "open",
+    "source": "tracker paste",
+    "note": "Reposted 1w ago"
+  }
+}

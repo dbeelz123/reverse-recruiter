@@ -1,0 +1,150 @@
+{
+ "version": "0.2",
+ "updated": "2026-11-14",
+ "status_legend": {
+  "proposed": "suggested by the agent, not yet confirmed",
+  "confirmed": "confirmed in calibration",
+  "rejected": "considered and turned down"
+ },
+ "target_roles": {
+  "titles": [
+   "Senior Product Manager",
+   "Staff Product Manager",
+   "Principal Product Manager"
+  ],
+  "domain_clusters": {
+   "core": "shipment visibility, carrier and logistics integrations, supply-chain platforms",
+   "adjacent": "warehouse and fleet software, B2B APIs, marketplaces"
+  }
+ },
+ "work_arrangement": {
+  "rule": "Remote anywhere in the US. Hybrid or on-site only within 50 miles of Springfield, IL.",
+  "machine_rule": {
+   "remote": "anywhere in the US",
+   "hybrid_onsite_center": {
+    "name": "Springfield, IL",
+    "lat": 39.7817,
+    "lon": -89.6501,
+    "linkedin_geo_id": "000000000"
+   },
+   "radius_miles": 50
+  }
+ },
+ "dealbreakers": [
+  {
+   "value": "Hybrid or on-site more than 50 miles from Springfield, IL",
+   "type": "objective",
+   "evidence": "stated in setup",
+   "status": "confirmed"
+  },
+  {
+   "value": "Defense or weapons programs (employer or customers)",
+   "type": "values",
+   "evidence": "calibration round 1 q2",
+   "status": "confirmed",
+   "rescreen_regex": "\\b(defense|munitions|weapons|DoD)\\b"
+  },
+  {
+   "value": "Travel above 30%",
+   "type": "objective",
+   "evidence": "calibration round 1 q3",
+   "status": "confirmed",
+   "rescreen_regex": "\\b([4-9]\\d|3[1-9])\\s?%\\s+travel|travel[^.]{0,30}\\b([4-9]\\d|3[1-9])\\s?%"
+  },
+  {
+   "value": "People management of other product managers as the core of the role",
+   "type": "preference",
+   "evidence": "calibration round 2 q1",
+   "status": "confirmed",
+   "title_regex": "\\b(director|head of|group)\\b"
+  }
+ ],
+ "negatives": [
+  {
+   "value": "Data-platform or analytics companies (selling the data stack itself)",
+   "weight": "-8",
+   "evidence": "calibration round 1 q4",
+   "status": "confirmed",
+   "rescreen_regex": "\\bdata (platform|warehouse|lakehouse)\\b"
+  },
+  {
+   "value": "Consumer web or mobile scope",
+   "weight": "-8",
+   "evidence": "calibration round 1 q4",
+   "status": "confirmed",
+   "rescreen_regex": "\\b(consumer app|mobile app|shoppers)\\b"
+  },
+  {
+   "value": "Travel 10-30%: sliding scale, -0.4 per 1%",
+   "weight": "sliding",
+   "status": "confirmed"
+  }
+ ],
+ "positives": [
+  {
+   "value": "1st-degree connection at the company",
+   "weight": "+8",
+   "status": "confirmed"
+  },
+  {
+   "value": "Core domain (shipment visibility, carrier integrations)",
+   "weight": "+6",
+   "status": "confirmed"
+  }
+ ],
+ "company_blocklist": [
+  {
+   "value": "Ironbridge Defense Systems",
+   "reason": "defense contractor",
+   "status": "confirmed"
+  }
+ ],
+ "connections_policy": "Only 1st-degree connections count; 2nd/3rd-degree and alumni are ignored.",
+ "eligibility_baseline": "US citizen, authorized to work in the US, no sponsorship needed.",
+ "salary": {
+  "floor_base": 120000,
+  "target_base": "150000-185000",
+  "status": "confirmed"
+ },
+ "scoring": {
+  "travel": {
+   "rule": "Each 1% of travel subtracts 0.4 points (10% = -4, 25% = -10)."
+  },
+  "tiers": {
+   "A": ">= 80",
+   "B": "65-79",
+   "C": "50-64",
+   "D": "< 50"
+  }
+ },
+ "save_meaning": {
+  "rule": "A save is a candidate after a quick title, location and match-line check, not a preference. Preferences come from calibration.",
+  "status": "confirmed"
+ },
+ "neutral": [
+  {
+   "value": "Program-heavy PM roles",
+   "status": "confirmed"
+  }
+ ],
+ "open_rules": [
+  {
+   "value": "Marketplace roles where the buyer is a consumer",
+   "status": "case by case"
+  }
+ ],
+ "process_rules": [
+  {
+   "value": "Several roles at one company: the top 2 lead, the rest wait in reserve",
+   "status": "confirmed"
+  }
+ ],
+ "qualifiers": [
+  {
+   "value": "Carrier or partner API programs",
+   "status": "confirmed",
+   "effect": "raises fit",
+   "rescreen_regex": "\\bcarrier (API|integration)s?\\b"
+  }
+ ]
+}

@@ -1,0 +1,101 @@
+{
+  "job_id": "9100000001",
+  "url": "https://example.com/jobs/9100000001",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Senior Product Manager, Shipment Visibility _ Harborline Logistics (sample).pdf"
+  ],
+  "title": "Senior Product Manager, Shipment Visibility",
+  "company": "Harborline Logistics",
+  "location": "United States (Remote)",
+  "posted": "Posted 4 days ago",
+  "applicants": "48 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Harborline gives 2,000 shippers one view of every load in motion.\n\nWhat you'll do\n- Own the roadmap for real-time tracking, ETA prediction and exception alerts\n- Partner with data science on ETA accuracy\n- Work with carriers and shippers to define integrations\n\nWhat we're looking for\n- 6+ years of B2B product management\n- Experience with shipment visibility or transportation software\n- Comfort with APIs, webhooks and event data\n- Clear written communication with executives\n\nNice to have\n- Experience with machine-learning products\n- Usage-based pricing experience\n\nTravel: up to 10%.",
+  "company_text": "Harborline Logistics (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$155,000 - $185,000"
+  ],
+  "truncated": false,
+  "leads": [
+    {
+      "title": "Product Manager, Carrier Network",
+      "company": "Harborline Logistics",
+      "location": "United States (Remote)",
+      "salary": "",
+      "connections_note": "1 connection works here"
+    },
+    {
+      "title": "Senior Product Manager, Tracking API",
+      "company": "Ferrous Freight Tech",
+      "location": "United States (Remote)",
+      "salary": ""
+    }
+  ],
+  "main_file": "1-inbox/job-pdfs/Senior Product Manager, Shipment Visibility _ Harborline Logistics (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [
+    {
+      "name": "Sam Ortiz (fictional)",
+      "headline": "Director of Engineering at Harborline Logistics"
+    }
+  ],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 80,
+    "pay": "$155K-$185K",
+    "summary": "Shipment-visibility platform: the candidate's core domain, including ETA prediction with data science.",
+    "positives": [
+      "Core domain: tracking, ETA and exception alerts",
+      "APIs and webhooks match the carrier-integration program",
+      "1st-degree connection (fictional)"
+    ],
+    "caveats": [
+      "Travel up to 10%"
+    ],
+    "gaps": [
+      "Machine-learning product depth (nice to have; partial)"
+    ],
+    "adjustments": [
+      {
+        "reason": "core domain",
+        "points": 6
+      },
+      {
+        "reason": "travel 10%",
+        "points": -4
+      }
+    ],
+    "network_bonus": 8,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "A",
+    "search": "S1",
+    "total": 90,
+    "round": 1
+  },
+  "pipeline": {
+    "events": [
+      {
+        "date": "2026-11-11",
+        "stage": "outreach",
+        "note": "Messaged Sam Ortiz (fictional)"
+      },
+      {
+        "date": "2026-11-12",
+        "stage": "applied"
+      }
+    ],
+    "updated": "2026-11-18",
+    "status": "applied"
+  },
+  "open_check": {
+    "date": "2026-11-14",
+    "result": "open",
+    "source": "tracker paste",
+    "note": "Posted 1w ago"
+  }
+}

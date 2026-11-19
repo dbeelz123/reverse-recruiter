@@ -1,0 +1,53 @@
+#!/bin/sh
+# Pre-commit privacy check: no personal details in anything being committed.
+#
+# One-time setup in each clone (nothing personal is stored in the repo):
+#   git config core.hooksPath scripts/hooks
+#   git config reverse-recruiter.privateTerms "<path to your private-terms.txt, outside this repo>"
+#
+# Blocks the commit when:
+#   - a staged path is a personal-data folder or a private-terms list;
+#   - engine/privacy_scan.py finds a private term, a home-folder path, an email address or a LinkedIn profile
+#     link in any staged text file;
+#   - no private-terms list is configured (the scan runs with --strict).
+# Deliberate exceptions live in .privacy-allow ("<path> | <phrase>"): review any change to that file carefully.
+
+terms=$(git config --get reverse-recruiter.privateTerms)
+if [ -z "$terms" ]; then
+    echo "pre-commit: set your private-terms list first:"
+    echo "  git config reverse-recruiter.privateTerms \"<path to private-terms.txt>\""
+    exit 1
+fi
+
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$files" ] && exit 0
+
+bad=$(printf '%s\n' "$files" | grep -E '(^|/)(my-data|private-data)/|private-terms\.txt$|\.private\.|CLAUDE\.local\.md$')
+if [ -n "$bad" ]; then
+    echo "pre-commit: personal-data paths are staged:"
+    printf '  %s\n' $bad
+    exit 1
+fi
+
+if [ ! -f engine/privacy_scan.py ]; then
+    echo "pre-commit: engine/privacy_scan.py is missing; can't check this commit."
+    exit 1
+fi
+
+# Scan the staged versions (what will actually be committed), copied to a temporary folder.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+printf '%s\n' "$files" | while IFS= read -r f; do
+    mkdir -p "$tmp/$(dirname "$f")"
+    git show ":$f" > "$tmp/$f"
+done
+# Deliberate exceptions (e.g. the author's name in LICENSE) come from the staged .privacy-allow only.
+[ -f "$tmp/.privacy-allow" ] || git show ":.privacy-allow" > "$tmp/.privacy-allow" 2>/dev/null || rm -f "$tmp/.privacy-allow"
+
+PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$tmp" --terms "$terms" --strict
+status=$?
+if [ $status -ne 0 ]; then
+    echo "pre-commit: privacy scan failed (paths above are inside a temporary copy of the staged files)."
+    exit 1
+fi
+exit 0

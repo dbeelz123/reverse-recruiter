@@ -1,0 +1,4 @@
+# Deliberate exceptions to the privacy scan: "<path> | <phrase>", one per line.
+# The phrase is allowed in that file only; every other private term in the same line is still caught.
+LICENSE | David Beeler
+README.md | David Beeler

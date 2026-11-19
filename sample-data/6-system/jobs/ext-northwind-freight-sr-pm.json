@@ -1,0 +1,115 @@
+{
+  "job_id": "ext-northwind-freight-sr-pm",
+  "url": "../3-applications/northwind-freight-sr-pm-marketplace/job-description.txt",
+  "list": "saved",
+  "external": true,
+  "source": "Summit Staffing recruiter (fictional)",
+  "source_files": [
+    "3-applications/northwind-freight-sr-pm-marketplace/job-description.txt"
+  ],
+  "title": "Senior Product Manager, Freight Marketplace",
+  "company": "Northwind Freight (through Summit Staffing)",
+  "location": "Springfield, IL",
+  "posted": null,
+  "applicants": null,
+  "workplace": "Hybrid",
+  "employment_type": null,
+  "network_teaser": [],
+  "posting_text": "Senior Product Manager, Freight Marketplace (Northwind Freight, through Summit Staffing)\n\nAbout the role\nNorthwind Freight is building a marketplace that matches regional shippers with small carriers. You'll own the\nmarketplace from load posting to payment, working with operations, sales and two engineering teams.\n\nWhat you'll do\n- Own the load-matching and booking experience for shippers and carriers\n- Define carrier onboarding and verification\n- Set marketplace pricing and take-rate experiments with finance\n\nWhat we're looking for\n- 6+ years of B2B product management\n- Logistics, freight or transportation software experience\n- Experience with two-sided marketplaces or partner networks\n- Comfort with pricing decisions backed by data\n\nNice to have\n- Carrier onboarding or compliance programs\n- Experience with payments or factoring\n\nHybrid: 2 days a week in Springfield, IL.",
+  "company_text": "",
+  "company_meta": null,
+  "salary_mentions": [],
+  "truncated": false,
+  "leads": [],
+  "main_file": "3-applications/northwind-freight-sr-pm-marketplace/job-description.txt",
+  "printed": null,
+  "extracted_at": "2026-11-18T22:20:01",
+  "connections_1st": [],
+  "pipeline": {
+    "events": [
+      {
+        "date": "2026-11-15",
+        "stage": "applied",
+        "note": "Through the recruiter"
+      },
+      {
+        "date": "2026-11-18",
+        "stage": "interview",
+        "note": "Round 1 scheduled for 2026-11-17"
+      }
+    ],
+    "status": "interview",
+    "updated": "2026-11-18",
+    "stage": "round 2 on 2026-11-24"
+  },
+  "interviews": [
+    {
+      "round": "1",
+      "date": "2026-11-17",
+      "status": "done",
+      "with": "Summit Staffing recruiter",
+      "format": "phone",
+      "debrief": {
+        "how": "Recruiter screen: friendly, about the role's scope and the hybrid schedule.",
+        "asked": [
+          "Walk me through your background",
+          "Why a marketplace?",
+          "Are you open to contract-to-hire?"
+        ],
+        "landed": [
+          "The carrier onboarding story (9 weeks to 12 days)"
+        ],
+        "missed": [
+          "Was vague on salary expectations"
+        ],
+        "signals": "Panel with the hiring manager and operations lead next week",
+        "next": "Panel interview",
+        "lessons": [
+          "Have a salary range ready before the first call"
+        ],
+        "thank_you_to": [
+          "the recruiter"
+        ]
+      },
+      "thank_you": {
+        "to": [
+          "the recruiter"
+        ],
+        "due": "2026-11-18",
+        "sent": null
+      }
+    },
+    {
+      "round": "2",
+      "date": "2026-11-24",
+      "status": "scheduled",
+      "with": "hiring manager and operations lead",
+      "format": "video"
+    }
+  ],
+  "review": {
+    "fit": 76,
+    "pay": "not stated (ask the recruiter)",
+    "summary": "Freight marketplace for regional shippers and small carriers; hybrid in Springfield; through a staffing firm.",
+    "positives": [
+      "Carrier onboarding and partner networks",
+      "Pricing backed by data",
+      "Local hybrid"
+    ],
+    "caveats": [
+      "Through a staffing firm: contract or conversion not stated"
+    ],
+    "gaps": [
+      "Two-sided marketplace (required; partial)",
+      "Payments or factoring (nice to have; missing)"
+    ],
+    "adjustments": [],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "B",
+    "search": "external: recruiter",
+    "total": 76,
+    "round": 2
+  }
+}

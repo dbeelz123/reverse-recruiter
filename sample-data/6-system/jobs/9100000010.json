@@ -1,0 +1,52 @@
+{
+  "job_id": "9100000010",
+  "url": "https://example.com/jobs/9100000010",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Group Product Manager, Supply Chain Planning _ Quillstone Software (sample).pdf"
+  ],
+  "title": "Group Product Manager, Supply Chain Planning",
+  "company": "Quillstone Software",
+  "location": "United States (Remote)",
+  "posted": "Posted 1 week ago",
+  "applicants": "54 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Quillstone builds planning software for consumer-goods supply chains.\n\nWhat you'll do\n- Lead a team of four product managers\n- Own the planning suite's strategy\n\nWhat we're looking for\n- 10+ years of product management, 3+ managing product managers\n- Supply-chain planning experience",
+  "company_text": "Quillstone Software (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$190,000 - $220,000"
+  ],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Group Product Manager, Supply Chain Planning _ Quillstone Software (sample).pdf",
+  "printed": "11/13/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 66,
+    "pay": "$190K-$220K",
+    "summary": "Group PM leading four product managers in planning software.",
+    "positives": [
+      "Supply-chain planning domain"
+    ],
+    "caveats": [
+      "Managing PMs is the core of the role"
+    ],
+    "gaps": [
+      "People management (required; missing)"
+    ],
+    "adjustments": [],
+    "network_bonus": 0,
+    "dealbreakers": [
+      "Managing other product managers as the core of the role (rule added round 2)"
+    ],
+    "eligibility": [],
+    "tier": "X",
+    "search": "S1",
+    "total": 66,
+    "round": 2
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "3-applications/northwind-freight-sr-pm-marketplace/job-description.txt": {
+    "job_id": "ext-northwind-freight-sr-pm",
+    "kind": "external",
+    "sig": {
+      "size": 907,
+      "mtime": 1795058401
+    },
+    "processed_at": "2026-11-18T22:20:01"
+  }
+}

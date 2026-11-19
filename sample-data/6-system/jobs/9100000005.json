@@ -1,0 +1,72 @@
+{
+  "job_id": "9100000005",
+  "url": "https://example.com/jobs/9100000005",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Product Manager, Logistics Data Platform _ Tessellate Systems (sample).pdf"
+  ],
+  "title": "Product Manager, Logistics Data Platform",
+  "company": "Tessellate Systems",
+  "location": "United States (Remote)",
+  "posted": "Posted 5 days ago",
+  "applicants": "62 applicants",
+  "workplace": "Remote",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Tessellate sells a data platform for supply-chain analytics teams.\n\nWhat you'll do\n- Own ingestion connectors and the semantic layer\n- Work with data engineers at customer companies\n\nWhat we're looking for\n- 5+ years of product management on data platform or data warehouse products\n- Hands-on SQL and dbt experience\n\nNice to have\n- Supply-chain domain knowledge",
+  "company_text": "Tessellate Systems (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Product Manager, Logistics Data Platform _ Tessellate Systems (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 60,
+    "pay": "not listed",
+    "summary": "Data platform for supply-chain analytics teams.",
+    "positives": [
+      "Supply-chain domain (nice to have)"
+    ],
+    "caveats": [
+      "Sells the data stack itself",
+      "Hands-on dbt required"
+    ],
+    "gaps": [
+      "dbt (required; missing)",
+      "Data warehouse product experience (required; missing)"
+    ],
+    "adjustments": [
+      {
+        "reason": "data-platform company",
+        "points": -8
+      }
+    ],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "C",
+    "search": "S1",
+    "total": 52,
+    "round": 1
+  },
+  "pipeline": {
+    "events": [
+      {
+        "date": "2026-11-14",
+        "stage": "passed",
+        "note": "dbt is required; not worth the stretch"
+      }
+    ],
+    "status": "passed",
+    "updated": "2026-11-18"
+  },
+  "open_check": {
+    "date": "2026-11-14",
+    "result": "open",
+    "source": "tracker paste",
+    "note": "Posted 1w ago"
+  }
+}

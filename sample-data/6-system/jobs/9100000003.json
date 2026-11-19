@@ -1,0 +1,63 @@
+{
+  "job_id": "9100000003",
+  "url": "https://example.com/jobs/9100000003",
+  "list": "saved",
+  "source_files": [
+    "1-inbox/job-pdfs/Principal Product Manager, Warehouse Automation _ Brightdock (sample).pdf"
+  ],
+  "title": "Principal Product Manager, Warehouse Automation",
+  "company": "Brightdock",
+  "location": "Decatur, IL (Hybrid)",
+  "posted": "Posted 2 weeks ago",
+  "applicants": "31 applicants",
+  "workplace": "Hybrid",
+  "employment_type": "Full-time",
+  "network_teaser": [],
+  "posting_text": "Brightdock builds software that runs robotic picking cells in mid-size warehouses.\n\nWhat you'll do\n- Define the roadmap for the warehouse execution system\n- Work with robotics and floor operations teams\n- Lead launches across 40 customer sites\n\nWhat we're looking for\n- 7+ years of product management\n- Warehouse management or execution system experience\n- Experience shipping integrations with WMS and ERP systems\n\nNice to have\n- Robotics or automation hardware exposure\n\nHybrid: 2 days a week in our Decatur office. Travel: up to 15% to customer sites.",
+  "company_text": "Brightdock (fictional company for the sample data).",
+  "company_meta": null,
+  "salary_mentions": [
+    "$150,000 - $175,000"
+  ],
+  "truncated": false,
+  "leads": [],
+  "main_file": "1-inbox/job-pdfs/Principal Product Manager, Warehouse Automation _ Brightdock (sample).pdf",
+  "printed": "11/09/26",
+  "connections_1st": [],
+  "extracted_at": "2026-11-10T09:00:00",
+  "review": {
+    "fit": 74,
+    "pay": "$150K-$175K",
+    "summary": "Warehouse execution system for robotic picking; hybrid in Decatur, inside the radius.",
+    "positives": [
+      "WMS integrations match the Parcelwise years",
+      "Local hybrid, 2 days a week"
+    ],
+    "caveats": [
+      "Travel up to 15% to customer sites",
+      "Robotics hardware is new territory"
+    ],
+    "gaps": [
+      "Robotics or automation hardware (nice to have; missing)"
+    ],
+    "adjustments": [
+      {
+        "reason": "travel 15%",
+        "points": -6
+      }
+    ],
+    "network_bonus": 0,
+    "dealbreakers": [],
+    "eligibility": [],
+    "tier": "B",
+    "search": "direct",
+    "total": 68,
+    "round": 1
+  },
+  "open_check": {
+    "date": "2026-11-14",
+    "result": "open",
+    "source": "tracker paste",
+    "note": "Posted 2w ago"
+  }
+}

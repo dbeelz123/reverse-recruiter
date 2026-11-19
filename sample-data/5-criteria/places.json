@@ -1,0 +1,65 @@
+{
+ "note": "Fictional candidate's city table for the radius check (engine/locations.py).",
+ "cities": [
+  {
+   "city": "springfield",
+   "state": "IL",
+   "lat": 39.7817,
+   "lon": -89.6501
+  },
+  {
+   "city": "decatur",
+   "state": "IL",
+   "lat": 39.8403,
+   "lon": -88.9548
+  },
+  {
+   "city": "jacksonville",
+   "state": "IL",
+   "lat": 39.7339,
+   "lon": -90.229
+  },
+  {
+   "city": "lincoln",
+   "state": "IL",
+   "lat": 40.1484,
+   "lon": -89.3648
+  },
+  {
+   "city": "taylorville",
+   "state": "IL",
+   "lat": 39.5489,
+   "lon": -89.2945
+  },
+  {
+   "city": "bloomington",
+   "state": "IL",
+   "lat": 40.4842,
+   "lon": -88.9937
+  },
+  {
+   "city": "champaign",
+   "state": "IL",
+   "lat": 40.1164,
+   "lon": -88.2434
+  },
+  {
+   "city": "peoria",
+   "state": "IL",
+   "lat": 40.6936,
+   "lon": -89.589
+  },
+  {
+   "city": "chicago",
+   "state": "IL",
+   "lat": 41.8781,
+   "lon": -87.6298
+  },
+  {
+   "city": "st. louis",
+   "state": "MO",
+   "lat": 38.627,
+   "lon": -90.1994
+  }
+ ]
+}

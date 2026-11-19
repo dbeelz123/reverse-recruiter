@@ -1,0 +1,79 @@
+{
+ "round": 2,
+ "date": "2026-11-14",
+ "method": "New jobs from the S1 triage run, read in full (sample: written by hand).",
+ "jobs": {
+  "9100000009": {
+   "fit": 80,
+   "pay": "$165K-$195K",
+   "summary": "Partner APIs and a carrier certification program on a fleet platform; a strong keep in triage, confirmed in calibration.",
+   "positives": [
+    "Carrier certification program: done before for 1,400 carriers",
+    "Usage-based pricing (nice to have) is a strength"
+   ],
+   "caveats": [
+    "Telematics devices are new territory"
+   ],
+   "gaps": [
+    "Telematics or IoT devices (nice to have; missing)"
+   ],
+   "adjustments": [
+    {
+     "reason": "core domain",
+     "points": 6
+    }
+   ],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "A",
+   "search": "S1",
+   "strength": "strong keep"
+  },
+  "9100000010": {
+   "fit": 66,
+   "pay": "$190K-$220K",
+   "summary": "Group PM leading four product managers in planning software.",
+   "positives": [
+    "Supply-chain planning domain"
+   ],
+   "caveats": [
+    "Managing PMs is the core of the role"
+   ],
+   "gaps": [
+    "People management (required; missing)"
+   ],
+   "adjustments": [],
+   "network_bonus": 0,
+   "dealbreakers": [
+    "Managing other product managers as the core of the role (rule added round 2)"
+   ],
+   "eligibility": [],
+   "tier": "X",
+   "search": "S1"
+  },
+  "ext-northwind-freight-sr-pm": {
+   "fit": 76,
+   "pay": "not stated (ask the recruiter)",
+   "summary": "Freight marketplace for regional shippers and small carriers; hybrid in Springfield; through a staffing firm.",
+   "positives": [
+    "Carrier onboarding and partner networks",
+    "Pricing backed by data",
+    "Local hybrid"
+   ],
+   "caveats": [
+    "Through a staffing firm: contract or conversion not stated"
+   ],
+   "gaps": [
+    "Two-sided marketplace (required; partial)",
+    "Payments or factoring (nice to have; missing)"
+   ],
+   "adjustments": [],
+   "network_bonus": 0,
+   "dealbreakers": [],
+   "eligibility": [],
+   "tier": "B",
+   "search": "external: recruiter"
+  }
+ }
+}

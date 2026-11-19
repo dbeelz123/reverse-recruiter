@@ -1,0 +1,399 @@
+"""Merge a review round into the job records and write the re-screen report.
+
+Usage:  python engine/build_report.py --round 1 [--data my-data]
+
+Reads   6-system/jobs/*.json, 6-system/reviews/round-NN.json, 5-criteria/spec.json, 5-criteria/searches.json,
+        6-system/skills-gap.json, 6-system/calibration/round-NN.json (optional). Locations: engine/paths.py.
+Writes  "review" block into each job record, and 2-reports/<date>-round-NN-report.md
+"""
+import argparse
+import collections
+import json
+import re
+from pathlib import Path
+
+from paths import Paths
+from urllib.parse import quote
+
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from locations import distance, home_state_of, load_places, within_radius  # noqa: E402
+
+TIER_NAMES = {"A": "A - strong fit", "B": "B - good fit", "C": "C - possible", "D": "D - weak",
+              "X": "Excluded (dealbreaker)", "?": "Incomplete - re-save needed"}
+TIER_ORDER = ["A", "B", "C", "D", "X", "?"]
+TIER_COLORS = {"A": "#0C447C", "B": "#378ADD", "C": "#85B7EB", "D": "#B5D4F4"}  # one hue, darker = better
+
+
+def tiers_svg(reviewed, path, rnd):
+    """Jobs under consideration as one bar split into grade bands (A/B/C/D), each labeled with its count and share.
+    Kept deliberately simple (decided 2026-11-17): the per-job ranked chart was too busy."""
+    jobs = [j for j in reviewed if j["review"]["tier"] in TIER_COLORS]
+    if not jobs:
+        return None
+    counts = collections.Counter(j["review"]["tier"] for j in jobs)
+    n, W, H, x0, bw, y = len(jobs), 680, 150, 16, 648, 52
+    names = {"A": "strong fit", "B": "good fit", "C": "possible", "D": "weak"}
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
+         f'font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img">',
+         f"<title>{n} jobs under consideration after round {rnd}: "
+         + ", ".join(f"{counts[t]} {t}" for t in TIER_COLORS) + "</title>",
+         f'<rect width="{W}" height="{H}" fill="#FFFFFF"/>',
+         f'<text x="{x0}" y="30" font-size="16" font-weight="600" fill="#0B0B0B">{n} jobs under consideration '
+         f'after round {rnd}</text>']
+    x = x0
+    for t in TIER_COLORS:
+        c = counts[t]
+        if not c:
+            continue
+        wd = bw * c / n
+        ink = "#FFFFFF" if t in ("A", "B") else "#0C447C"
+        s.append(f'<rect x="{x:.1f}" y="{y}" width="{max(wd - 3, 1):.1f}" height="44" rx="3" fill="{TIER_COLORS[t]}"/>')
+        if wd >= 34:
+            s.append(f'<text x="{x + wd / 2 - 1.5:.1f}" y="{y + 28}" font-size="16" font-weight="600" fill="{ink}" '
+                     f'text-anchor="middle">{t} {c}</text>')
+        s.append(f'<text x="{x + 2:.1f}" y="{y + 66}" font-size="12" fill="#52514E">{names[t]}</text>'
+                 f'<text x="{x + 2:.1f}" y="{y + 82}" font-size="12" fill="#898781">{100 * c / n:.0f}%</text>')
+        x += wd
+    s.append("</svg>")
+    path.write_text("\n".join(s), encoding="utf-8")
+    return path
+
+
+def load(p: Path, default=None):
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else default
+
+
+def md_cell(s):
+    return str(s).replace("|", "/").replace("\n", " ")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    root = Path(__file__).resolve().parent.parent
+    ap.add_argument("--data", default=None)
+    ap.add_argument("--round", type=int, required=True)
+    args = ap.parse_args()
+    P = Paths(args.data)
+    data = P.data
+    rnd = f"round-{args.round:02d}"
+    review = load(P.reviews / f"{rnd}.json")
+    # Every round's review file is merged (latest round wins per job), so a re-screen edit to an
+    # earlier round's entry reaches the job records and this report.
+    all_reviews = {}
+    for n in range(1, args.round + 1):
+        rf = load(P.reviews / f"round-{n:02d}.json")
+        for jid, entry in (rf or {}).get("jobs", {}).items():
+            all_reviews[jid] = (entry, n)
+    spec = load(P.spec, {})
+    gaps = load(P.skills_gap, {"items": []})
+    calibration = load(P.calibration / f"{rnd}.json", {"questions": []})
+    insights = [i for i in load(P.searches, {}).get("insights", []) if i.get("round") == args.round]
+    blocked = {b["value"].split(" (")[0].lower() for b in spec.get("company_blocklist", [])}
+    rule = spec.get("work_arrangement", {}).get("machine_rule", {})
+    c = rule.get("hybrid_onsite_center")
+    center = (c["lat"], c["lon"]) if c else None
+    home_state = home_state_of(c.get("name")) if c else None
+    radius = rule.get("radius_miles", 50)
+    load_places(P)
+
+    jobs = {}
+    for f in sorted(P.jobs.glob("*.json")):
+        rec = load(f)
+        r, from_round = all_reviews.get(rec["job_id"], (None, None))
+        if r:
+            r = dict(r)
+            adj = sum(a["points"] for a in r.get("adjustments", []))
+            r["total"] = None if r["fit"] is None else round(r["fit"] + r.get("network_bonus", 0) + adj)
+            if r["tier"] not in ("X", "?") and r["total"] is not None:
+                r["tier"] = "A" if r["total"] >= 80 else "B" if r["total"] >= 65 else "C" if r["total"] >= 50 else "D"
+            r["round"] = from_round
+            rec["review"] = r
+            f.write_text(json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8")
+        jobs[rec["job_id"]] = rec
+
+    reviewed = [j for j in jobs.values() if "review" in j]
+    reviewed.sort(key=lambda j: (TIER_ORDER.index(j["review"]["tier"]), -(j["review"]["total"] or 0)))
+    out = []
+    w = out.append
+    w(f"# Saved jobs re-screen - round {args.round} ({review['date']})\n")
+    new = sum(1 for j in reviewed if j["review"].get("round") == args.round)
+    w(f"{len(reviewed)} saved jobs, each read in full ({new} new this round; the rest keep their earlier review). "
+      f"Calibration questions at the end may still adjust scores.\n")
+    w("**Score** = fit from the full-text review (0-100) + adjustments from confirmed rules (domain 60/40, "
+      "travel sliding scale, ...) + 8 for a 1st-degree connection. The breakdown is shown as fit / adjustments / network.\n")
+
+    # Search funnel (engine/metrics.py; recorded at the end of each round)
+    if P.metrics.exists():
+        import metrics
+        w("## Search funnel: progress through the sea of jobs\n")
+        w("Each job is counted once per stage (by company + title), so a job that reappears in later searches isn't "
+          "counted again. 'Job listings processed' includes cards ruled out automatically; 'LinkedIn baseline match' "
+          "is your triage call on LinkedIn's match; 'Agent deep-fit review' is every saved PDF the agent read in full; "
+          "'Qualified targets' are the jobs on the ranked list. Recorded at the end of each round by "
+          "`engine/metrics.py --round N`.\n")
+        img = metrics.funnel_svg(P, P.reports / f"{review['date']}-round-{args.round:02d}-funnel.svg")
+        if img:
+            w(f"![Search funnel after round {args.round}]({img.name})\n")
+        w(metrics.table(P) + "\n")
+        tt = metrics.timing_table(P)
+        if tt:
+            w("### Time per round\n")
+            w("How long each stage took, from timing events logged during the round and file save times. "
+              "'Per 100 job listings' divides the round's total by its job listings processed.\n")
+            w(tt + "\n")
+        # Triage mode (engine/modes.py; docs/PLAN.md -> Triage modes): Catch-up progress and the stability signals
+        # that decide when to ask about switching to Keep-up.
+        import modes
+        w("### Triage mode\n")
+        prog = modes.progress_md(P)
+        if prog:
+            w("**Catch-up progress:** " + " ".join(prog) + "\n")
+        w("\n".join(modes.signals_md(P)) + "\n")
+
+    # Outcome funnel (engine/pipeline.py): ranked -> kit -> applied -> response -> interview -> offer.
+    # Building it also refreshes 2-reports/apply-queue.md, the list of what to apply to next.
+    import pipeline
+    w("## Applications: from qualified target to offer\n")
+    w("Picks up where the search funnel ends. A job counts at every stage it has reached; a rejection after "
+      "applying counts as a response. What to do next for each job is in [apply-queue.md](apply-queue.md).\n")
+    w(pipeline.funnel_table(pipeline.build(P)) + "\n")
+
+    # Action items
+    todo = []
+    for j in reviewed:
+        if j["review"]["tier"] == "?":
+            todo.append(f"Re-save **{j['company']} - {j['title']}** with 'See more' expanded (description was collapsed).")
+        if any("in your network" in t for t in j.get("network_teaser", [])) and not j.get("people_file"):
+            todo.append(f"Save a `_people` file for **{j['company']} - {j['title']}**: the page shows "
+                        f"'{j['network_teaser'][0]}' but the connection list wasn't captured.")
+    if todo:
+        w("## Action items for you\n")
+        for t in todo:
+            w(f"- {t}")
+        w("")
+
+    # Ranked table
+    w("## Ranked list\n")
+    img = tiers_svg(reviewed, P.reports / f"{review['date']}-round-{args.round:02d}-tiers.svg", args.round)
+    if img:
+        w(f"![Ranked list by grade after round {args.round}]({img.name})\n")
+    w("| # | Score | Tier | Role | Company | Where | Pay (as posted) | 1st-degree |")
+    w("|---|---|---|---|---|---|---|---|")
+    for i, j in enumerate(reviewed, 1):
+        r = j["review"]
+        adj = sum(a["points"] for a in r.get("adjustments", []))
+        parts = [str(r["fit"])] + ([f"{adj:+g}"] if adj else []) + ([f"+{r['network_bonus']} net"] if r.get("network_bonus") else [])
+        score = "-" if r["total"] is None else (f"{r['total']}" + (f" ({' '.join(parts)})" if len(parts) > 1 else ""))
+        pay = r.get("pay") or "; ".join(j.get("salary_mentions") or []) or "not listed"
+        conn = ", ".join(c["name"] for c in j.get("connections_1st", [])) or ""
+        if not conn and r.get("network_bonus"):
+            conn = "referral (name withheld)"
+        if j.get("external"):  # non-LinkedIn job (engine/ingest_external.py): say so, and show its pipeline stage
+            pl = j.get("pipeline") or {}
+            # Pipeline stage names (engine/pipeline.py) read as states here: "interview" -> "interviewing".
+            shown = {"interview": "interviewing", "kit": "kit built", "response": "heard back",
+                     "outreach": "outreach sent", "hold": "on hold"}.get(pl.get("status"), pl.get("status"))
+            conn = "; ".join(x for x in (conn, "external" + (f" · {shown}" if shown else "")) if x)
+        where = f"{j.get('workplace') or ''} - {j.get('location') or ''}"
+        if center and j.get("workplace") in ("Hybrid", "On-site"):
+            d = distance(j.get("location") or "", center)
+            where += f" (~{d} mi)" if d is not None else " (distance unknown)"
+        w(f"| {i} | {score} | {r['tier']} | [{md_cell(j['title'])}]({j['url']}) | {md_cell(j['company'])} | "
+          f"{md_cell(where)} | {md_cell(pay)} | {md_cell(conn)} |")
+    w("")
+
+    # Company groups: several roles at one company are compared together before picking the top 1-2.
+    groups = collections.defaultdict(list)
+    for j in reviewed:
+        if j["review"]["tier"] not in ("X", "?"):
+            groups[re.split(r"\W+", (j.get("company") or "").lower())[0]].append(j)
+    multi = {k: v for k, v in groups.items() if len(v) >= 2}
+    if multi:
+        w("## Companies with several roles\n")
+        w("Compared every round on current scores: the top 2 lead, the rest are held in reserve (kept and re-scored, "
+          "not removed) and move up if they overtake. Ties and the final pick are yours.\n")
+        w("| Company | Role | Score | Suggested |")
+        w("|---|---|---|---|")
+        for k, v in sorted(multi.items(), key=lambda kv: -max(x["review"]["total"] or 0 for x in kv[1])):
+            v.sort(key=lambda x: -(x["review"]["total"] or 0))
+            for i, j in enumerate(v):
+                w(f"| {md_cell(j['company']) if i == 0 else ''} | [{md_cell(j['title'])}]({j['url']}) | "
+                  f"{j['review']['total']} | {'lead' if i < 2 else 'reserve'} |")
+        w("")
+
+    # Network
+    net = [j for j in reviewed if j.get("connections_1st")]
+    w("## Your 1st-degree connections at these companies\n")
+    for j in net:
+        for c in j["connections_1st"]:
+            w(f"- **{c['name']}** ({c.get('headline') or 'no headline'}) - {j['company']}, *{j['title']}*")
+    w("")
+
+    # Details
+    w("## Job-by-job: looks good, but...\n")
+    for tier in TIER_ORDER:
+        group = [j for j in reviewed if j["review"]["tier"] == tier]
+        if not group:
+            continue
+        w(f"### {TIER_NAMES[tier]}\n")
+        for j in group:
+            r = j["review"]
+            score = "-" if r["total"] is None else r["total"]
+            w(f"#### {j['company']} - {j['title']} ({score})\n")
+            w(f"{r['summary']}\n")
+            if r.get("eligibility"):
+                w("**Eligibility / regulated requirements (beyond your baseline in spec.json):** "
+                  + " / ".join(f"{e['requirement']} ({e.get('applies_to', 'person')}): \"{e.get('quote', '')}\""
+                               for e in r["eligibility"]) + "\n")
+            if r.get("dealbreakers"):
+                w("**Dealbreaker:** " + " / ".join(r["dealbreakers"]) + "\n")
+            if r.get("adjustments"):
+                w("*Adjustments:* " + "; ".join(f"{a['reason']} ({a['points']:+g})" for a in r["adjustments"]) + "\n")
+            if r.get("positives"):
+                w("**Looks good:** " + " / ".join(r["positives"]) + "\n")
+            if r.get("caveats"):
+                w("**But:** " + " / ".join(r["caveats"]) + "\n")
+            if r.get("gaps"):
+                w("*Skill gaps:* " + ", ".join(r["gaps"]) + "\n")
+            w(f"[Posting]({j['url']})\n")
+
+    # Leads
+    seen = collections.defaultdict(lambda: {"count": 0, "with": set(), "lead": None})
+    for j in reviewed:
+        for l in j.get("leads", []):
+            k = (l["title"], l["company"])
+            seen[k]["count"] += 1
+            seen[k]["with"].add((j["company"], j["url"]))
+            if l.get("connections_note") or not seen[k]["lead"]:
+                seen[k]["lead"] = l
+
+    def is_saved(title, company):
+        """A lead that is really one of the saved jobs (LinkedIn sometimes re-labels the company)."""
+        for j in jobs.values():
+            st, sc = (j.get("title") or "").lower(), (j.get("company") or "").lower()
+            if title.lower() == st and company.lower() == sc:
+                return True
+            first_word = re.split(r"\W+", sc)[0] if sc else ""
+            if st and first_word and title.lower().endswith(st) and first_word in (title + " " + company).lower():
+                return True
+        return False
+
+    def find_link(title, company):
+        # The printed page has no link to the lead itself, so offer a LinkedIn job search for it.
+        return "https://www.linkedin.com/jobs/search/?keywords=" + quote(f"{title} {company}")
+
+    def shown_with(v, limit=4):
+        items = sorted(v["with"])
+        cell = ", ".join(f"[{md_cell(c)}]({u})" for c, u in items[:limit])
+        return cell + (f" +{len(items) - limit} more" if len(items) > limit else "")
+
+    def location_ok(loc):
+        """Remote is fine anywhere; hybrid/on-site (or unstated) only within the radius.
+        Unknown cities are kept (better to show than to hide wrongly)."""
+        if not center or "(Remote)" in loc:
+            return True
+        inside = within_radius(loc, center, radius, home_state)
+        return inside is not False
+
+    leads, out_of_area = [], 0
+    for k, v in seen.items():
+        if is_saved(*k) or any(b in k[1].lower() for b in blocked):
+            continue
+        if not location_ok(v["lead"]["location"]):
+            out_of_area += 1
+            continue
+        leads.append((k, v))
+    w("## Leads from 'More jobs' (not preference evidence)\n")
+    w("LinkedIn's similar-job suggestions printed with your saved jobs. Listed for discovery only; "
+      "blocklisted companies removed. 'Connections' means 1st-degree connections work there. "
+      "**Find** opens a LinkedIn job search for that role (the printed page doesn't include a direct link); "
+      "**Appeared on** links the saved jobs it was printed next to.\n")
+    if out_of_area:
+        w(f"{out_of_area} leads hidden because they are hybrid or on-site outside the allowed area "
+          f"(remote anywhere; hybrid/on-site within {radius} miles of {rule['hybrid_onsite_center']['name']}).\n")
+    w("### At companies where you have connections\n")
+    w("| Role | Company | Location | Connections | Find | Appeared on |")
+    w("|---|---|---|---|---|---|")
+    conn_leads = sorted([x for x in leads if x[1]["lead"].get("connections_note")], key=lambda x: -x[1]["count"])
+    for (t, c), v in conn_leads:
+        l = v["lead"]
+        w(f"| {md_cell(t)} | {md_cell(c)} | {md_cell(l['location'])} | {md_cell(l['connections_note'])} | "
+          f"[Find]({find_link(t, c)}) | {shown_with(v)} |")
+    w("\n### Most frequently suggested\n")
+    w("| Role | Company | Location | Pay | Find | Appeared on |")
+    w("|---|---|---|---|---|---|")
+    for (t, c), v in sorted(leads, key=lambda x: -x[1]["count"])[:15]:
+        l = v["lead"]
+        w(f"| {md_cell(t)} | {md_cell(c)} | {md_cell(l['location'])} | {md_cell(l.get('salary', ''))} | "
+          f"[Find]({find_link(t, c)}) | {shown_with(v)} |")
+    w("")
+
+    # Skills gap
+    w("## Skills gap (running tally)\n")
+    w(f"{gaps.get('method', '')}\n")
+    w("| Skill | Status | Weight | DQ demand | Seen in | Suggested action |")
+    w("|---|---|---|---|---|---|")
+    label = {"have": "Have", "have_not_on_resume": "Have - not on resume", "partial": "Partial",
+             "missing": "Missing", "unknown": "Unknown - ask"}
+    for it in sorted(gaps["items"], key=lambda x: (x["category"] == "have", -(x["weight"] + x.get("dq_demand", 0)))):
+        seen = ", ".join(it["jobs"] + [f"{j} (DQ)" for j in it.get("dq_jobs", [])])
+        w(f"| {md_cell(it['skill'])} | {label.get(it['category'], it['category'])} | {it['weight']} | "
+          f"{it.get('dq_demand', 0)} | {md_cell(seen)} | {md_cell(it['action'])} |")
+    w("")
+
+    # Resume & LinkedIn update candidates: skills the user has that their documents don't show yet
+    cands = [it for it in gaps["items"] if it["category"] == "have_not_on_resume"]
+    if cands:
+        w("## Resume & LinkedIn update candidates\n")
+        w("Skills you have that the resume or LinkedIn doesn't show yet. The optional end-of-round review "
+          "turns these into tracked changes and paste-ready LinkedIn text.\n")
+        for it in sorted(cands, key=lambda x: -(x["weight"] + x.get("dq_demand", 0))):
+            w(f"- **{it['skill']}** (weight {it['weight']}, DQ demand {it.get('dq_demand', 0)}): {it['action']}")
+        w("")
+
+    # Training tracks: gaps grouped by the role type that asks for them
+    if gaps.get("tracks"):
+        by_name = {it["skill"]: it for it in gaps["items"]}
+        w("## Training tracks\n")
+        w("Skill gaps grouped by the kind of role that requires or prefers them. Demand counts saved jobs "
+          "(weight) and jobs DQ'd for a missing skill (DQ demand).\n")
+        for t in gaps["tracks"]:
+            w(f"### {t['track']}\n")
+            w(f"*For:* {t['target']}\n")
+            for s in t["skills"]:
+                it = by_name.get(s, {})
+                w(f"- **{s}**: {label.get(it.get('category'), it.get('category', '?'))}; "
+                  f"weight {it.get('weight', 0)}, DQ demand {it.get('dq_demand', 0)}")
+            w("\n*Steps:*")
+            for i, step in enumerate(t["steps"], 1):
+                w(f"{i}. {step}")
+            if t.get("rules_it_could_retire"):
+                w("\n*Closing this track could retire:* " + "; ".join(t["rules_it_could_retire"]))
+            w("")
+
+    # Search insights: trends across the round, each with a proposed search change
+    if insights:
+        w(f"## Search insights - round {args.round}\n")
+        w("| Trend | Evidence | Proposal | Decision |")
+        w("|---|---|---|---|")
+        for i in insights:
+            w(f"| {md_cell(i.get('trend', ''))} | {md_cell(i.get('evidence', ''))} | "
+              f"{md_cell(i.get('proposal', ''))} | {md_cell(i.get('decision', 'open'))} |")
+        w("")
+
+    # Calibration questions
+    if calibration["questions"]:
+        w(f"## Calibration questions - round {args.round}\n")
+        for i, q in enumerate(calibration["questions"], 1):
+            w(f"{i}. **{q['topic']}:** {q['question']}")
+        w("")
+
+    path = P.reports / f"{review['date']}-{rnd}-report.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(out), encoding="utf-8")
+    print(f"Wrote {path}  ({len(reviewed)} jobs, {len(conn_leads)} connection leads)")
+
+
+if __name__ == "__main__":
+    main()

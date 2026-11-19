@@ -1,0 +1,28 @@
+{
+ "round": 2,
+ "date": "2026-11-14",
+ "questions": [
+  {
+   "id": "q1",
+   "topic": "People management",
+   "question": "Quillstone's Group PM role manages four PMs. Is that a dealbreaker?",
+   "answer": "Yes, when managing PMs is the core of the job. Mentoring is fine.",
+   "answered": "2026-11-14"
+  },
+  {
+   "id": "q2",
+   "topic": "Strong keep: Arcadia Fleet",
+   "question": "Telematics devices are nice to have. Partner APIs and certification: have / partial / no?",
+   "answer": "Have: same program as Tidewater's carrier certification.",
+   "answered": "2026-11-14"
+  },
+  {
+   "id": "s1",
+   "type": "stretch review",
+   "topic": "Stretch review: Northwind Freight, Senior PM Freight Marketplace",
+   "question": "Stretches: two-sided marketplace (required; partial), payments (nice to have; missing). Build, build without concessions, or pass?",
+   "answer": "Build; name the marketplace gap, skip payments.",
+   "answered": "2026-11-14"
+  }
+ ]
+}
