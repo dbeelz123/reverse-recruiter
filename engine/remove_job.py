@@ -43,7 +43,7 @@ def main():
         done = []
         rec_p = P.jobs / f"{jid}.json"
         label = jid
-        rec = read_json(rec_p, {})
+        rec = read_json(rec_p, {}, expect=dict)  # a damaged record stops here, before anything has changed
         company, title, pipeline = rec.get("company"), rec.get("title"), rec.get("pipeline")
         if rec:
             label = f"{company} - {title} ({jid})"

@@ -107,14 +107,21 @@ def main():
     # earlier round's entry reaches the job records and this report.
     all_reviews = {}
     for n in range(1, args.round + 1):
-        rf = load(P.reviews / f"round-{n:02d}.json")
-        for jid, entry in (rf or {}).get("jobs", {}).items():
+        # expect=dict: a file that isn't an object (e.g. "[]") must stop the report, not silently drop a round.
+        rf = read_json(P.reviews / f"round-{n:02d}.json", None, expect=dict)
+        jobs = (rf or {}).get("jobs", {})
+        if not isinstance(jobs, dict):
+            raise SystemExit(f"Malformed review file {P.reviews / f'round-{n:02d}.json'}: 'jobs' must be an object "
+                             f"keyed by job ID.")
+        for jid, entry in jobs.items():
             check_review(P.reviews / f"round-{n:02d}.json", jid, entry)
             all_reviews[jid] = (entry, n)
     spec = read_json(P.spec, {}, expect=dict)
     gaps = read_json(P.skills_gap, {"items": []}, expect=dict)
     calibration = read_json(P.calibration / f"{rnd}.json", {"questions": []}, expect=dict)
     insights = [i for i in read_json(P.searches, {}, expect=dict).get("insights", []) if i.get("round") == args.round]
+    # Every blocklist entry, proposed ones included, hides leads: proposed criteria count in reviews too
+    # (engine/prompts/review-rubric.md, rule 3). rescreen.py flags only confirmed rules, to keep its flags firm.
     blocked = {b["value"].split(" (")[0].lower() for b in spec.get("company_blocklist", [])}
     rule = spec.get("work_arrangement", {}).get("machine_rule", {})
     c = rule.get("hybrid_onsite_center")

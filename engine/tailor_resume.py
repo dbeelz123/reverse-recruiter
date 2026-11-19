@@ -38,6 +38,9 @@ def main():
         sys.exit("The output must be a new file: the source resume is never modified.")
     if Path(dst).exists():
         sys.exit(f"{dst} already exists; choose a new name (earlier drafts are never overwritten).")
+    if not Path(dst).resolve().parent.is_dir():
+        sys.exit(f"The output folder {Path(dst).resolve().parent} is missing; create it (or pick an existing "
+                 f"folder) and rerun.")
     zin = zipfile.ZipFile(src)
     x = zin.read("word/document.xml").decode("utf-8")
     stamp = f'w:author="Claude" w:date="{dt.date.today().isoformat()}T00:00:00Z"'

@@ -129,14 +129,20 @@ def due_table(P, today, soon=0):
 # ---- commands -----------------------------------------------------------------------------------------------------
 
 def schedule(P, job, a):
+    was = (job.get("pipeline") or {}).get("status")
+    if was in TERMINAL and not a.reopen:  # checked before anything changes: a closed-out job is never revived quietly
+        sys.exit(f"{short(job)} is marked '{was}'. If the employer has come back to you, rerun with --reopen to "
+                 f"schedule the interview and reopen it; otherwise check the job ID.")
     iv = find_round(job, a.round, create=True)
     date = None if a.date == "unknown" else a.date
     iv.update({k: v for k, v in (("date", date), ("with", a.with_), ("format", a.format)) if v})
     iv["status"] = "scheduled"
     pl = job.setdefault("pipeline", {"events": []})
     if pl.get("status") not in ("interview", "offer"):
-        pl.setdefault("events", []).append({"date": dt.date.today().isoformat(), "stage": "interview",
-                                            "note": f"Round {a.round} scheduled for {a.date or 'a date to confirm'}"})
+        note = f"Round {a.round} scheduled for {a.date or 'a date to confirm'}"
+        if was in TERMINAL:
+            note += f" (reopened; was {was})"
+        pl.setdefault("events", []).append({"date": dt.date.today().isoformat(), "stage": "interview", "note": note})
         pl["status"] = "interview"
         pl.pop("next", None)
     pl["stage"] = f"round {a.round} on {a.date}" if a.date else f"round {a.round}"
@@ -224,6 +230,8 @@ def main():
     s.add_argument("--date", type=iso_date, help="YYYY-MM-DD; leave out if unknown")
     s.add_argument("--with", dest="with_", help="who is on the panel")
     s.add_argument("--format", help="e.g. Teams video, phone, on site")
+    s.add_argument("--reopen", action="store_true",
+                   help="schedule on a job marked passed, rejected, withdrawn or closed, and reopen it")
     d = sub.add_parser("debrief")
     d.add_argument("job")
     d.add_argument("--round", required=True)
