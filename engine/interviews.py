@@ -102,8 +102,10 @@ def due_items(job, today, soon=0):
     upcoming = any(iv.get("status") == "scheduled" for iv in ivs)
     if events and not upcoming:
         last_date, last_stage = max(events)
-        rule = {"applied": (FOLLOW_APPLIED, "no response since applying: send a short follow-up or ask your "
-                                            "connection for a nudge"),
+        # Suggest a nudge from a connection only when the job has a 1st-degree one, and name them.
+        names = [c.get("name") for c in job.get("connections_1st") or [] if isinstance(c, dict) and c.get("name")]
+        nudge = f" or ask {' or '.join(names)} for a nudge" if names else ""
+        rule = {"applied": (FOLLOW_APPLIED, f"no response since applying: send a short follow-up{nudge}"),
                 "outreach": (FOLLOW_OUTREACH, "no reply from your connection: one friendly follow-up"),
                 "interview-done": (FOLLOW_INTERVIEW, "no news since the interview: check in with the recruiter or "
                                                      "hiring manager"),
