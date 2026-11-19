@@ -29,6 +29,11 @@ def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     src, dst, edits_file = sys.argv[1:4]
+    from pathlib import Path
+    if Path(src).resolve() == Path(dst).resolve():
+        sys.exit("The output must be a new file: the source resume is never modified.")
+    if Path(dst).exists():
+        sys.exit(f"{dst} already exists; choose a new name (earlier drafts are never overwritten).")
     zin = zipfile.ZipFile(src)
     x = zin.read("word/document.xml").decode("utf-8")
     stamp = f'w:author="Claude" w:date="{dt.date.today().isoformat()}T00:00:00Z"'

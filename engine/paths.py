@@ -11,6 +11,8 @@ Layout of the data folder (default: <project>/my-data), set 2026-11-16:
   5-criteria/                spec.json, changelog.md, searches.json (your rules), places.json (your city table)
   6-system/                  machine data: jobs/, reviews/, calibration/, search-runs/, *.json
 """
+import json
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,6 +28,28 @@ APPLICATIONS = "3-applications"
 PROFILE = "4-profile"
 CRITERIA = "5-criteria"
 SYSTEM = "6-system"
+
+
+def iso_date(s):
+    """argparse type for --date: a real YYYY-MM-DD date, returned unchanged ('unknown' passes through)."""
+    import argparse
+    import datetime
+    if s == "unknown":
+        return s
+    try:
+        datetime.date.fromisoformat(s)
+        return s
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(f"not a date (YYYY-MM-DD): {s!r}")
+
+
+def write_json(path, obj, indent=2):
+    """Write JSON atomically: a temporary file in the same folder, then os.replace, so a crash mid-write never
+    leaves a half-written record."""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(obj, indent=indent, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 class Paths:
@@ -65,6 +89,15 @@ class Paths:
         self.removed = sysd / "removed.json"
         self.metrics = sysd / "metrics.json"
         self.linkedin_project = sysd / "linkedin-project.json"  # numbers published on the LinkedIn project
+
+    def inside(self, p, folder=None):
+        """True when p resolves inside folder (default: the data folder). Guards every delete and copy."""
+        base = Path(folder or self.data).resolve()
+        try:
+            Path(p).resolve().relative_to(base)
+            return True
+        except ValueError:
+            return False
 
     def rel(self, p):
         """Path relative to the data folder, with forward slashes (as stored in ledger keys and job records)."""

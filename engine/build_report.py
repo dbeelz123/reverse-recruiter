@@ -78,6 +78,9 @@ def main():
     data = P.data
     rnd = f"round-{args.round:02d}"
     review = load(P.reviews / f"{rnd}.json")
+    if not isinstance(review, dict) or not review.get("date"):
+        raise SystemExit(f"No usable review file for round {args.round}: expected {P.reviews / f'{rnd}.json'} "
+                         f"with a 'date' and a 'jobs' map. Write the round's reviews first.")
     # Every round's review file is merged (latest round wins per job), so a re-screen edit to an
     # earlier round's entry reaches the job records and this report.
     all_reviews = {}

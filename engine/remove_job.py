@@ -14,7 +14,10 @@ import datetime as dt
 import json
 from pathlib import Path
 
-from paths import Paths
+import re
+import sys
+
+from paths import Paths, write_json
 
 
 def main():
@@ -34,42 +37,48 @@ def main():
     tombs = json.loads(tomb_p.read_text(encoding="utf-8")) if tomb_p.exists() else []
 
     for jid in args.job_ids:
+        if not re.fullmatch(r"[\w-]+", jid):
+            sys.exit(f"Not a job ID: {jid!r}")
         done = []
         rec_p = P.jobs / f"{jid}.json"
         label = jid
-        company = title = rec_p_pipeline = None
-        if rec_p.exists():
-            rec = json.loads(rec_p.read_text(encoding="utf-8"))
-            company, title, rec_p_pipeline = rec.get("company"), rec.get("title"), rec.get("pipeline")
+        rec = json.loads(rec_p.read_text(encoding="utf-8")) if rec_p.exists() else {}
+        company, title, pipeline = rec.get("company"), rec.get("title"), rec.get("pipeline")
+        if rec:
             label = f"{company} - {title} ({jid})"
-            for f in rec.get("source_files", []):
-                pdf = data / f
-                if pdf.exists():
-                    pdf.unlink()
-                    done.append(f"deleted {f}")
-            rec_p.unlink()
-            done.append("deleted job record")
-        for key in [k for k, v in ledger.items() if v.get("job_id") == jid]:
-            del ledger[key]
-            done.append(f"ledger entry {key}")
-        for rv in sorted(P.reviews.glob("*.json")):
-            r = json.loads(rv.read_text(encoding="utf-8"))
-            if jid in r.get("jobs", {}):
-                del r["jobs"][jid]
-                rv.write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
-                done.append(f"review {rv.name}")
+        # Only files inside the saved-PDF inbox are ever deleted; anything else in source_files is left alone.
+        pdfs, refused = [], []
+        for f in rec.get("source_files", []):
+            (pdfs if P.inside(data / f, P.job_pdfs) else refused).append(f)
+        # The tombstone is written first, so an interrupted removal is still recognized and can be rerun.
         if not args.no_tombstone and not any(t["job_id"] == jid for t in tombs):
             tomb = {"job_id": jid, "removed": dt.date.today().isoformat(), "reason": args.reason}
             if company:
                 tomb.update(company=company, title=title)
-            if rec_p_pipeline:  # keep application history so engine/pipeline.py's outcome funnel still counts it
-                tomb["pipeline"] = rec_p_pipeline
+            if pipeline:  # keep application history so engine/pipeline.py's outcome funnel still counts it
+                tomb["pipeline"] = pipeline
             tombs.append(tomb)
+            write_json(tomb_p, tombs)
+        for rv in sorted(P.reviews.glob("*.json")):
+            r = json.loads(rv.read_text(encoding="utf-8"))
+            if jid in r.get("jobs", {}):
+                del r["jobs"][jid]
+                write_json(rv, r)
+                done.append(f"review {rv.name}")
+        for key in [k for k, v in ledger.items() if v.get("job_id") == jid]:
+            del ledger[key]
+            done.append(f"ledger entry {key}")
+        write_json(ledger_p, ledger)
+        for f in pdfs:
+            if (data / f).exists():
+                (data / f).unlink()
+                done.append(f"deleted {f}")
+        if rec_p.exists():
+            rec_p.unlink()
+            done.append("deleted job record")
+        for f in refused:
+            done.append(f"LEFT ALONE (outside {P.rel(P.job_pdfs)}): {f}")
         print(f"{label}: " + (", ".join(done) or "nothing found"))
-
-    ledger_p.write_text(json.dumps(ledger, indent=2), encoding="utf-8")
-    if not args.no_tombstone:
-        tomb_p.write_text(json.dumps(tombs, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

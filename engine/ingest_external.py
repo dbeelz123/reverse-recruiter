@@ -68,6 +68,12 @@ def main():
         raise SystemExit("External job IDs start with 'ext-' so they never collide with LinkedIn job IDs.")
     P = Paths(a.data)
     src = Path(a.file).resolve()
+    if not src.is_file():
+        raise SystemExit(f"No such file: {src}")
+    if not P.inside(src):
+        raise SystemExit(f"{src} is outside the data folder ({P.data}). Put the description in the job's kit folder "
+                         f"(3-applications/<company-role>/) first, so the report can link to it.")
+    P.jobs.mkdir(parents=True, exist_ok=True)
     key = P.rel(src)
     text = read_text(src)
     out = P.jobs / f"{a.id}.json"

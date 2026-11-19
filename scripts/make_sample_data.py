@@ -669,6 +669,12 @@ def main():
     ap.add_argument("--out", default=str(REPO / "sample-data"))
     out = Path(ap.parse_args().out).resolve()
     if out.exists():
+        # Only ever replace a folder this script made: never a filesystem root, the repo itself, or anything else.
+        made_here = (out / "README.md").is_file() and "scripts/make_sample_data.py" in (out / "README.md").read_text(
+            encoding="utf-8", errors="replace")
+        if out == Path(out.anchor) or out in (REPO, Path.home()) or not made_here:
+            sys.exit(f"Refusing to replace {out}: it isn't a sample-data folder made by this script. "
+                     "Choose a new or empty --out folder.")
         shutil.rmtree(out)
     D = out
     data = ["--data", D]

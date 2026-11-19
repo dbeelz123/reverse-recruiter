@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths  # noqa: E402
+from paths import Paths, iso_date  # noqa: E402
 
 FOLLOW_APPLIED = 7
 FOLLOW_OUTREACH = 5
@@ -214,18 +214,18 @@ def main():
     s = sub.add_parser("schedule")
     s.add_argument("job")
     s.add_argument("--round", required=True)
-    s.add_argument("--date", help="YYYY-MM-DD; leave out if unknown")
+    s.add_argument("--date", type=iso_date, help="YYYY-MM-DD; leave out if unknown")
     s.add_argument("--with", dest="with_", help="who is on the panel")
     s.add_argument("--format", help="e.g. Teams video, phone, on site")
     d = sub.add_parser("debrief")
     d.add_argument("job")
     d.add_argument("--round", required=True)
     d.add_argument("--file", required=True, help="debrief JSON (write it in the session scratchpad)")
-    d.add_argument("--date", default=None, help="interview date, if the round had none recorded")
+    d.add_argument("--date", type=iso_date, default=None, help="interview date, if the round had none recorded")
     t = sub.add_parser("sent")
     t.add_argument("job")
     t.add_argument("--round", required=True)
-    t.add_argument("--date", default=dt.date.today().isoformat())
+    t.add_argument("--date", type=iso_date, default=dt.date.today().isoformat())
     u = sub.add_parser("due")
     u.add_argument("--soon", type=int, default=0, help="also list what falls due in the next N days")
     sub.add_parser("lessons")

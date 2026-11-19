@@ -34,7 +34,7 @@ PATTERNS = {
 }
 TEXT = {".py", ".md", ".json", ".txt", ".html", ".svg", ".toml", ".cfg", ".yml", ".yaml", ".csv", ".tsv", ".xml",
         ".ini", ".sh", ".ps1", ".bat", ".gitignore", ".gitattributes", ""}
-SKIP_DIRS = {"__pycache__", ".git", "archive"}
+SKIP_DIRS = {"__pycache__", ".git"}  # archive/ folders are scanned too: old reports hold the same details
 
 
 def terms_file(P, given=None):

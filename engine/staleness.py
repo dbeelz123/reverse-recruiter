@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths  # noqa: E402
+from paths import Paths, iso_date  # noqa: E402
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
 OLD_DAYS = 30     # listings at least this old (estimated) get a warning even when last seen open
@@ -73,8 +73,12 @@ def verdict(job, today):
     info = listing_info(job, today)
     if oc.get("result") == "closed":
         return "closed", f"closed ({oc.get('source')}, {oc.get('date')}): removal prompt"
-    if oc.get("result") == "open" and oc.get("date"):
-        ago = (today - dt.date.fromisoformat(oc["date"])).days
+    try:
+        checked = dt.date.fromisoformat(oc.get("date") or "")
+    except ValueError:  # missing or hand-edited date: treat as never confirmed
+        checked = None
+    if oc.get("result") == "open" and checked:
+        ago = (today - checked).days
         seen = f"seen open {oc['date']} ({oc.get('source')}, {ago} day{'' if ago == 1 else 's'} ago)"
         if ago <= FRESH_DAYS:
             if info["age"] is not None and info["age"] >= OLD_DAYS:
@@ -235,11 +239,11 @@ def main():
     c = sub.add_parser("confirm")
     c.add_argument("job")
     c.add_argument("result", choices=["open", "closed"])
-    c.add_argument("--date", default=dt.date.today().isoformat())
+    c.add_argument("--date", type=iso_date, default=dt.date.today().isoformat())
     c.add_argument("--note")
     t = sub.add_parser("tracker")
     t.add_argument("paste")
-    t.add_argument("--date", help="the day the page was copied (default: a date in the file name, else the file's "
+    t.add_argument("--date", type=iso_date, help="the day the page was copied (default: a date in the file name, else the file's "
                                   "modified date)")
     s = sub.add_parser("status")
     s.add_argument("--all", action="store_true", help="include applied jobs and C/D tiers")

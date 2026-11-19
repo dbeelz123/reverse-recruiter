@@ -18,6 +18,7 @@ job_id when both sides have one. A repost with the same title is caught; a chang
 Abbreviations used in triage files (PM, Sr, TPM) are expanded so they match the full titles on cards.
 An entry with title "*" covers the whole company (blocklisted companies and aggregators).
 """
+import datetime
 import json
 import re
 import sys
@@ -127,21 +128,23 @@ def seed():
     for f in files:
         a, u = merge(db["entries"], listing_entries(json.loads(f.read_text(encoding="utf-8")), P.rel(f)))
         print(f"{f.name}: {a} added, {u} already present")
-    removed = json.loads(P.removed.read_text(encoding="utf-8"))
+    removed = json.loads(P.removed.read_text(encoding="utf-8")) if P.removed.exists() else []
+    removed = [r for r in removed if isinstance(r, dict) and r.get("job_id")]  # skip malformed tombstones
     rem = []
     for r in removed:
         company, title = r.get("company", ""), r.get("title", "")
         rem.append({
             "company": company, "title": title, "job_id": r["job_id"], "decision": "dq",
-            "reason": "removed: " + r["reason"], "seen": [{"search": "saved", "date": r["removed"]}],
-            "source": "removed.json",
+            "reason": "removed: " + r.get("reason", "(no reason recorded)"),
+            "seen": [{"search": "saved", "date": r.get("removed")}], "source": "removed.json",
         })
     for e in rem:
         if e["company"]:
             merge(db["entries"], [e])
         else:
             db["entries"].append(e)  # older tombstone without company/title: matches only by job ID
-    db["updated"] = max(r["removed"] for r in removed)
+    dates = [r["removed"] for r in removed if r.get("removed")]
+    db["updated"] = max(dates) if dates else datetime.date.today().isoformat()
     save(db)
     print(f"{len(db['entries'])} entries -> {OUT.relative_to(ROOT)}")
 

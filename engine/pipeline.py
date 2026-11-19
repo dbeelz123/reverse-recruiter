@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths  # noqa: E402
+from paths import Paths, iso_date  # noqa: E402
 
 STAGES = ["kit", "applied", "response", "interview", "offer"]
 TERMINAL = ["passed", "rejected", "withdrawn", "closed"]
@@ -312,7 +312,7 @@ def main():
     r = sub.add_parser("record", parents=[common])
     r.add_argument("job")
     r.add_argument("stage")
-    r.add_argument("--date", default=dt.date.today().isoformat(), help="YYYY-MM-DD; 'unknown' for no date")
+    r.add_argument("--date", type=iso_date, default=dt.date.today().isoformat(), help="YYYY-MM-DD; 'unknown' for no date")
     r.add_argument("--note")
     r.add_argument("--next", help="next step to show instead of the derived one (a new stage clears the old one)")
     sub.add_parser("queue", parents=[common])
