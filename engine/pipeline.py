@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, read_json, write_json  # noqa: E402
+from paths import Paths, iso_date, read_json, write_json, tombstones, to_date  # noqa: E402
 
 STAGES = ["kit", "applied", "response", "interview", "offer"]
 TERMINAL = ["passed", "rejected", "withdrawn", "closed"]
@@ -177,7 +177,7 @@ def next_step(j, kit, reserve, open_code="check"):
 
 def build(P):
     jobs = {f.stem: load(f) for f in sorted(P.jobs.glob("*.json"))}
-    tombs = load(P.removed, [])
+    tombs = tombstones(P.removed)
     kitmap = kits(P)
     today = dt.date.today()
     ranked = [j for j in jobs.values() if (j.get("review") or {}).get("tier") in ("A", "B", "C", "D")]
@@ -242,8 +242,10 @@ def build(P):
         for j in sorted(in_progress, key=lambda j: -reached(j.get("pipeline"), True)):
             pl = j["pipeline"]
             le = last_event(pl)
-            days = (today - dt.date.fromisoformat(le["date"])).days if le else None
-            ago = "today" if days == 0 else f"{days} day{'' if days == 1 else 's'} ago"
+            when = to_date(le["date"]) if le else None
+            days = (today - when).days if when else None
+            ago = ("date unreadable" if days is None else "today" if days == 0
+                   else f"{days} day{'' if days == 1 else 's'} ago")
             last = f"{le['stage']} {le['date']} ({ago})" if le else "-"
             stage = pl.get("status", "") + (f": {pl['stage']}" if pl.get("stage") else "")
             w(f"| [{md(j['company'])}: {md(j['title'])}]({j['url']}) | {j['review'].get('total')} | {md(stage)} | "

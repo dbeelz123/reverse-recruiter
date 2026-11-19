@@ -36,7 +36,7 @@ import shutil
 from pathlib import Path
 
 import metrics
-from paths import Paths, read_json, write_json
+from paths import Paths, read_json, write_json, to_date
 
 VOLUME_LISTINGS, VOLUME_DAYS = 300, 14
 RULES_PER_100_MAX, RULES_ROUNDS = 1.0, 2       # fewer than 1 new rule per 100 listings, two rounds running
@@ -151,7 +151,7 @@ def verdict(P, rs):
     with_runs = [r for r in rs if r["cards"]]
     today = dt.date.today()
     recent = sum(r["processed"] for r in rs
-                 if r["date"] and (today - dt.date.fromisoformat(r["date"])).days <= VOLUME_DAYS)
+                 if to_date(r["date"]) and (today - to_date(r["date"])).days <= VOLUME_DAYS)
     goal = mode(P).get("goal")
     total = sum(r["processed"] for r in rs)
     volume = recent >= VOLUME_LISTINGS or bool(goal and total >= goal)
@@ -197,7 +197,7 @@ def signals_md(P):
             "; ".join(f"{k} {'yes' if ok else 'no'}" for k, ok in v["stability"].items()) + "."]
     m = md.get("mode")
     last = rs[-1]["date"] if rs else None
-    if m == "keep-up" and last and (dt.date.today() - dt.date.fromisoformat(last)).days > GAP_DAYS:
+    if m == "keep-up" and to_date(last) and (dt.date.today() - to_date(last)).days > GAP_DAYS:
         out.append(f"SUGGEST A CATCH-UP BURST: the last round was {last}, more than {GAP_DAYS} days ago.")
     elif m == "catch-up" and v["volume"] and v["met"] >= 2:
         later = md.get("ask_again") and md["ask_again"] > dt.date.today().isoformat()
@@ -275,9 +275,9 @@ def progress_md(P):
         return []
     total = sum(r["processed"] for r in rs)
     today = dt.date.today()
-    window = [r for r in rs if r["date"] and (today - dt.date.fromisoformat(r["date"])).days <= VOLUME_DAYS]
+    window = [r for r in rs if to_date(r["date"]) and (today - to_date(r["date"])).days <= VOLUME_DAYS]
     recent = sum(r["processed"] for r in window)
-    span = max(1, (today - min(dt.date.fromisoformat(r["date"]) for r in window)).days + 1) if window else None
+    span = max(1, (today - min(to_date(r["date"]) for r in window)).days + 1) if window else None
     per_day = recent / span if span else 0
     goal = md.get("goal")
     out = []
@@ -347,7 +347,7 @@ def set_mode(P, a):
 
 def last_full_round(P):
     rs = metrics.done(metrics.load(P))
-    return dt.date.fromisoformat(rs[-1]["date"]) if rs and rs[-1].get("date") else None
+    return to_date(rs[-1].get("date")) if rs else None
 
 
 def due_text(P):

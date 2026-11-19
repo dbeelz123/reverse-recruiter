@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, read_json, write_json  # noqa: E402
+from paths import Paths, iso_date, read_json, write_json, tombstones  # noqa: E402
 
 FOLLOW_APPLIED = 7
 FOLLOW_OUTREACH = 5
@@ -94,8 +94,9 @@ def due_items(job, today, soon=0):
             to = ", ".join(ty.get("to") or []) or "the panel"
             out.append((day(ty["due"]), f"Send the round {iv['round']} thank-you to {to} (draft in the kit folder)"))
     # Timers run from the most recent dated event or interview on the job.
-    events = [(day(e["date"]), e["stage"]) for e in pl.get("events", []) if e.get("date")]
-    events += [(day(iv["date"]), "interview-done") for iv in ivs if iv.get("status") == "done" and iv.get("date")]
+    events = [(day(e.get("date")), e.get("stage")) for e in pl.get("events", [])]
+    events += [(day(iv.get("date")), "interview-done") for iv in ivs if iv.get("status") == "done"]
+    events = [e for e in events if e[0]]  # undated or unreadable dates can't start a timer
     upcoming = any(iv.get("status") == "scheduled" and day(iv.get("date")) and day(iv["date"]) >= today for iv in ivs)
     if events and not upcoming:
         last_date, last_stage = max(events)
@@ -188,7 +189,7 @@ def due(P, today, soon):
 
 
 def lessons(P):
-    jobs = [load(f) for f in sorted(P.jobs.glob("*.json"))] + [t for t in load(P.removed, []) if t.get("interviews")]
+    jobs = [load(f) for f in sorted(P.jobs.glob("*.json"))] + [t for t in tombstones(P.removed) if t.get("interviews")]
     rounds = [(j, iv) for j in jobs for iv in j.get("interviews") or [] if iv.get("debrief")]
     if not rounds:
         print("No debriefs yet.")

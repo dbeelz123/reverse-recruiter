@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, read_json, write_json  # noqa: E402
+from paths import Paths, iso_date, read_json, write_json, to_date  # noqa: E402
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
 OLD_DAYS = 30     # listings at least this old (estimated) get a warning even when last seen open
@@ -53,8 +53,7 @@ def printed_date(job):
             return dt.datetime.strptime(p, fmt).date()
         except (TypeError, ValueError):
             pass
-    ext = job.get("extracted_at")
-    return dt.date.fromisoformat(ext[:10]) if ext else None
+    return to_date(job.get("extracted_at"))  # None when missing or malformed
 
 
 def listing_info(job, today):

@@ -56,7 +56,15 @@ def window(s, d, md=None):
     return POSTED[key_], label + (" (Catch-up lookback)" if look else "")
 
 
-def url(s, d, center_name, center_geo=None, md=None):
+LINKEDIN_DISTANCES = (5, 10, 25, 50, 75, 100)  # the radius values LinkedIn's distance filter accepts
+
+
+def link_distance(radius_miles):
+    """The smallest LinkedIn distance that covers the spec's radius, so a link never hides a job inside it."""
+    return next((x for x in LINKEDIN_DISTANCES if x >= radius_miles), LINKEDIN_DISTANCES[-1])
+
+
+def url(s, d, center_name, center_geo=None, md=None, radius=50):
     tpr, _ = window(s, d, md)
     p = {"keywords": keywords(s, d["exclude"] + s.get("exclude_extra", [])), **({"f_TPR": tpr} if tpr else {}),
          "sortBy": "DD"}
@@ -69,7 +77,7 @@ def url(s, d, center_name, center_geo=None, md=None):
         if not center_geo:
             raise SystemExit("Local search needs spec.json -> hybrid_onsite_center.linkedin_geo_id "
                              "(pick the town from LinkedIn's location dropdown and copy geoId from the URL).")
-        p.update({"location": center_name, "geoId": center_geo, "distance": "50", "f_WT": "1,3"})
+        p.update({"location": center_name, "geoId": center_geo, "distance": str(link_distance(radius)), "f_WT": "1,3"})
     return "https://www.linkedin.com/jobs/search/?" + urlencode(p)
 
 
@@ -85,6 +93,7 @@ def main():
     st = home_state_of(c["name"])  # LinkedIn's location box wants the full state name: "Springfield, Illinois"
     center = re.sub(rf",\s*{st}\b", ", " + US_STATES[st].title(), c["name"]) if st in US_STATES else c["name"]
     center_geo = c.get("linkedin_geo_id")
+    radius = spec["work_arrangement"]["machine_rule"].get("radius_miles", 50)
     d = cfg["defaults"]
     md = cfg.get("mode") or {}
     keep_up = md.get("mode") == "keep-up" and md.get("cadence")
@@ -101,7 +110,7 @@ def main():
            *([f"**Triage mode: Catch-up, lookback {look}.** Every link uses that window instead of the search's "
               "usual one.\n"] if look else []),
            "Built from your top-ranked saved jobs and your confirmed spec. Each link opens a LinkedIn job search "
-           f"with filters already set: remote US (or within 50 miles of {center} for local), posted "
+           f"with filters already set: remote US (or within {radius} miles of {center} for local), posted "
            f"{posted}, newest first, excluding {', '.join(x.strip(chr(34)) for x in d['exclude'])}.\n",
            "## Your LinkedIn searches: what to do with each\n",
            "| Search | Name | Status | Action on LinkedIn |\n|---|---|---|---|\n"
@@ -130,7 +139,7 @@ def main():
             if s.get("run_note"):
                 status += f" · {s['run_note']}"
             out.append(status + "\n")
-            out.append(f"**[Open search on LinkedIn]({url(s, d, center, center_geo, md)})**\n")
+            out.append(f"**[Open search on LinkedIn]({url(s, d, center, center_geo, md, radius)})**\n")
             out.append("Keywords (to paste or edit by hand):\n")
             out.append(f"```\n{keywords(s, d['exclude'] + s.get('exclude_extra', []))}\n```\n")
     path = P.search_links

@@ -51,7 +51,7 @@ def main():
         for f in rec.get("source_files", []):
             (pdfs if P.inside(data / f, P.job_pdfs) else refused).append(f)
         # The tombstone is written first, so an interrupted removal is still recognized and can be rerun.
-        if not args.no_tombstone and not any(t["job_id"] == jid for t in tombs):
+        if not args.no_tombstone and not any(isinstance(t, dict) and t.get("job_id") == jid for t in tombs):
             tomb = {"job_id": jid, "removed": dt.date.today().isoformat(), "reason": args.reason}
             if company:
                 tomb.update(company=company, title=title)
@@ -65,7 +65,7 @@ def main():
                 del r["jobs"][jid]
                 write_json(rv, r)
                 done.append(f"review {rv.name}")
-        for key in [k for k, v in ledger.items() if v.get("job_id") == jid]:
+        for key in [k for k, v in ledger.items() if isinstance(v, dict) and v.get("job_id") == jid]:
             del ledger[key]
             done.append(f"ledger entry {key}")
         write_json(ledger_p, ledger)

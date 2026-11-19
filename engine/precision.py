@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from modes import call_strength, likely_call, match_gated  # noqa: E402
-from paths import Paths, read_json  # noqa: E402
+from paths import Paths, read_json, tombstones  # noqa: E402
 
 GOOD = ("A", "B")
 
@@ -59,7 +59,7 @@ def cards(P, rnd):
 
 def report(P, rnd):
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
-    tombs = {t["job_id"]: t for t in load(P.removed, [])}
+    tombs = {t["job_id"]: t for t in tombstones(P.removed)}
     order = ["likely keep", "lean keep", "possible", "lean DQ", "likely DQ"]
     table = {k: collections.Counter() for k in order}
     misses, gated_misses, rounds = [], [], set()

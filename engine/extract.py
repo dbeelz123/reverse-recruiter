@@ -15,7 +15,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths, read_json, write_json
+from paths import Paths, read_json, write_json, tombstones
 
 import pymupdf
 
@@ -249,7 +249,7 @@ def main():
             key = P.rel(pdf)
             st = pdf.stat()
             sig = {"size": st.st_size, "mtime": int(st.st_mtime)}
-            if not args.all and ledger.get(key, {}).get("sig") == sig:
+            if not args.all and isinstance(ledger.get(key), dict) and ledger[key].get("sig") == sig:
                 continue
             try:
                 job_id, printed, title_company, lines = page_lines(pdf)
@@ -328,7 +328,7 @@ def repost_check(P, data, new_ids, dup_files):
         return round(difflib.SequenceMatcher(None, a, b, autojunk=False).ratio(), 2) if a and b else 0.0
 
     jobs = {f.stem: read_json(f) for f in P.jobs.glob("*.json")}
-    tombs = read_json(P.removed, [])
+    tombs = tombstones(P.removed)
     out = []
     for f in dup_files:  # name-collision saves
         orig = f.replace(DUP_SUFFIX, "")

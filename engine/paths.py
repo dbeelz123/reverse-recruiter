@@ -43,6 +43,21 @@ def iso_date(s):
         raise argparse.ArgumentTypeError(f"not a date (YYYY-MM-DD): {s!r}")
 
 
+def to_date(s):
+    """'2026-11-19' (or a longer ISO timestamp) -> date; anything missing or malformed -> None, never an exception.
+    Every date read back from a data file goes through this, so one hand-edited value can't stop a command."""
+    import datetime
+    try:
+        return datetime.date.fromisoformat(str(s)[:10]) if s else None
+    except (TypeError, ValueError):
+        return None
+
+
+def tombstones(path):
+    """removed.json entries that are usable: objects with a job_id. Anything else is skipped."""
+    return [t for t in read_json(path, []) or [] if isinstance(t, dict) and t.get("job_id")]
+
+
 def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):
     """Write JSON atomically: a temporary file in the same folder, then os.replace, so a crash mid-write never
     leaves a half-written record. Every script writes its JSON through this."""

@@ -24,7 +24,7 @@ import re
 import sys
 from pathlib import Path
 
-from paths import Paths, read_json, write_json
+from paths import Paths, read_json, write_json, tombstones
 
 P = Paths()
 ROOT = P.data.parent
@@ -128,8 +128,7 @@ def seed():
     for f in files:
         a, u = merge(db["entries"], listing_entries(read_json(f), P.rel(f)))
         print(f"{f.name}: {a} added, {u} already present")
-    removed = read_json(P.removed, [])
-    removed = [r for r in removed if isinstance(r, dict) and r.get("job_id")]  # skip malformed tombstones
+    removed = tombstones(P.removed)  # malformed entries are skipped
     rem = []
     for r in removed:
         company, title = r.get("company", ""), r.get("title", "")

@@ -26,7 +26,7 @@ import argparse
 import datetime as dt
 import json
 
-from paths import Paths, read_json, write_json
+from paths import Paths, read_json, write_json, tombstones
 from triaged import key
 
 # Display names for the four stages (decided 2026-11-18; also used on the LinkedIn project images).
@@ -65,7 +65,7 @@ def funnel_from_runs(P):
 
 def current_state(P):
     jobs = [read_json(f) for f in P.jobs.glob("*.json")]
-    removed = read_json(P.removed, [])
+    removed = tombstones(P.removed)
     removed = removed if isinstance(removed, list) else removed.get("removed", [])
     ids = {j["job_id"] for j in jobs} | {r["job_id"] for r in removed if r.get("job_id")}
     ranked = sum(1 for j in jobs if (j.get("review") or {}).get("tier") not in ("X", "?", None))
@@ -92,10 +92,22 @@ def record(P, rnd):
         entry = {"round": rnd}
         m["rounds"].append(entry)
     searches = read_json(P.searches, {})
+    if prev_ids:  # exact: the difference from the last round that kept its job IDs
+        pdfs_new = len(new_ids)
+    elif entry.get("pdfs_new") is not None:  # backfilled by hand for this round: keep it
+        pdfs_new = entry["pdfs_new"]
+    else:
+        earlier = [r for r in m["rounds"] if r["round"] < rnd]
+        if earlier:  # earlier rounds were backfilled without job IDs: estimate rather than count every job as new
+            pdfs_new = max(0, len(ids) - sum(r.get("pdfs_new") or 0 for r in earlier))
+            entry["pdfs_new_estimated"] = True
+            print(f"Round {rnd}: earlier rounds have no job IDs, so PDFs saved this round is estimated "
+                  f"({len(ids)} jobs seen in all - {len(ids) - pdfs_new} counted in earlier rounds = {pdfs_new}).")
+        else:  # the first round: every job is new
+            pdfs_new = len(new_ids)
     entry.update({"date": dt.date.today().isoformat(), "source": "recorded by metrics.py",
                   "mode": (searches.get("mode") or {}).get("mode", "catch-up"),  # triage mode (docs/PLAN.md)
-                  "pdfs_new": len(new_ids) if prev_ids else entry.get("pdfs_new", len(new_ids)),
-                  "ranked_end": ranked, "job_ids": sorted(ids)})
+                  "pdfs_new": pdfs_new, "ranked_end": ranked, "job_ids": sorted(ids)})
     # File-time events (capture, export): replace earlier file-time events so re-recording doesn't double them.
     ev = [e for e in entry.get("events", []) if not (e.get("note") or "").startswith("file time:")]
     entry["events"] = sorted(ev + (file_events(P, rnd, new_ids) if prev_ids else []), key=lambda e: e["t"])
