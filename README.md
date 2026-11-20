@@ -122,6 +122,8 @@ The sample is a fictional candidate (two rounds, 11 invented postings, one recru
 
 Then open the folder in Claude Code and follow [docs/setup.md](docs/setup.md) to create your own data folder and run your first round. The full process is in [docs/how-it-works.md](docs/how-it-works.md).
 
+**Your data goes in by hand.** The agent never connects to LinkedIn (automating a logged-in session is against LinkedIn's terms), so you start it by saving your resume, your LinkedIn profile, search results and job pages yourself. [docs/capture-workflow.md](docs/capture-workflow.md) covers what to capture and how, step by step, with Chrome keystrokes.
+
 ## Repository layout
 
 ```
@@ -130,6 +132,7 @@ reverse-recruiter/
 ├─ CLAUDE.md            working rules for Claude in this project
 ├─ requirements.txt
 ├─ docs/
+│   ├─ capture-workflow.md  saving your resume, LinkedIn profile, searches and jobs by hand (Chrome + keystrokes)
 │   ├─ how-it-works.md  the round, the learning loop, and every feature in detail
 │   └─ setup.md         install, create your data folder, run your first round
 ├─ engine/              Python scripts (no personal data)

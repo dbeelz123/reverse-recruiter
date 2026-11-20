@@ -50,16 +50,15 @@ Create the layout (or copy `sample-data/` and replace its contents):
 <data>/4-profile/linkedin/
 <data>/5-criteria/
 <data>/6-system/
+<data>/7-recommendations/
 ```
 
 ## 4. Add your inputs
 
-- **Your resume** (`.docx` and `.pdf`) in `4-profile/resume/`, and your **profile export** (e.g. LinkedIn → More → Save to PDF) in `4-profile/linkedin/`. Add separate exports for sections hidden in dialogs (skills, certifications, publications) if you have them.
-- **10 to 30 saved jobs** in `1-inbox/job-pdfs/`, one PDF each. `extract.py` reads LinkedIn's job-page layout:
-  1. open the job and click **See more** so the whole description shows;
-  2. print → **Save as PDF** (the browser's PDF destination; "Microsoft Print to PDF" produces images with no text);
-  3. keep the default file name.
-  If the job shows a 1st-degree connection, save a second PDF with the people dialog open and add `_people` to its name.
+Everything goes in by hand; [capture-workflow.md](capture-workflow.md) has the step-by-step for each (Chrome + keystrokes).
+- **Your resume** (`.docx` and `.pdf`) in `4-profile/resume/`.
+- **Your LinkedIn profile** in `4-profile/linkedin/`: the main profile page saved as a PDF with every "…more" expanded, then one PDF per "Show all →" section (`…_LinkedIn_experience`, `_projects`, …). Recommendations go in `7-recommendations/`.
+- **10 to 30 saved jobs** in `1-inbox/job-pdfs/`, one PDF each, saved from the job page with the description expanded, through the browser's **Save as PDF** ("Microsoft Print to PDF" produces images with no text), keeping the default file name. If the job shows a 1st-degree connection, save a second PDF of "People you can reach out to" and add `_people` to its name.
 - **Jobs from anywhere else** (a recruiter's document, another site): `python -B engine/ingest_external.py <file> --id ext-<slug> --company … --title …` turns it into a regular job record.
 - **Optional, for the local radius:** `5-criteria/places.json` lists the cities around your home with their coordinates (see the sample). Hybrid and on-site jobs in cities not listed show as "distance unknown" until you add them.
 
