@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths, blocklist, read_json, write_json
+from paths import Paths, blocklist, latest_reviews, read_json, write_json
 from urllib.parse import quote
 
 import sys
@@ -105,17 +105,7 @@ def main():
                          f"with a 'date' and a 'jobs' map. Write the round's reviews first.")
     # Every round's review file is merged (latest round wins per job), so a re-screen edit to an
     # earlier round's entry reaches the job records and this report.
-    all_reviews = {}
-    for n in range(1, args.round + 1):
-        # expect=dict: a file that isn't an object (e.g. "[]") must stop the report, not silently drop a round.
-        rf = read_json(P.reviews / f"round-{n:02d}.json", None, expect=dict)
-        jobs = (rf or {}).get("jobs", {})
-        if not isinstance(jobs, dict):
-            raise SystemExit(f"Malformed review file {P.reviews / f'round-{n:02d}.json'}: 'jobs' must be an object "
-                             f"keyed by job ID.")
-        for jid, entry in jobs.items():
-            check_review(P.reviews / f"round-{n:02d}.json", jid, entry)
-            all_reviews[jid] = (entry, n)
+    all_reviews = latest_reviews(P, upto=args.round, check=check_review)
     spec = read_json(P.spec, {}, expect=dict)
     import recommendations
     recs = recommendations.load(P)  # connections with a LinkedIn recommendation either way score higher

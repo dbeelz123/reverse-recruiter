@@ -70,6 +70,29 @@ def blocklist(spec, path):
     return entries
 
 
+def latest_reviews(P, upto=None, check=None):
+    """{job_id: (review entry, round)} from every reviews/round-NN.json up to round `upto` (all when None); a later
+    round's entry wins. The review files are the source of truth: job records hold a copy that only build_report.py
+    refreshes, so anything that runs before the report in a round (metrics.py) must read these. `check(path, jid,
+    entry)` validates each entry."""
+    import re
+    out = {}
+    files = sorted((int(m.group(1)), f) for f in P.reviews.glob("round-*.json")
+                   if (m := re.fullmatch(r"round-(\d+)\.json", f.name)))
+    for n, f in files:
+        if upto is not None and n > upto:
+            continue
+        # expect=dict: a file that isn't an object (e.g. "[]") must stop the command, not silently drop a round.
+        jobs = (read_json(f, None, expect=dict) or {}).get("jobs", {})
+        if not isinstance(jobs, dict):
+            raise DataFileError(f"Malformed review file {f}: 'jobs' must be an object keyed by job ID.")
+        for jid, entry in jobs.items():
+            if check:
+                check(f, jid, entry)
+            out[jid] = (entry, n)
+    return out
+
+
 def tombstones(path):
     """removed.json entries that are usable: objects with a job_id. Anything else is skipped."""
     return [t for t in read_json(path, []) or [] if isinstance(t, dict) and t.get("job_id")]

@@ -26,7 +26,7 @@ import argparse
 import datetime as dt
 import json
 
-from paths import Paths, read_json, write_json, tombstones
+from paths import Paths, latest_reviews, read_json, write_json, tombstones
 from triaged import key
 
 # Display names for the four stages (decided 2026-11-18; also used on the LinkedIn project images).
@@ -70,7 +70,12 @@ def current_state(P):
     # Removed jobs stay in the set on purpose: "PDFs saved" counts unique postings ever reviewed, so a job that is
     # removed and later saved again (same job ID) isn't counted twice in the cumulative funnel.
     ids = {j["job_id"] for j in jobs} | {r["job_id"] for r in removed if r.get("job_id")}
-    ranked = sum(1 for j in jobs if (j.get("review") or {}).get("tier") not in ("X", "?", None))
+    # Tiers come from the review files, not the job records: metrics runs before build_report.py in a round, and
+    # only the report copies a round's new or changed reviews into the records. A job with no review entry falls
+    # back to its record's copy (data written before the review files existed).
+    reviews = latest_reviews(P)
+    tier = lambda j: (reviews[j["job_id"]][0] if j["job_id"] in reviews else j.get("review") or {}).get("tier")
+    ranked = sum(1 for j in jobs if tier(j) not in ("X", "?", None))
     return ids, ranked
 
 
