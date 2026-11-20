@@ -278,7 +278,9 @@ def build(P):
         kit = kitmap.get(j["job_id"])
         kit_cell = "-" if not kit else f"`{kit['folder']}` ({kit['prepared'] or 'date ?'}" + (
             ", stretch reviewed)" if kit["stretch"] else ", no stretch review)")
-        conn = ", ".join(c["name"] for c in j.get("connections_1st", []))
+        rec_names = {x.get("name") for x in (j.get("review") or {}).get("recommendation", []) or []}
+        conn = ", ".join(c["name"] + (" (recommendation)" if c["name"] in rec_names else "")
+                         for c in j.get("connections_1st", []))
         w(f"| {i} | {j['review']['tier']} | {j['review'].get('total')} | [{md(j['company'])}: {md(j['title'])}]"
           f"({j['url']}) | {md(conn)} | {md(kit_cell)} | {md(open_cell)} | "
           f"{md(next_step(j, kit, j['job_id'] in reserve, code))} |")

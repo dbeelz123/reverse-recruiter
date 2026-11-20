@@ -117,6 +117,8 @@ def main():
             check_review(P.reviews / f"round-{n:02d}.json", jid, entry)
             all_reviews[jid] = (entry, n)
     spec = read_json(P.spec, {}, expect=dict)
+    import recommendations
+    recs = recommendations.load(P)  # connections with a LinkedIn recommendation either way score higher
     gaps = read_json(P.skills_gap, {"items": []}, expect=dict)
     calibration = read_json(P.calibration / f"{rnd}.json", {"questions": []}, expect=dict)
     insights = [i for i in read_json(P.searches, {}, expect=dict).get("insights", []) if i.get("round") == args.round]
@@ -137,6 +139,13 @@ def main():
         if r:
             r = dict(r)
             adj = sum(a["points"] for a in r.get("adjustments", []))
+            # The review records the plain connection bonus; a connection with a recommendation raises it here, so
+            # adding or removing a recommendation re-scores every job without touching the review files.
+            r["network_bonus"] = recommendations.network_points(spec, r.get("network_bonus", 0), rec, recs)
+            r.pop("recommendation", None)
+            rm = recommendations.matches(rec, recs)
+            if rm:
+                r["recommendation"] = [{"name": n, "direction": d} for n, d in rm]
             r["total"] = None if r["fit"] is None else round(r["fit"] + r.get("network_bonus", 0) + adj)
             if r["tier"] not in ("X", "?") and r["total"] is not None:
                 r["tier"] = "A" if r["total"] >= 80 else "B" if r["total"] >= 65 else "C" if r["total"] >= 50 else "D"
@@ -154,7 +163,11 @@ def main():
     w(f"{len(reviewed)} saved jobs, each read in full ({new} new this round; the rest keep their earlier review). "
       f"Calibration questions at the end may still adjust scores.\n")
     w("**Score** = fit from the full-text review (0-100) + adjustments from confirmed rules (domain 60/40, "
-      "travel sliding scale, ...) + 8 for a 1st-degree connection. The breakdown is shown as fit / adjustments / network.\n")
+      "travel sliding scale, ...) + 8 for a 1st-degree connection" +
+      (f" ({rp:+g} instead when that connection has given you a LinkedIn recommendation or received one from you)"
+       if isinstance(rp := ((spec.get("scoring") or {}).get("network") or {}).get("recommendation_points"),
+                     (int, float)) else "") +
+      ". The breakdown is shown as fit / adjustments / network.\n")
 
     # Search funnel (engine/metrics.py; recorded at the end of each round)
     if P.metrics.exists():
@@ -219,7 +232,9 @@ def main():
         parts = [str(r["fit"])] + ([f"{adj:+g}"] if adj else []) + ([f"+{r['network_bonus']} net"] if r.get("network_bonus") else [])
         score = "-" if r["total"] is None else (f"{r['total']}" + (f" ({' '.join(parts)})" if len(parts) > 1 else ""))
         pay = r.get("pay") or "; ".join(j.get("salary_mentions") or []) or "not listed"
-        conn = ", ".join(c["name"] for c in j.get("connections_1st", [])) or ""
+        rec_names = {x["name"] for x in r.get("recommendation", [])}
+        conn = ", ".join(c["name"] + (" (recommendation)" if c["name"] in rec_names else "")
+                         for c in j.get("connections_1st", [])) or ""
         if not conn and r.get("network_bonus"):
             conn = "referral (name withheld)"
         if j.get("external"):  # non-LinkedIn job (engine/ingest_external.py): say so, and show its pipeline stage
@@ -259,8 +274,11 @@ def main():
     net = [j for j in reviewed if j.get("connections_1st")]
     w("## Your 1st-degree connections at these companies\n")
     for j in net:
+        rec_dir = {x["name"]: x["direction"] for x in j["review"].get("recommendation", [])}
         for c in j["connections_1st"]:
-            w(f"- **{c['name']}** ({c.get('headline') or 'no headline'}) - {j['company']}, *{j['title']}*")
+            mark = {"received": "; recommended you", "given": "; you recommended them",
+                    "both": "; recommendations both ways"}.get(rec_dir.get(c["name"]), "")
+            w(f"- **{c['name']}** ({c.get('headline') or 'no headline'}{mark}) - {j['company']}, *{j['title']}*")
     w("")
 
     # Details

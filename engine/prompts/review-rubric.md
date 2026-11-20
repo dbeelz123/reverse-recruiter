@@ -12,14 +12,14 @@ Output: one entry in `reviews/round-NN.json` (fields below).
    - negatives lower `fit`; positives raise it
    - criteria still `proposed` count, but flag uncertainty in `caveats`
 4. Compare requirements against `profile.json`; list unmet ones in `gaps` (feeds the skills-gap tally).
-5. Connections: only 1st-degree count; add `network_bonus: 8` when present. Ignore 2nd/3rd-degree people and alumni.
+5. Connections: only 1st-degree count; add `network_bonus: 8` when present. Ignore 2nd/3rd-degree people and alumni. Record the plain 8 even when the connection has given the user a LinkedIn recommendation or received one: `build_report.py` raises it to `spec.json` → `scoring.network.recommendation_points` from the `7-recommendations/` folders (`engine/recommendations.py`).
 6. A saved job is a candidate, not a preference (`spec.json` → `save_meaning`): it passed only a quick title, location and LinkedIn-match screen, without a read of the description. Score it on the posting alone; don't infer what the user wants from what they saved. Discovered jobs and leads are not evidence at all.
 7. For every requirement the user doesn't clearly meet, say in `gaps` whether it is required or preferred. These feed the stretch review in application kits.
 8. If the description is collapsed or cut off, don't guess: `tier: "?"`, `fit: null`, ask for a re-save.
 9. **Eligibility and regulated-environment requirements** (set 2026-11-17): the candidate's baseline is in `spec.json` → `eligibility_baseline`. List **every** requirement beyond that in `eligibility`, quoting the posting, even when it isn't a dealbreaker: U.S.-person / citizenship-only / ITAR or EAR export control, clearance or public trust (already a dealbreaker), background, credit or fingerprint checks, drug screening, licensing or certification, residency or on-shore-only, data-sovereignty, FedRAMP/CMMC/HIPAA/GxP/SOX-type compliance ownership, and "regulated industry" language that implies these (e.g. "industries where security, governance, and data sovereignty are non-negotiable"). Say for each whether it is a requirement of the person or a property of the product/customers. The candidate decides the impact; apply spec rules only where one already exists (clearance → dealbreaker; drug screening → negative).
 
 ## Output fields
-- `fit` (0-100 or null), `network_bonus` (0 or 8), `tier` (A ≥80, B 65-79, C 50-64, D <50, X excluded, ? incomplete)
+- `fit` (0-100 or null), `network_bonus` (0 or 8; the report may raise it, rule 5), `tier` (A ≥80, B 65-79, C 50-64, D <50, X excluded, ? incomplete)
 - `summary`: one or two sentences, plain language
 - `positives`, `caveats` ("looks good, but…"), `dealbreakers`, `gaps`
 - `eligibility`: list of `{requirement, quote, applies_to: "person" | "product/customers"}` (rule 9); empty list when there is nothing beyond the baseline

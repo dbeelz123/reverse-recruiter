@@ -11,6 +11,7 @@ REVERSE_RECRUITER_DATA environment variable, else <project>/my-data.
   4-profile/                 resume/, linkedin/, writing-samples/, career-master.md, voice-guide.md
   5-criteria/                spec.json, changelog.md, searches.json (your rules), places.json (your city table)
   6-system/                  machine data: jobs/, reviews/, calibration/, search-runs/, *.json
+  7-recommendations/         one folder per person: LinkedIn recommendations given and received (recommendations.py)
 """
 import json
 import os
@@ -30,6 +31,7 @@ APPLICATIONS = "3-applications"
 PROFILE = "4-profile"
 CRITERIA = "5-criteria"
 SYSTEM = "6-system"
+RECOMMENDATIONS = "7-recommendations"
 
 
 def iso_date(s):
@@ -150,6 +152,8 @@ class Paths:
         self.removed = sysd / "removed.json"
         self.metrics = sysd / "metrics.json"
         self.linkedin_project = sysd / "linkedin-project.json"  # numbers published on the LinkedIn project
+        # LinkedIn recommendations, one folder per person
+        self.recommendations = d / RECOMMENDATIONS
 
     def inside(self, p, folder=None):
         """True when p resolves inside folder (default: the data folder). Guards every delete and copy."""

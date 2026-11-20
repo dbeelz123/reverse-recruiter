@@ -25,6 +25,9 @@ All personal data lives in one folder, outside the engine (default `my-data/`, g
   4-profile/      WHO YOU ARE: resume/, profile exports, career-master.md, voice-guide.md
   5-criteria/     YOUR RULES: spec.json, changelog.md, searches.json, places.json
   6-system/       MACHINE DATA: jobs/, reviews/, calibration/, search-runs/, ledger and tallies
+  7-recommendations/  (optional) one folder per person you've exchanged a LinkedIn recommendation with
+                      (<first-last>/received/recommendation.md, given/final.md); a connection with one scores
+                      spec.json -> scoring.network.recommendation_points instead of the plain connection bonus
   private-terms.txt   (optional) terms the privacy scan must never find in shareable files
 ```
 
