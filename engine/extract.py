@@ -308,17 +308,27 @@ def main():
 
     write_json(ledger_path, ledger, indent=2, ensure_ascii=True)
     summary += repost_check(P, data, [s.split()[1] for s in summary if s.startswith("main ")],
-                            [P.rel(p) for p in P.job_pdfs.glob(f"*{DUP_SUFFIX}.pdf")])
+                            [P.rel(p) for p in P.job_pdfs.glob("*.pdf") if dup_original(p.name)])
     print("\n".join(summary) if summary else "Nothing new to process.")
 
 
-DUP_SUFFIX = "_possibleduplicate"
+DUP_SUFFIXES = ("_possibleduplicate", "_possdup")  # the long name, or a short form for quick saves
+
+
+def dup_original(name):
+    """'<name>_possibleduplicate.pdf' or '<name>_possdup.pdf' -> '<name>.pdf' (keeping any folder prefix);
+    None for any other file."""
+    for s in DUP_SUFFIXES:
+        if name.lower().endswith(s + ".pdf"):
+            return name[:-len(s + ".pdf")] + ".pdf"
+    return None
 
 
 def repost_check(P, data, new_ids, dup_files):
     """Flag new jobs that may be a duplicate save or a repost of a job already seen.
 
-    The user names a PDF '<LinkedIn default name>_possibleduplicate.pdf' when the save dialog says the file exists.
+    The user names a PDF '<LinkedIn default name>_possibleduplicate.pdf' (or the short '_possdup.pdf') when the save
+    dialog says the file exists.
     Same job ID as the original file -> a duplicate save. Different job ID, same company with the same title or a
     near-identical description -> a possible repost, checked against current jobs and removed.json tombstones.
     Each new job with a match gets rec['possible_repost_of'] for the judgment step; nothing is deleted here.
@@ -334,7 +344,7 @@ def repost_check(P, data, new_ids, dup_files):
     tombs = tombstones(P.removed)
     out = []
     for f in dup_files:  # name-collision saves
-        orig = f.replace(DUP_SUFFIX, "")
+        orig = dup_original(f)
         dup_id = next((i for i, r in jobs.items() if f in r.get("source_files", [])), None)
         orig_id = next((i for i, r in jobs.items() if orig in r.get("source_files", [])), None)
         if dup_id and dup_id == orig_id:
