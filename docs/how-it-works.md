@@ -133,7 +133,7 @@ Say **"primer <company>"** before any interview (the apply queue prompts for it)
 ## Finding more jobs
 
 - **Search links:** `searches.py` turns `searches.json` into ready-to-run search URLs with the filters set (window, remote or local radius, exclusions). Searches are tuned by what they yield and what they teach; good ones become saved alerts.
-- **Capturing results:** run a search, copy each results page by hand, and paste them into a `.txt` in `1-inbox/search-results/`. `ingest_results.py` also accepts a `.csv` or `.json` with `title`, `company`, `location` (optional: `salary`, `posted`, `status`, `network`) if you capture results another way; that choice and its terms-of-service implications are yours.
+- **Capturing results:** run a search, copy each results page by hand, and paste them into a `.txt` in `1-inbox/search-results/` (step by step, with Chrome keystrokes: [capture-workflow.md → 3](capture-workflow.md#3-search-results), which also covers your resume, profile and job pages). `ingest_results.py` also accepts a `.csv` or `.json` with `title`, `company`, `location` (optional: `salary`, `posted`, `status`, `network`) if you capture results another way; that choice and its terms-of-service implications are yours.
 
 ## Your profile
 
