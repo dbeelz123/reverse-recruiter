@@ -70,7 +70,8 @@ def parse_paste(text):
     cards, cur, section, k = [], None, "exact", 0
     while k < len(ne):
         i, s = ne[k]
-        if "may not be exact matches" in s:
+        # Only LinkedIn's own banner line counts: a note at the top of a paste may quote the banner text.
+        if s.startswith("We found more results") and "may not be exact matches" in s:
             section = "after banner"
             k += 1
             continue
