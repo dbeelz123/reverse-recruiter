@@ -50,18 +50,23 @@ def iso_date(s):
 
 
 def to_date(s):
-    """'2026-11-19' (or an ISO timestamp, 'T' or space after the date) -> date; anything missing or malformed ->
-    None, never an exception. A longer value counts only as a timestamp, so '2026-11-24junk' is None.
-    Every date read back from a data file goes through this, so one hand-edited value can't stop a command."""
+    """'2026-11-19' (or a complete ISO timestamp, 'T' or space after the date) -> date; anything missing or
+    malformed -> None, never an exception. A longer value must parse as a whole timestamp, so '2026-11-24junk' and
+    '2026-11-19Tjunk' are None. Every date read back from a data file goes through this, so one hand-edited value
+    can't stop a command."""
     import datetime
     if not s:
         return None
     s = str(s)
-    if len(s) > 10 and s[10] not in "T ":
-        return None
     try:
-        return datetime.date.fromisoformat(s[:10])
-    except (TypeError, ValueError):
+        if len(s) == 10:
+            return datetime.date.fromisoformat(s)
+        if s[10] not in "T ":
+            return None
+        if s.endswith("Z"):  # Python 3.10's fromisoformat doesn't read 'Z'
+            s = s[:-1] + "+00:00"
+        return datetime.datetime.fromisoformat(s).date()
+    except (TypeError, ValueError, IndexError):
         return None
 
 

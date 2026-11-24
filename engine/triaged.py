@@ -32,7 +32,7 @@ import re
 import sys
 from pathlib import Path
 
-from paths import Paths, blocked_by, blocklist, case_by_case, read_json, to_date, write_json, tombstones
+from paths import DataFileError, Paths, blocked_by, blocklist, case_by_case, read_json, to_date, write_json, tombstones
 
 P = Paths()
 ROOT = P.data.parent
@@ -74,7 +74,10 @@ def key(company, title):
 def listing_entries(run, src):
     """Turn one triage/run file into entries. Saved jobs are skipped (they live in jobs/)."""
     search, date = run.get("search", "?"), run.get("date", "?")
-    for x in run.get("listings", []):
+    for i, x in enumerate(run.get("listings", [])):
+        # A malformed decided listing stops with the file named: skipping it would silently drop a decision.
+        if not isinstance(x, dict):
+            raise DataFileError(f"Malformed {src}: listings[{i}] is not an object.")
         status = x.get("status")
         if status == "saved":
             continue
@@ -82,11 +85,15 @@ def listing_entries(run, src):
         if decision is None:
             continue  # undecided listing: not triaged
         reason = x.get("reason") or x.get("note") or status or ""
-        company = x["company"]
+        company = x.get("company")
+        if not isinstance(company, str) or not company.strip():
+            raise DataFileError(f"Malformed {src}: listings[{i}] ({x.get('id', 'no id')}) is decided but has no company.")
         if reason.startswith("blocklist"):
             titles = ["*"]
-        else:
+        elif isinstance(x.get("title"), str):
             titles = [t.strip() for t in x["title"].split(";") if t.strip()]
+        else:
+            raise DataFileError(f"Malformed {src}: listings[{i}] ({x.get('id', 'no id')}) is decided but has no title.")
         seen = {"search": search, "date": date, "id": x.get("id")}
         seen.update({f: x[f] for f in TERMS + ("posted",) if isinstance(x.get(f), str) and x[f].strip()})
         for t in titles:
@@ -150,7 +157,16 @@ def merge(entries, new):
 
 def load():
     if OUT.exists():
-        return read_json(OUT)
+        db = read_json(OUT, expect=dict)
+        entries = db.get("entries")
+        if not isinstance(entries, list):
+            raise DataFileError(f"Malformed {OUT}: 'entries' must be a list.")
+        # Every entry must be an object with a company and title (strings; company may be "" for an old tombstone).
+        for i, e in enumerate(entries):
+            if not (isinstance(e, dict) and isinstance(e.get("company"), str) and isinstance(e.get("title"), str)):
+                raise DataFileError(f"Malformed {OUT}: entries[{i}] needs 'company' and 'title'. Fix it by hand or "
+                                    f"rebuild the file with 'triaged.py seed'.")
+        return db
     return {"updated": None, "note": __doc__.split("\n\n")[0], "entries": []}
 
 
@@ -195,8 +211,8 @@ def seed():
         a, u = merge(db["entries"], listing_entries(read_json(f), P.rel(f)))
         print(f"{f.name}: {a} added, {u} already present")
     removed = add_tombstones(db["entries"])
-    dates = [r["removed"] for r in removed if r.get("removed")]
-    db["updated"] = max(dates) if dates else datetime.date.today().isoformat()
+    dates = [d for d in (to_date(r.get("removed")) for r in removed) if d]  # malformed dates are skipped
+    db["updated"] = (max(dates) if dates else datetime.date.today()).isoformat()
     save(db)
     print(f"{len(db['entries'])} entries -> {OUT.relative_to(ROOT)}")
 

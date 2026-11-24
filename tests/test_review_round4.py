@@ -84,6 +84,11 @@ class MalformedDates(SampleCase):
         import triaged
         self.assertIsNone(to_date("2026-11-24junk"))
         self.assertIsNone(to_date("2026-11-241"))
+        # Copilot review round 4: the whole timestamp must be valid, not just the character after the date.
+        self.assertIsNone(to_date("2026-11-19Tjunk"))
+        self.assertIsNone(to_date("2026-11-19 garbage"))
+        self.assertEqual(str(to_date("2026-11-19T05:13:00Z")), "2026-11-19")
+        self.assertEqual(str(to_date("2026-11-19T05:13:00.123+00:00")), "2026-11-19")
         self.assertEqual(str(to_date("2026-11-19 05:13:00")), "2026-11-19")
         self.assertEqual(str(to_date("2026-11-19")), "2026-11-19")
         self.assertEqual(triaged._dates({"seen": [{"date": "2026-11-24junk"}]}), [])

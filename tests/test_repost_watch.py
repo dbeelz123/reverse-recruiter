@@ -64,6 +64,26 @@ class AfterRemoval(unittest.TestCase):
         self.assertIsNone(rows[0]["after_removal"])
 
 
+class MalformedRunListings(unittest.TestCase):
+    # Copilot review round 4: a decided listing that isn't an object, or lacks a company or title, stops with a
+    # message naming the file (not a raw KeyError), since skipping it would silently drop a triage decision.
+    def entries(self, listings):
+        return list(triaged.listing_entries({"search": "S1", "date": "2026-11-24", "listings": listings}, "s1.json"))
+
+    def test_bad_listings_stop_with_the_file_named(self):
+        from paths import DataFileError
+        for bad in (["bad"], [{"decision": "dq", "title": "PM"}], [{"decision": "dq", "company": "Acme"}],
+                    [{"decision": "dq", "company": "Acme", "title": 3}]):
+            with self.assertRaises(DataFileError) as cm:
+                self.entries(bad)
+            self.assertIn("s1.json", str(cm.exception))
+
+    def test_undecided_and_blocklist_listings_need_less(self):
+        self.assertEqual(self.entries([{"title": "PM"}]), [])  # undecided: not triaged, nothing required
+        got = self.entries([{"decision": "dq", "reason": "blocklist: X", "company": "Acme"}])
+        self.assertEqual([e["title"] for e in got], ["*"])
+
+
 class Sightings(unittest.TestCase):
     def test_run_listing_terms_go_on_the_sighting(self):
         run = {"search": "S1", "date": "2026-11-24", "listings": [
@@ -113,6 +133,27 @@ class CheckAndReport(SampleCase):
                                {"company": "Globex", "title": "Principal Product Manager", "status": []}])
         self.assertEqual([c["triaged"]["action"] for c in cards], ["skip", "skip"])
         self.assertIsNone(cards[0]["triaged"]["seen"])
+
+    def test_malformed_triaged_json_stops_with_a_message(self):
+        # Copilot review round 4: a non-object entry, or one without a company or title, gives a clear message.
+        from helpers import run
+        for entries in ([None], ["bad"], [{"title": "PM", "decision": "dq"}], [{"company": "Acme", "decision": "dq"}]):
+            self.write_db(entries)
+            code, out = run("triaged.py", "--data", self.data, "reposts")
+            self.assertNotEqual(code, 0)
+            self.assertIn("triaged.json", out)
+            self.assertNotIn("Traceback", out)
+
+    def test_seed_survives_odd_removal_dates(self):
+        # Copilot review round 4: mixed-type 'removed' values made max() raise TypeError.
+        path = self.data / "6-system/removed.json"
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        rows += [{"job_id": "9001", "company": "A", "title": "B", "removed": 123},
+                 {"job_id": "9002", "company": "C", "title": "D", "removed": "2099-01-01junk"}]
+        path.write_text(json.dumps(rows), encoding="utf-8")
+        self.ok("triaged.py", "--data", self.data, "seed")
+        db = json.loads((self.data / "6-system/triaged.json").read_text(encoding="utf-8"))
+        self.assertLess(db["updated"], "2099")
 
     def test_same_day_removal_overrules_a_keep(self):
         # Deliberate: a removal on the day of a keep came after it (a job kept in triage, then removed in the round).
