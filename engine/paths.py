@@ -162,6 +162,7 @@ class Paths:
         self.places = d / CRITERIA / "places.json"  # the user's city table for the radius check (locations.py)
         self.changelog = d / CRITERIA / "changelog.md"
         self.searches = d / CRITERIA / "searches.json"
+        self.connections = d / CRITERIA / "connections.json"  # the user's call on each connection (connections.py)
         # system data
         sysd = d / SYSTEM
         self.jobs = sysd / "jobs"

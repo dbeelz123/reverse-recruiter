@@ -23,7 +23,8 @@ All personal data lives in one folder, outside the engine (default `my-data/`, g
   2-reports/      YOU READ THESE: the round report, search links, apply queue
   3-applications/ one folder per application kit
   4-profile/      WHO YOU ARE: resume/, profile exports, career-master.md, voice-guide.md
-  5-criteria/     YOUR RULES: spec.json, changelog.md, searches.json, places.json
+  5-criteria/     YOUR RULES: spec.json, changelog.md, searches.json, places.json,
+                  connections.json (your call on each connection: plus or neutral)
   6-system/       MACHINE DATA: jobs/, reviews/, calibration/, search-runs/, ledger and tallies
   7-recommendations/  (optional) one folder per person you've exchanged a LinkedIn recommendation with
                       (<first-last>/received/recommendation.md, given/final.md); a connection with one scores
@@ -41,7 +42,7 @@ Each folder keeps only working files; superseded ones move to an `archive/` subf
 - **Positives** raise it (e.g. core domain, a 1st-degree connection at the company).
 - **Work arrangement:** remote anywhere; hybrid and on-site only within a radius of a home point (`machine_rule.hybrid_onsite_center`, `radius_miles`), checked offline against your own city table in `places.json`.
 - **Eligibility baseline:** what you meet by default (e.g. work authorization). Reviews list every requirement beyond it, quoted, for you to judge.
-- **Connections:** only 1st-degree connections count; they are the strongest positive (a route around the applicant tracking system), and a job with one is never removed automatically.
+- **Connections:** only 1st-degree connections count; they are the strongest positive (a route around the applicant tracking system), and a job with one is never removed automatically. Optionally they score by level (`connections.py`, on when `spec.json` → `scoring.network` has `neutral_points`): someone who has exchanged a LinkedIn recommendation with you scores highest, someone you'd ask for a referral ("plus") next, and someone you wouldn't ask ("neutral") least, since a recruiter who sees the connection may still ask them or give your application a second look. Calibration asks about each new connection, and your answer goes in `connections.json`. The best connection at a company counts; levels don't add up.
 
 ## The round
 
@@ -126,6 +127,9 @@ Say **"primer <company>"** before any interview (the apply queue prompts for it)
 1. `primer.py draft` splits the posting into Required, Nice-to-have and Duties items, suggests career-master evidence for each, and gathers what the project already knows.
 2. Claude writes `fit-map.md` (every requirement rated **Have / Partial / Gap**, with evidence, where the employer can see it, and how to say it) and **likely interview questions** grouped by interviewer, by `engine/prompts/interview-primer.md`.
 3. `primer.py check` must print PRIMER COMPLETE.
+
+### Interview prep PDFs
+Prep is written in Markdown in the kit and read on a phone as PDFs. `prep_pdf.py all <kit>` renders one PDF per packet, a combined master (each document on new pages), and an anonymized copy of the master for sharing as an example. The kit's `prep-pdf.json` names the packets, titles and subtitle, and its rules file says what to replace (literal or regex, applied in order; rules that matched nothing are reported). Nothing kit-specific is in the engine. Re-render after every edit, so the PDFs never lag the Markdown.
 
 ### Interview loop and follow-up timers
 `interviews.py` records each round (`schedule`), the **debrief** you give afterwards (who was there, what they asked, what landed, what missed, signals, lessons), and the **thank-you notes** Claude drafts for you to send (due the day after). `interviews.py due` lists what's owed: debriefs, thank-yous, and follow-ups 7 days after applying, 5 after messaging a connection, and 5 after an interview with no news. `interviews.py lessons` collects every debrief and the questions actually asked, which feed the next primer.

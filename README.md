@@ -151,6 +151,8 @@ reverse-recruiter/
 │   ├─ pipeline.py         application steps → apply queue + outcome funnel
 │   ├─ staleness.py        is the posting still open?
 │   ├─ primer.py           interview primer: requirement draft and completeness check
+│   ├─ connections.py      connection levels (recommendation / plus / neutral) → network points
+│   ├─ prep_pdf.py         interview prep → phone-friendly PDFs, a combined master and an anonymized copy
 │   ├─ interviews.py       interview rounds, debriefs, thank-yous, follow-up timers
 │   ├─ tailor_resume.py    tailored resume copy with Word tracked changes
 │   ├─ remove_job.py       remove a job, keep the reason

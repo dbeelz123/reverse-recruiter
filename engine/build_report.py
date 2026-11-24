@@ -22,6 +22,11 @@ from locations import distance, home_state_of, load_places, within_radius  # noq
 TIER_NAMES = {"A": "A - strong fit", "B": "B - good fit", "C": "C - possible", "D": "D - weak",
               "X": "Excluded (dealbreaker)", "?": "Incomplete - re-save needed"}
 TIER_ORDER = ["A", "B", "C", "D", "X", "?"]
+# How a connection's level (engine/connections.py) shows in the ranked table and in the connections list.
+LEVEL_MARK = {"recommendation": " (recommendation)", "plus": "", "neutral": " (neutral)",
+              "unclassified": " (not yet classified)"}
+LEVEL_NOTE = {"recommendation": "; recommendation", "plus": "", "neutral": "; neutral: you wouldn't ask for a referral",
+              "unclassified": "; not yet classified"}
 TIER_COLORS = {"A": "#0C447C", "B": "#378ADD", "C": "#85B7EB", "D": "#B5D4F4"}  # one hue, darker = better
 
 
@@ -109,6 +114,9 @@ def main():
     spec = read_json(P.spec, {}, expect=dict)
     import recommendations
     recs = recommendations.load(P)  # connections with a LinkedIn recommendation either way score higher
+    import connections
+    people = connections.load(P)  # the user's call on each connection: plus or neutral (connections.py)
+    levels_on = connections.settings(spec) is not None
     gaps = read_json(P.skills_gap, {"items": []}, expect=dict)
     calibration = read_json(P.calibration / f"{rnd}.json", {"questions": []}, expect=dict)
     insights = [i for i in read_json(P.searches, {}, expect=dict).get("insights", []) if i.get("round") == args.round]
@@ -129,10 +137,14 @@ def main():
         if r:
             r = dict(r)
             adj = sum(a["points"] for a in r.get("adjustments", []))
-            # The review records the plain connection bonus; a connection with a recommendation raises it here, so
-            # adding or removing a recommendation re-scores every job without touching the review files.
-            r["network_bonus"] = recommendations.network_points(spec, r.get("network_bonus", 0), rec, recs)
+            # The review records the plain connection bonus; the connection's level (recommendation, plus, neutral)
+            # sets it here, so a new recommendation or a call on a person re-scores every job without touching the
+            # review files.
+            r["network_bonus"], found = connections.network_points(spec, r.get("network_bonus", 0), rec, recs, people)
             r.pop("recommendation", None)
+            r.pop("network", None)
+            if levels_on and found:
+                r["network"] = [{"name": n, "level": lv} for n, lv in found]
             rm = recommendations.matches(rec, recs)
             if rm:
                 r["recommendation"] = [{"name": n, "direction": d} for n, d in rm]
@@ -152,12 +164,19 @@ def main():
     new = sum(1 for j in reviewed if j["review"].get("round") == args.round)
     w(f"{len(reviewed)} saved jobs, each read in full ({new} new this round; the rest keep their earlier review). "
       f"Calibration questions at the end may still adjust scores.\n")
+    if levels_on:
+        pts, _ = connections.settings(spec)
+        net_text = (f" + a 1st-degree connection: {pts['recommendation']:+g} when they have given you a LinkedIn "
+                    f"recommendation or received one from you, {pts['plus']:+g} when you'd ask them for a referral, "
+                    f"{pts['neutral']:+g} when you wouldn't (a recruiter may still notice the connection); the best "
+                    f"connection at the company counts")
+    else:
+        net_text = (" + 8 for a 1st-degree connection" +
+                    (f" ({rp:+g} instead when that connection has given you a LinkedIn recommendation or received one "
+                     f"from you)" if isinstance(rp := ((spec.get("scoring") or {}).get("network") or {})
+                                                .get("recommendation_points"), (int, float)) else ""))
     w("**Score** = fit from the full-text review (0-100) + adjustments from confirmed rules (domain 60/40, "
-      "travel sliding scale, ...) + 8 for a 1st-degree connection" +
-      (f" ({rp:+g} instead when that connection has given you a LinkedIn recommendation or received one from you)"
-       if isinstance(rp := ((spec.get("scoring") or {}).get("network") or {}).get("recommendation_points"),
-                     (int, float)) else "") +
-      ". The breakdown is shown as fit / adjustments / network.\n")
+      "travel sliding scale, ...)" + net_text + ". The breakdown is shown as fit / adjustments / network.\n")
 
     # Search funnel (engine/metrics.py; recorded at the end of each round)
     if P.metrics.exists():
@@ -200,9 +219,15 @@ def main():
     for j in reviewed:
         if j["review"]["tier"] == "?":
             todo.append(f"Re-save **{j['company']} - {j['title']}** with 'See more' expanded (description was collapsed).")
-        if any("in your network" in t for t in j.get("network_teaser", [])) and not j.get("people_file"):
+        if (any("in your network" in t for t in j.get("network_teaser", [])) and not j.get("people_file")
+                and not j["review"].get("network")):
             todo.append(f"Save a `_people` file for **{j['company']} - {j['title']}**: the page shows "
                         f"'{j['network_teaser'][0]}' but the connection list wasn't captured.")
+    unclassified = sorted({x["name"] for j in reviewed for x in j["review"].get("network", [])
+                           if x["level"] == "unclassified"})
+    if unclassified:
+        todo.append(f"Connections not yet classified (would you ask them for a referral?): {', '.join(unclassified)}. "
+                    f"Until you decide, each scores as the spec's 'unclassified' level.")
     if todo:
         w("## Action items for you\n")
         for t in todo:
@@ -223,8 +248,11 @@ def main():
         score = "-" if r["total"] is None else (f"{r['total']}" + (f" ({' '.join(parts)})" if len(parts) > 1 else ""))
         pay = r.get("pay") or "; ".join(j.get("salary_mentions") or []) or "not listed"
         rec_names = {x["name"] for x in r.get("recommendation", [])}
-        conn = ", ".join(c["name"] + (" (recommendation)" if c["name"] in rec_names else "")
-                         for c in j.get("connections_1st", [])) or ""
+        if r.get("network"):
+            conn = ", ".join(x["name"] + LEVEL_MARK[x["level"]] for x in r["network"])
+        else:
+            conn = ", ".join(c["name"] + (" (recommendation)" if c["name"] in rec_names else "")
+                             for c in j.get("connections_1st", [])) or ""
         if not conn and r.get("network_bonus"):
             conn = "referral (name withheld)"
         if j.get("external"):  # non-LinkedIn job (engine/ingest_external.py): say so, and show its pipeline stage
@@ -261,9 +289,15 @@ def main():
         w("")
 
     # Network
-    net = [j for j in reviewed if j.get("connections_1st")]
+    net = [j for j in reviewed if j.get("connections_1st") or j["review"].get("network")]
     w("## Your 1st-degree connections at these companies\n")
     for j in net:
+        if j["review"].get("network"):
+            heads = {c["name"]: c.get("headline") for c in j.get("connections_1st") or []}
+            for x in j["review"]["network"]:
+                w(f"- **{x['name']}** ({heads.get(x['name']) or 'no headline'}{LEVEL_NOTE[x['level']]}) "
+                  f"- {j['company']}, *{j['title']}*")
+            continue
         rec_dir = {x["name"]: x["direction"] for x in j["review"].get("recommendation", [])}
         for c in j["connections_1st"]:
             mark = {"received": "; recommended you", "given": "; you recommended them",
