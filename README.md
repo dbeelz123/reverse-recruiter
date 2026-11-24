@@ -142,6 +142,7 @@ reverse-recruiter/
 │   ├─ ingest_external.py  a job from anywhere (recruiter document, other site) → a job record
 │   ├─ triaged.py          skips listings already decided
 │   ├─ searches.py         criteria → ready-to-run search links
+│   ├─ sweep.py            backlog sweep → searches that bring removed jobs back to dismiss
 │   ├─ rescreen.py         flags jobs a newer rule may hit
 │   ├─ build_report.py     scores + caveats → ranked report
 │   ├─ metrics.py          search funnel and time per round
