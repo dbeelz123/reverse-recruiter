@@ -48,7 +48,7 @@ Each folder keeps only working files; superseded ones move to an `archive/` subf
 
 A round processes new saved jobs and re-ranks everything. In order:
 
-1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided. Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
+1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided (a listing DQ'd before comes back for a fresh look if its salary or location is new). Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
 2. **Extract:** `extract.py` turns new PDFs into job records (only new or changed files). It also flags duplicate saves and possible reposts. `triaged.py match-saved` links saves made outside the batches to the run.
 3. **Review** (Claude): every new posting read in full against `engine/prompts/review-rubric.md`: score, tier, positives, caveats, gaps, eligibility.
 4. **Calibration** (you and Claude): a few questions, only about what's new: conflicts between sources, uncertain signals, proposed disqualifiers. Approved answers become rules in `spec.json` and `changelog.md`.
@@ -58,7 +58,8 @@ A round processes new saved jobs and re-ranks everything. In order:
 8. **Metrics:** `metrics.py --round N` records the search funnel and time per stage.
 9. **Triage precision:** `precision.py --round N` compares the agent's calls with your decisions; new miss patterns become calling guidance.
 10. **Mode signals:** `modes.py signals` reports whether the system looks settled enough to switch triage modes.
-11. **Report:** `build_report.py --round N` ranks **every** current job, old and new, with caveats, connections, leads, the skills gap and the funnels. The previous report moves to `archive/`.
+11. **Repost watch:** `triaged.py reposts` writes `2-reports/repost-watch.md`: listings that never go away (possible pipeline or ghost postings), listings that disappear and come back, saved jobs listed again after removal, pay that changed, and companies that relist often. It only reports patterns; nothing is skipped or removed because of it.
+12. **Report:** `build_report.py --round N` ranks **every** current job, old and new, with caveats, connections, leads, the skills gap and the funnels. The previous report moves to `archive/`.
 
 ## Design principles
 

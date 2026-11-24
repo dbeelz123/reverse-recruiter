@@ -11,10 +11,14 @@ Usage:
   python engine/triaged.py match-saved <run.json>   after extract.py: link saved jobs to an open run's rows
                                                 (off-batch saves drop out of later batches; new saves that
                                                 match no row are listed as "saved outside triage")
+  python engine/triaged.py reposts              repost watch: writes 2-reports/repost-watch.md (listings that keep
+                                                coming back, companies that repost often, terms that changed)
 Every command also takes --data <folder> (default: my-data next to the engine).
 
 Matching is on normalized company + title (pasted or filmed cards rarely carry a job ID), or on
 job_id when both sides have one. A repost with the same title is caught; a changed title counts as new.
+Each sighting keeps the card's salary, location and posted line, so check can tell when a listing DQ'd before
+comes back with different terms (a salary or location not seen before): it is flagged for a fresh look, not skipped.
 Abbreviations used in triage files (PM, Sr, TPM) are expanded so they match the full titles on cards.
 An entry with title "*" covers the whole company (blocklisted companies and aggregators).
 """
@@ -79,15 +83,38 @@ def listing_entries(run, src):
             titles = ["*"]
         else:
             titles = [t.strip() for t in x["title"].split(";") if t.strip()]
+        seen = {"search": search, "date": date, "id": x.get("id")}
+        seen.update({f: x[f] for f in TERMS + ("posted",) if isinstance(x.get(f), str) and x[f].strip()})
         for t in titles:
             yield {
                 "company": company,
                 "title": t,
                 "decision": decision,
                 "reason": reason,
-                "seen": [{"search": search, "date": date, "id": x.get("id")}],
+                "seen": [dict(seen)],
                 "source": src,
             }
+
+
+TERMS = ("salary", "location")  # card terms kept on each sighting; a value never seen before counts as a change
+
+
+def norm_terms(s):
+    s = re.sub(r"\.00\b", "", s.lower())
+    return " ".join(re.sub(r"[^a-z0-9$%+\-]+", " ", s).split())
+
+
+def changed_terms(card, entry):
+    """Terms on this card that no earlier sighting of the entry showed. Comparing against every earlier value,
+    not just the last, keeps one posting listed in several cities (or at several levels) from looking changed.
+    A side with no value (older sightings, cards without a salary line) is not a change."""
+    out = {}
+    for f in TERMS:
+        new = card.get(f)
+        olds = [s[f] for s in entry.get("seen", []) if isinstance(s.get(f), str) and s[f].strip()]
+        if isinstance(new, str) and new.strip() and olds and norm_terms(new) not in {norm_terms(o) for o in olds}:
+            out[f] = {"was": olds[-1], "now": new}
+    return out
 
 
 def merge(entries, new):
@@ -122,26 +149,40 @@ def save(db):
     write_json(OUT, db, indent=1, newline=True)
 
 
+def add_tombstones(entries, only_new=False):
+    """Merge removed.json tombstones into entries (each removed job counts as DQ'd). With only_new, skip
+    tombstones whose job ID is already present, so a lookup copy picks up removals made since the last seed."""
+    removed = tombstones(P.removed)  # malformed entries are skipped
+    have = {e.get("job_id") for e in entries if e.get("job_id")} if only_new else set()
+    for r in removed:
+        if r["job_id"] in have:
+            continue
+        e = {"company": r.get("company", ""), "title": r.get("title", ""), "job_id": r["job_id"], "decision": "dq",
+             "reason": "removed: " + r.get("reason", "(no reason recorded)"),
+             "seen": [{"search": "saved", "date": r.get("removed")}], "source": "removed.json"}
+        old = next((x for x in entries if e["company"] and key(x["company"], x["title"]) == key(e["company"], e["title"])),
+                   None)
+        if old is None:
+            entries.append(e)  # (an older tombstone without company/title matches only by job ID)
+            continue
+        # A removal older than the entry's latest decision (e.g. a posting that closed, then was relisted and kept)
+        # adds its date but doesn't overrule that decision.
+        later = [s.get("date") for s in old["seen"] if str(s.get("date") or "") > str(r.get("removed") or "")]
+        old["seen"] += [s for s in e["seen"] if s not in old["seen"]]
+        if not later:
+            old["decision"], old["reason"] = e["decision"], e["reason"]
+        if not old.get("job_id"):
+            old["job_id"] = e["job_id"]
+    return removed
+
+
 def seed():
     db = {"updated": None, "note": __doc__.split("\n\n")[0], "entries": []}
     files = sorted(P.search_runs.glob("*-triage-*.json")) + sorted(P.search_runs.glob("*-run-*.json"))
     for f in files:
         a, u = merge(db["entries"], listing_entries(read_json(f), P.rel(f)))
         print(f"{f.name}: {a} added, {u} already present")
-    removed = tombstones(P.removed)  # malformed entries are skipped
-    rem = []
-    for r in removed:
-        company, title = r.get("company", ""), r.get("title", "")
-        rem.append({
-            "company": company, "title": title, "job_id": r["job_id"], "decision": "dq",
-            "reason": "removed: " + r.get("reason", "(no reason recorded)"),
-            "seen": [{"search": "saved", "date": r.get("removed")}], "source": "removed.json",
-        })
-    for e in rem:
-        if e["company"]:
-            merge(db["entries"], [e])
-        else:
-            db["entries"].append(e)  # older tombstone without company/title: matches only by job ID
+    removed = add_tombstones(db["entries"])
     dates = [r["removed"] for r in removed if r.get("removed")]
     db["updated"] = max(dates) if dates else datetime.date.today().isoformat()
     save(db)
@@ -173,6 +214,8 @@ def add(path):
 def check(path):
     cards = read_json(Path(path))
     db = load()
+    # Jobs removed since the last seed are in removed.json only: add them to this lookup (triaged.json is unchanged).
+    add_tombstones(db["entries"], only_new=True)
     by_key = {key(e["company"], e["title"]): e for e in db["entries"] if e["company"]}
     by_id = {e["job_id"]: e for e in db["entries"] if e.get("job_id")}
     for c in cards:
@@ -194,13 +237,22 @@ def check(path):
             group_cut = "company group" in (hit.get("reason") or "")
             c["triaged"] = {"decision": hit["decision"], "reason": hit["reason"], "seen": hit["seen"][-1],
                             "action": "skip" if hit["decision"] == "dq" and not group_cut else "flag"}
+            # A DQ'd listing back with terms not seen before (e.g. a higher salary, now remote): look again.
+            changed = changed_terms(c, hit) if c["triaged"]["action"] == "skip" else {}
+            if changed:
+                c["triaged"].update(action="flag (terms changed)", changed=changed)
         else:
             c["triaged"] = None
     write_json(Path(path), cards, indent=1)
     acts = [c["triaged"]["action"] if c["triaged"] else "new" for c in cards]
     print(f"{len(cards)} cards: {acts.count('skip (saved)')} skip (Saved), {acts.count('skip (viewed)')} skip (Viewed), "
           f"{acts.count('skip (applied)')} skip (Applied), {acts.count('skip')} skip (DQ'd before), "
+          f"{acts.count('flag (terms changed)')} flag (DQ'd before, terms changed), "
           f"{acts.count('flag')} flag (kept before), {acts.count('new')} new; marked in {path}")
+    for c in cards:
+        if c["triaged"] and c["triaged"]["action"] == "flag (terms changed)":
+            what = "; ".join(f"{f}: {v['was']} -> {v['now']}" for f, v in c["triaged"]["changed"].items())
+            print(f"  terms changed: {c['company']} - {c['title']} ({what}); DQ'd before: {c['triaged']['reason']}")
 
 
 def match_saved(path):
@@ -254,6 +306,164 @@ def keeps(path):
               f"{e.get('linkedin_match', '')} | {pdf} |")
 
 
+EVERGREEN_DAYS = 21  # seen across at least this many days ...
+EVERGREEN_DATES = 3  # ... on at least this many separate days: likely evergreen (a pipeline or ghost listing)
+RESURFACE_GAP = 7  # gone from the results for at least this many days, then back: a relisting
+
+
+def _dates(entry, saved=False):
+    """Separate days the entry was seen in search results (saved=True: days a saved copy was removed instead)."""
+    out = set()
+    for s in entry.get("seen", []):
+        if (str(s.get("search")).lower() == "saved") != saved:
+            continue
+        try:
+            out.add(datetime.date.fromisoformat(str(s.get("date"))[:10]))
+        except ValueError:
+            continue
+    return sorted(out)
+
+
+def _search_id(name):
+    """'S2 v4' -> 'S2': versions of one search count as the same search."""
+    return str(name or "").split()[0].upper() if name else ""
+
+
+def watch(entries):
+    """Per listing: separate days seen, span, whether it went away and came back, a 'Reposted' label, and
+    salaries seen. Listings with no company or a whole-company ('*') entry are left out.
+
+    'Gone and back' needs proof it was gone: a gap of RESURFACE_GAP+ days during which a search that found the
+    listing ran without it. A gap that only means the search wasn't run is not a relisting."""
+    runs = {}  # search id -> dates it ran (from every sighting on record)
+    for e in entries:
+        for s in e.get("seen", []):
+            try:
+                runs.setdefault(_search_id(s.get("search")), set()).add(
+                    datetime.date.fromisoformat(str(s.get("date"))[:10]))
+            except ValueError:
+                continue
+    runs.pop("SAVED", None)
+    rows = []
+    for e in entries:
+        if not e.get("company") or e.get("title") == "*":
+            continue
+        d = _dates(e)
+        if not d:
+            continue
+        gone = _dates(e, saved=True)
+        mine ={_search_id(s.get("search")) for s in e.get("seen", [])} - {"SAVED"}
+        ran = set().union(*(runs.get(m, set()) for m in mine)) if mine else set()
+        gaps = [(b - a).days for a, b in zip(d, d[1:]) if any(a < r < b for r in ran)]
+        salaries = []
+        for s in e.get("seen", []):
+            v = s.get("salary")
+            if isinstance(v, str) and v.strip() and norm_terms(v) not in {norm_terms(x) for x in salaries}:
+                salaries.append(v)
+        rows.append({
+            "entry": e, "days": len(d), "first": d[0], "last": d[-1], "span": (d[-1] - d[0]).days,
+            "resurfaced": any(g >= RESURFACE_GAP for g in gaps),
+            # A saved copy was removed (closed, DQ'd), and the listing showed up in search results after that.
+            "after_removal": next((g for g in gone if d[-1] > g), None),
+            "reposted": any("repost" in str(s.get("posted", "")).lower() for s in e.get("seen", [])),
+            "salaries": salaries,
+        })
+    for r in rows:
+        r["evergreen"] = r["days"] >= EVERGREEN_DATES and r["span"] >= EVERGREEN_DAYS
+    return rows
+
+
+def reposts():
+    """Repost watch: write 2-reports/repost-watch.md from the sightings in triaged.json.
+
+    Relisting is mostly in good faith (evergreen roles, several openings, a refreshed date, a failed search), but a
+    listing that never goes away can be a pipeline or ghost posting, and a company that reposts constantly may be
+    collecting profiles. This only reports patterns; it never removes or skips anything by itself."""
+    db = load()
+    add_tombstones(db["entries"], only_new=True)  # removals since the last seed show as DQ'd here too
+    rows = watch(db["entries"])
+    if not rows:
+        print("No dated sightings in triaged.json yet.")
+        return
+    first = min(r["first"] for r in rows)
+    last = max(r["last"] for r in rows)
+    history = (last - first).days
+    ever = sorted([r for r in rows if r["evergreen"]], key=lambda r: (-r["span"], -r["days"]))
+    back = sorted([r for r in rows if r["resurfaced"] and not r["evergreen"]], key=lambda r: -r["span"])
+    paid = [r for r in rows if len(r["salaries"]) > 1]
+    again = sorted([r for r in rows if r["after_removal"]], key=lambda r: r["after_removal"])
+    comp = {}
+    for r in rows:
+        c = comp.setdefault(norm_company(r["entry"]["company"]), {"name": r["entry"]["company"], "listings": 0,
+                                                                  "back": 0, "reposted": 0})
+        c["listings"] += 1
+        c["back"] += r["resurfaced"] or r["evergreen"]
+        c["reposted"] += r["reposted"]
+    comps = sorted([c for c in comp.values() if c["back"] or c["reposted"] >= 2],
+                   key=lambda c: (-c["back"], -c["reposted"], -c["listings"]))
+    current = {}
+    for f in sorted(P.jobs.glob("*.json")):
+        j = read_json(f)
+        current[key(j.get("company", ""), j.get("title", ""))] = j
+    cur_ever = [r for r in ever if key(r["entry"]["company"], r["entry"]["title"]) in current]
+
+    def name(r):
+        e = r["entry"]
+        return f"{e['company']}: {e['title']}"
+
+    L = ["# Repost watch", "",
+         f"*Built {datetime.date.today().isoformat()} from {len(rows)} listings in triaged.json, sighted "
+         f"{first.isoformat()} to {last.isoformat()} ({history} days). Rebuilt each round "
+         "(`python engine/triaged.py reposts`).*", "",
+         "Relisting is usually in good faith: an evergreen role, several openings, a refreshed date or a failed search. "
+         "A listing that never goes away can also be a pipeline or ghost posting, and a company that relists "
+         "constantly may be collecting profiles. This page only shows patterns; nothing is removed or skipped "
+         "because of it.", ""]
+    if history < EVERGREEN_DAYS:
+        L += [f"**Too early to judge:** the sightings cover {history} days, under the {EVERGREEN_DAYS} needed to call "
+              "anything evergreen. Listings seen on several dates so far are mostly the same live posting turning up "
+              "in different searches.", ""]
+    L += [f"## Current jobs that look evergreen ({len(cur_ever)})", "",
+          f"Saved jobs whose company and title have shown up on {EVERGREEN_DATES}+ separate days across "
+          f"{EVERGREEN_DAYS}+ days. Worth a staleness check before any kit work.", ""]
+    L += [f"- {name(r)}: {r['days']} days seen over {r['span']} days ({r['first']} to {r['last']})" for r in cur_ever] \
+        or ["None."]
+    L += ["", f"## Evergreen listings ({len(ever)})", "",
+          f"Seen on {EVERGREEN_DATES}+ separate days across {EVERGREEN_DAYS}+ days.", ""]
+    if ever:
+        L += ["| Listing | Decision | Days seen | Span | First | Last | Reposted label |", "|---|---|---|---|---|---|---|"]
+        L += [f"| {name(r)} | {r['entry']['decision']} | {r['days']} | {r['span']}d | {r['first']} | {r['last']} | "
+              f"{'yes' if r['reposted'] else ''} |" for r in ever]
+    else:
+        L += ["None yet."]
+    L += ["", f"## Gone and back ({len(back)})", "",
+          f"Missing from the results for {RESURFACE_GAP}+ days, then seen again.", ""]
+    L += [f"- {name(r)} ({r['entry']['decision']}): {r['first']} to {r['last']}" for r in back] or ["None yet."]
+    L += ["", f"## Removed, then listed again ({len(again)})", "",
+          "A saved copy was removed from the project (closed, DQ'd or a duplicate), and the same company and title "
+          "showed up in search results later: a relisting under a new job ID, or the same posting still up "
+          "(a card shows no job ID, so open it to tell).", ""]
+    L += [f"- {name(r)} ({r['entry']['decision']}): removed {r['after_removal']}, seen again {r['last']}"
+          for r in again] or ["None yet."]
+    L += ["", f"## Salary changed between sightings ({len(paid)})", "",
+          "The same company and title shown with different pay (or one posting at several levels). "
+          "A DQ'd listing back with new terms is also flagged at triage (`triaged.py check`).", ""]
+    L += [f"- {name(r)} ({r['entry']['decision']}): " + " / ".join(r["salaries"]) for r in paid] or ["None yet."]
+    L += ["", f"## Companies that relist ({len(comps)})", "",
+          "Companies with listings that came back or stayed up, or two or more 'Reposted' labels.", ""]
+    if comps:
+        L += ["| Company | Listings seen | Came back or evergreen | Reposted labels |", "|---|---|---|---|"]
+        L += [f"| {c['name']} | {c['listings']} | {c['back']} | {c['reposted']} |" for c in comps[:25]]
+    else:
+        L += ["None yet."]
+    out = P.reports / "repost-watch.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(L) + "\n", encoding="utf-8")
+    print(f"Repost watch: {len(ever)} evergreen ({len(cur_ever)} among current jobs), {len(back)} gone and back, "
+          f"{len(again)} listed again after removal, "
+          f"{len(paid)} with changed pay, {len(comps)} companies; history {history} days -> {P.rel(out)}")
+
+
 def use_data(folder):
     """Point the module at another data folder (--data); the defaults above serve imports like metrics.py's."""
     global P, ROOT, DATA, OUT
@@ -277,5 +487,7 @@ if __name__ == "__main__":
         add(sys.argv[2])
     elif cmd == "check" and len(sys.argv) == 3:
         check(sys.argv[2])
+    elif cmd == "reposts" and len(sys.argv) == 2:
+        reposts()
     else:
         print(__doc__)
