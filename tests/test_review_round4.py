@@ -78,6 +78,16 @@ class MalformedDates(SampleCase):
         self.assertIsNone(to_date(None))
         self.assertEqual(str(to_date("2026-11-19T05:13:00")), "2026-11-19")
 
+    def test_safe_date_rejects_trailing_junk(self):
+        # Copilot review round 3: slicing to 10 characters read '2026-11-24junk' as a real date.
+        from paths import to_date
+        import triaged
+        self.assertIsNone(to_date("2026-11-24junk"))
+        self.assertIsNone(to_date("2026-11-241"))
+        self.assertEqual(str(to_date("2026-11-19 05:13:00")), "2026-11-19")
+        self.assertEqual(str(to_date("2026-11-19")), "2026-11-19")
+        self.assertEqual(triaged._dates({"seen": [{"date": "2026-11-24junk"}]}), [])
+
 
 class Metrics(SampleCase):
     def test_round_after_backfilled_rounds_is_estimated_not_inflated(self):
