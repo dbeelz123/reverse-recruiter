@@ -3,15 +3,19 @@
 Usage:
   python engine/staleness.py gate <job>                  # before kit work or applying: FRESH (exit 0) or CHECK FIRST (exit 1)
   python engine/staleness.py confirm <job> open|closed [--date YYYY-MM-DD] [--note "..."]
-  python engine/staleness.py tracker <paste.txt> [--date YYYY-MM-DD]   # mark every job a Job Tracker paste lists
+  python engine/staleness.py tracker <folder | file.pdf ... | paste.txt> [--date YYYY-MM-DD]
+                                                         # mark every job the Job Tracker lists; with PDFs, by job ID
   python engine/staleness.py status [--all]              # every queued job: listing age, last check, verdict
 
 <job> is a job ID, a kit folder name, or a word that matches one company (same as pipeline.py).
 
 Data gathering stays manual: the script never opens a job site. Evidence comes from three places:
   1. the saved PDF: the "Posted / Reposted N ago" line and the print date give an estimated listing date;
-  2. a pasted Job Tracker → Saved page (1-inbox/tracked-jobs/): a job listed with a "Posted/Reposted ... ago" line
-     was still listed on the paste date; one marked "No longer accepting applications" is closed;
+  2. Job Tracker → Saved (1-inbox/tracked-jobs/): a job listed with a "Posted/Reposted ... ago" line was still
+     listed on that date; one marked "No longer accepting applications" is closed. Best captured by printing the
+     list to PDF: each job's link carries its ID, so jobs match exactly (two jobs with the same title included), and
+     when the PDFs hold every saved job (the "Saved · N" header) the reverse check lists project jobs that dropped off
+     the list. A copied-text paste (.txt) still works, matched by title and company;
   3. the person saying so after opening the link ("confirm").
 The latest check is kept on the job record as "open_check": {date, result: open|closed, source, note}.
 A job is FRESH when it was confirmed open within FRESH_DAYS. A closed result never removes anything by itself:
@@ -158,6 +162,96 @@ def match_job(jobs, title, company):
     return close[0] if len(close) == 1 else None
 
 
+def tracker_files(paths):
+    """The files a tracker command reads: each path as given, a folder's top-level PDFs (in natural order: page2
+    before page10), or its .txt pastes when it has no PDFs."""
+    def natural(p):
+        return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", p.name)]
+    out = []
+    for p in map(Path, paths):
+        if p.is_dir():
+            out += sorted(p.glob("*.pdf"), key=natural) or sorted(p.glob("*.txt"), key=natural)
+        elif p.exists():
+            out.append(p)
+        else:
+            raise SystemExit(f"Not found: {p}")
+    if not out:
+        raise SystemExit("No tracker files found")
+    return out
+
+
+def read_tracker_pdfs(files):
+    """Job Tracker → Saved printed to PDF (any number of pages or files, overlapping is fine) ->
+    ({job_id: card text}, saved count from the page header or None). Each job's link covers its whole card (title,
+    company · location, Posted/closed line), so the card is read from the link's area and matched by job ID."""
+    import pymupdf
+    cards, header = {}, None
+    for f in files:
+        with pymupdf.open(f) as doc:
+            for page in doc:
+                if header is None and (m := re.search(r"Saved · (\d+)", page.get_text())):
+                    header = int(m.group(1))
+                for link in page.get_links():
+                    m = re.search(r"/jobs/view/(\d+)", link.get("uri") or "")
+                    if m:
+                        text = page.get_textbox(link["from"]).strip()
+                        if len(text) > len(cards.get(m.group(1), "")):
+                            cards[m.group(1)] = text
+    return cards, header
+
+
+def tracker_pdf(P, files, date):
+    """Mark every saved job open or closed by job ID, and list what doesn't match in either direction."""
+    import pipeline  # imported here: pipeline.py imports this module for the apply queue
+    jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
+    cards, header = read_tracker_pdfs(files)
+    opened = closed = skipped = 0
+    missing, no_status = [], []
+    for jid, card in cards.items():
+        lines = [l.strip() for l in card.splitlines() if l.strip()]
+        name = " · ".join(lines[:2]) if lines else jid
+        status = next((l for l in lines if re.search(r"^(Posted|Reposted)\b", l, re.I) or re.search(CLOSED, l, re.I)),
+                      "")
+        j = jobs.get(jid)
+        if not j:
+            missing.append(f"{name} - https://www.linkedin.com/jobs/view/{jid}/")
+            continue
+        if not status:
+            no_status.append(f"{j.get('company')}: {j.get('title')} ({jid})")
+            continue
+        result = "closed" if re.search(CLOSED, card, re.I) else "open"
+        if set_check(P, j, result, date, "tracker PDF", status):
+            opened += result == "open"
+            closed += result == "closed"
+        else:
+            skipped += 1
+    print(f"{len(files)} tracker PDF(s) ({date}): {len(cards)} saved jobs"
+          + (f" of Saved · {header}" if header is not None else "")
+          + f"; marked {opened} open, {closed} closed; {skipped} kept a newer check")
+    for s in missing:
+        print(f"  - saved but not in the project: {s}")
+    for s in no_status:
+        print(f"  - no Posted/closed line; check by hand: {s}")
+    if header is None or len(cards) != header:
+        print(f"  ! the PDFs show {len(cards)} jobs" + (f" but the header says {header}" if header is not None else
+              " and no 'Saved · N' header") + ": a page may be missing, so the reverse check is skipped")
+    else:
+        gone = []
+        for jid, j in sorted(jobs.items()):
+            pl = j.get("pipeline") or {}
+            if not jid.isdigit() or jid in cards or j.get("external") or pl.get("status") in TERMINAL:
+                continue
+            if pipeline.reached(pl, False) >= pipeline.STAGES.index("applied"):
+                continue  # applied jobs move to LinkedIn's Applied tab
+            gone.append(f"{j.get('company')}: {j.get('title')} - https://www.linkedin.com/jobs/view/{jid}/")
+        for s in gone:
+            print(f"  - in the project but no longer saved (closed, or unsaved?): {s}")
+        if gone:
+            print("  Ask the user; closed or unsaved jobs go through the removal prompt (engine/remove_job.py).")
+    if closed:
+        print("  Closed jobs need the removal prompt (engine/remove_job.py); `status` lists them.")
+
+
 def tracker(P, path, date):
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
     text = Path(path).read_text(encoding="utf-8")
@@ -243,7 +337,7 @@ def main():
     c.add_argument("--date", type=iso_date, default=dt.date.today().isoformat())
     c.add_argument("--note")
     t = sub.add_parser("tracker")
-    t.add_argument("paste")
+    t.add_argument("paste", nargs="+", help="Job Tracker → Saved printed to PDF (files or their folder), or a .txt paste")
     t.add_argument("--date", type=iso_date, help="the day the page was copied (default: a date in the file name, else the file's "
                                   "modified date)")
     s = sub.add_parser("status")
@@ -252,10 +346,16 @@ def main():
     P = Paths(a.data)
     today = dt.date.today()
     if a.cmd == "tracker":
-        named = re.search(r"\d{4}-\d{2}-\d{2}", Path(a.paste).name)  # tracked-2026-11-17.txt
+        files = tracker_files(a.paste)
+        named = re.search(r"\d{4}-\d{2}-\d{2}", files[0].name)  # tracked-2026-11-17.txt
         date = a.date or (named.group(0) if named else
-                          dt.date.fromtimestamp(Path(a.paste).stat().st_mtime).isoformat())
-        tracker(P, a.paste, date)
+                          dt.date.fromtimestamp(max(f.stat().st_mtime for f in files)).isoformat())
+        pdfs = [f for f in files if f.suffix.lower() == ".pdf"]
+        if pdfs:
+            tracker_pdf(P, pdfs, date)
+        for f in files:
+            if f.suffix.lower() != ".pdf":
+                tracker(P, f, date)
         return
     if a.cmd == "status":
         status(P, today, a.all)

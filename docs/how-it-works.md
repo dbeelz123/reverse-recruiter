@@ -18,7 +18,7 @@ All personal data lives in one folder, outside the engine (default `my-data/`, g
   1-inbox/        YOU DROP FILES HERE
     job-pdfs/          saved job postings, one PDF each (they stay here while the job is saved)
     search-results/    pasted search-result pages (.txt) for triage
-    tracked-jobs/      pasted saved-jobs pages, to check the project matches your saves
+    tracked-jobs/      the saved-jobs list (printed to PDF, or pasted), to check the project matches your saves
     role-explorer/     a title + job description to research
   2-reports/      YOU READ THESE: the round report, search links, apply queue
   3-applications/ one folder per application kit
@@ -105,7 +105,7 @@ Progress lives in a `pipeline` block on each job record. Stages: kit → applied
 - **Not applying:** with the reason.
 
 ### Staleness gate
-Postings close without notice. `staleness.py` keeps each job's latest open check (`open_check`). Evidence comes from the saved PDF's posting date, a pasted saved-jobs page (`staleness.py tracker`, which marks every listed job at once), or you confirming after opening the link. Before any kit work or application, Claude runs `staleness.py gate <job>`: **FRESH** (seen open in the last 3 days) or **CHECK FIRST**, with the link. A closed job goes through the removal prompt; nothing is removed automatically.
+Postings close without notice. `staleness.py` keeps each job's latest open check (`open_check`). Evidence comes from the saved PDF's posting date, the saved-jobs list (`staleness.py tracker`, which marks every listed job at once; print the list to PDF and jobs match exactly by the ID in each link, and a complete capture also lists project jobs that dropped off it; a copied-text paste still works, matched by title), or you confirming after opening the link. Before any kit work or application, Claude runs `staleness.py gate <job>`: **FRESH** (seen open in the last 3 days) or **CHECK FIRST**, with the link. A closed job goes through the removal prompt; nothing is removed automatically.
 
 ### Application kits
 Say **"prep <company>"**.
