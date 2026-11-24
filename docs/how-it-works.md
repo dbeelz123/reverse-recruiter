@@ -48,7 +48,7 @@ Each folder keeps only working files; superseded ones move to an `archive/` subf
 
 A round processes new saved jobs and re-ranks everything. In order:
 
-1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided (a listing DQ'd before comes back for a fresh look if its salary or location is new). Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
+1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided (a listing DQ'd before comes back for a fresh look if its salary or location is new; a listing from a blocklisted company is shown with the blocklist entry and reason for you to confirm, never dropped silently). Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
 2. **Extract:** `extract.py` turns new PDFs into job records (only new or changed files). It also flags duplicate saves and possible reposts. `triaged.py match-saved` links saves made outside the batches to the run.
 3. **Review** (Claude): every new posting read in full against `engine/prompts/review-rubric.md`: score, tier, positives, caveats, gaps, eligibility.
 4. **Calibration** (you and Claude): a few questions, only about what's new: conflicts between sources, uncertain signals, proposed disqualifiers. Approved answers become rules in `spec.json` and `changelog.md`.

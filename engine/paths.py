@@ -15,6 +15,7 @@ REVERSE_RECRUITER_DATA environment variable, else <project>/my-data.
 """
 import json
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -68,6 +69,46 @@ def blocklist(spec, path):
         if not (isinstance(b, dict) and isinstance(b.get("value"), str) and b["value"].strip()):
             raise DataFileError(f"Malformed {path}: company_blocklist[{i}] needs a 'value' with the company name.")
     return entries
+
+
+def blocklist_names(entry):
+    """The names one blocklist entry matches: the value's text before ' (' plus any 'aliases'. Category entries
+    (values starting 'Companies ...', e.g. 'Companies owned by ...') match only through their aliases."""
+    v = entry["value"]
+    names = [] if v.lower().startswith("companies ") else [v.split(" (")[0].strip()]
+    names += [a for a in entry.get("aliases", []) if isinstance(a, str) and a.strip()]
+    return [n for n in names if n]
+
+
+def case_by_case(entry):
+    """A blocklist entry for a company that also does work outside the blocked area (e.g. a parent company whose
+    defense unit is blocked): its listings are judged one by one, never blocked or hidden automatically."""
+    return bool(entry.get("case_by_case"))
+
+
+def blocked_by(company, entries, confirmed_only=False):
+    """The blocklist entry that matches a company name, or None. Names match as whole words, case-insensitive
+    ('SAIC' doesn't hit 'Mosaic', 'Arity' doesn't hit 'Clarity'); an entry with "match": "exact" must equal the
+    whole company name (e.g. 'Via', which would otherwise also hit 'Via Transportation'). A firm entry wins over a
+    case-by-case one, so 'Boeing Defense, Space & Security' matches the unit's entry, not the parent's."""
+    c = " ".join((company or "").lower().split())
+    if not c:
+        return None
+    soft = None
+    for b in entries:
+        if confirmed_only and b.get("status") != "confirmed":
+            continue
+        for n in blocklist_names(b):
+            n = " ".join(n.lower().split())
+            if b.get("match") == "exact":
+                hit = re.sub(r"[^a-z0-9]+", " ", c).strip() == re.sub(r"[^a-z0-9]+", " ", n).strip()
+            else:
+                hit = bool(re.search(r"(?<![a-z0-9])" + re.escape(n) + r"(?![a-z0-9])", c))
+            if hit:
+                if not case_by_case(b):
+                    return b
+                soft = soft or b
+    return soft
 
 
 def latest_reviews(P, upto=None, check=None):

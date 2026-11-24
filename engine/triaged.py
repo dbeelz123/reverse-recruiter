@@ -5,7 +5,10 @@ Usage:
                                                 *-triage-*.json and removed.json
   python engine/triaged.py add <run.json>       append one run's decided listings (after a triage is finished)
   python engine/triaged.py check <cards.json>   mark each card {company, title[, job_id]} as seen or new; cards with
-                                                status Saved, Viewed or Applied are skipped
+                                                status Saved, Viewed or Applied are skipped; a listing from a
+                                                blocklisted company not decided before is marked
+                                                "blocklist (confirm)" with the entry and reason, for the user
+                                                to confirm (never DQ'd silently)
   python engine/triaged.py keeps <run.json>     end of triage: Markdown checklist of every keep (with links) to
                                                 confirm each is marked Saved on LinkedIn
   python engine/triaged.py match-saved <run.json>   after extract.py: link saved jobs to an open run's rows
@@ -28,7 +31,7 @@ import re
 import sys
 from pathlib import Path
 
-from paths import Paths, read_json, write_json, tombstones
+from paths import Paths, blocked_by, blocklist, case_by_case, read_json, write_json, tombstones
 
 P = Paths()
 ROOT = P.data.parent
@@ -218,6 +221,8 @@ def check(path):
     add_tombstones(db["entries"], only_new=True)
     by_key = {key(e["company"], e["title"]): e for e in db["entries"] if e["company"]}
     by_id = {e["job_id"]: e for e in db["entries"] if e.get("job_id")}
+    spec = read_json(P.spec, {}, expect=dict)
+    blocks = blocklist(spec, P.spec)
     for c in cards:
         status = c.get("status") or []
         # Saved/Applied on LinkedIn: already in the user's saves (synced with the project) or applied -> no triage.
@@ -229,8 +234,15 @@ def check(path):
                 break
         if c.get("triaged"):
             continue
-        hit = (c.get("job_id") and by_id.get(c["job_id"])) or by_key.get(key(c["company"], c["title"])) \
-            or by_key.get(key(c["company"], "*"))
+        hit = (c.get("job_id") and by_id.get(c["job_id"])) or by_key.get(key(c["company"], c["title"]))
+        # A blocklisted company's listing not decided before: shown with the entry and its reason for the user to
+        # confirm (set by the user 2026-11-24), never DQ'd silently.
+        bl = None if hit else blocked_by(c["company"], blocks)
+        if bl:
+            c["triaged"] = {"decision": None, "action": "blocklist (confirm)", "blocklist": bl["value"],
+                            "reason": bl.get("reason", ""), "case_by_case": case_by_case(bl)}
+            continue
+        hit = hit or by_key.get(key(c["company"], "*"))
         # DQ'd before -> skip. Kept/maybe before but not saved -> flag it rather than skip.
         if hit:
             # Company-group cuts are not judgments on the job itself (rule changed 2026-11-17): flag, don't skip.
@@ -248,7 +260,13 @@ def check(path):
     print(f"{len(cards)} cards: {acts.count('skip (saved)')} skip (Saved), {acts.count('skip (viewed)')} skip (Viewed), "
           f"{acts.count('skip (applied)')} skip (Applied), {acts.count('skip')} skip (DQ'd before), "
           f"{acts.count('flag (terms changed)')} flag (DQ'd before, terms changed), "
+          f"{acts.count('blocklist (confirm)')} blocklisted (confirm), "
           f"{acts.count('flag')} flag (kept before), {acts.count('new')} new; marked in {path}")
+    for c in cards:
+        if c["triaged"] and c["triaged"]["action"] == "blocklist (confirm)":
+            soft = " [case by case: is this role in the blocked area?]" if c["triaged"]["case_by_case"] else ""
+            print(f"  blocklisted{soft}: {c['company']} - {c['title']} -> {c['triaged']['blocklist']}: "
+                  f"{c['triaged']['reason']}")
     for c in cards:
         if c["triaged"] and c["triaged"]["action"] == "flag (terms changed)":
             what = "; ".join(f"{f}: {v['was']} -> {v['now']}" for f, v in c["triaged"]["changed"].items())

@@ -18,7 +18,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths, blocklist, read_json
+from paths import Paths, blocked_by, blocklist, case_by_case, read_json
 
 
 def excerpt(text, m, width=90):
@@ -36,8 +36,7 @@ def main():
     rules = ([("DEALBREAKER", r) for r in spec.get("dealbreakers", []) if r.get("status") == "confirmed"]
              + [("NEGATIVE", r) for r in spec.get("negatives", []) if r.get("status") == "confirmed"]
              + [("QUALIFIER", r) for r in spec.get("qualifiers", []) if r.get("status") == "confirmed"])
-    blocked = [b["value"].split(" (")[0].lower() for b in blocklist(spec, P.spec)
-               if b.get("status") == "confirmed" and not b["value"].startswith("Companies owned")]
+    blocked = [b for b in blocklist(spec, P.spec) if b.get("status") == "confirmed"]
     # Check every rule's patterns once, up front, so a typo in spec.json names the rule instead of crashing midway.
     bad = []
     for kind, rule in rules:
@@ -91,7 +90,10 @@ def main():
                 if ms:
                     hits.append(f"  {kind} ({len(ms)}x): {name}\n      {excerpt(text, ms[0])}")
         company = (j.get("company") or "").lower()
-        hits += [f"  BLOCKLIST: {b}" for b in blocked if b and b in company]
+        hit = blocked_by(company, blocked)
+        if hit:
+            soft = " (case by case: is this role in the blocked area?)" if case_by_case(hit) else ""
+            hits.append(f"  BLOCKLIST{soft}: {hit['value']} ({hit.get('reason', 'no reason recorded')})")
         if hits:
             print(f"{j['company']} - {j['title']} (round {r.get('round')}, score {r.get('total')}, {j['job_id']})")
             print("\n".join(hits) + "\n")
