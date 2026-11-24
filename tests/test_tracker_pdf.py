@@ -120,6 +120,69 @@ class TrackerPdf(helpers.SampleCase):
         self.assertNotIn("no Posted/closed line", out)
         self.assertEqual(self.job(rows[1][0])["open_check"]["result"], "closed")  # not the next card's status
 
+    def test_two_columns_never_borrow_the_neighbours_status(self):
+        folder = self.tmp / "pdfs"
+        folder.mkdir()
+        (l_id, l_title, l_co, _), (r_id, r_title, r_co, _) = self.rows()[:2]
+        doc = pymupdf.open()
+        page = doc.new_page()
+        y = 100
+        # left card: link covers only its title; its own status is below it
+        page.insert_text((40, y), l_title[:28], fontsize=9)
+        page.insert_text((40, y + 14), l_co, fontsize=9)
+        page.insert_text((40, y + 28), "Posted 3d ago", fontsize=9)
+        page.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(36, y - 10, 200, y + 3),
+                          "uri": f"https://www.linkedin.com/jobs/view/{l_id}/"})
+        # right card, same rows: a whole-card link and a closed status
+        page.insert_text((320, y), r_title[:28], fontsize=9)
+        page.insert_text((320, y + 14), r_co, fontsize=9)
+        page.insert_text((320, y + 28), "No longer accepting applications", fontsize=9)
+        page.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(316, y - 10, 580, y + 32),
+                          "uri": f"https://www.linkedin.com/jobs/view/{r_id}/"})
+        doc.save(folder / "Job tracker _ LinkedIn1.pdf")
+        doc.close()
+        self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.assertEqual(self.job(l_id)["open_check"]["result"], "open")
+        self.assertEqual(self.job(r_id)["open_check"]["result"], "closed")
+
+    def test_status_far_below_a_partial_link_is_found(self):
+        folder = self.tmp / "pdfs"
+        folder.mkdir()
+        jid, title, company, _ = self.rows()[0]
+        doc = pymupdf.open()
+        page = doc.new_page()
+        y = 100
+        page.insert_text((40, y), title)
+        page.insert_textbox(pymupdf.Rect(40, y + 6, 300, y + 70), f"{company} · a long location line that wraps "
+                            "onto several lines before the status line", fontsize=11)
+        page.insert_text((40, y + 85), "Posted 2d ago")  # about 85 points below the link
+        page.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(36, y - 12, 300, y + 3),
+                          "uri": f"https://www.linkedin.com/jobs/view/{jid}/"})
+        doc.save(folder / "Job tracker _ LinkedIn1.pdf")
+        doc.close()
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.assertNotIn("no Posted/closed line", out)
+        self.assertEqual(self.job(jid)["open_check"]["result"], "open")
+
+    def test_a_direct_reading_beats_a_widened_one(self):
+        folder = self.tmp / "pdfs"
+        folder.mkdir()
+        jid, title, company, _ = self.rows()[0]
+        # page 1: a whole-card link whose own area says it's open
+        doc = pymupdf.open()
+        card(doc.new_page(), 100, jid, title, company, "Posted 3d ago")
+        doc.save(folder / "Job tracker _ LinkedIn1.pdf")
+        doc.close()
+        # page 2: the same job with a title-only link; the widened, longer reading has a closed line in it
+        doc = pymupdf.open()
+        page = doc.new_page()
+        title_only_card(page, 100, jid, title, company + " · with a much longer location line",
+                        "No longer accepting applications")
+        doc.save(folder / "Job tracker _ LinkedIn2.pdf")
+        doc.close()
+        self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.assertEqual(self.job(jid)["open_check"]["result"], "open")
+
     def test_text_paste_still_works(self):
         j = self.job("9100000002")
         paste = self.tmp / "tracked-2030-01-15.txt"

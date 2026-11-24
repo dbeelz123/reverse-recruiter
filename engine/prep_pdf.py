@@ -406,8 +406,12 @@ def print_pdf(browser, page, pdf, timeout=180):
         # Copy next to the destination first, then swap it in with one os.replace: if the copy fails, the
         # previous PDF is still there.
         part = pdf.with_name(pdf.name + ".part")
-        shutil.copyfile(str(out), str(part))
-        os.replace(str(part), str(pdf))
+        try:
+            shutil.copyfile(str(out), str(part))
+            os.replace(str(part), str(pdf))  # fails on Windows if a viewer holds the PDF open: the old one stays
+        finally:
+            if part.exists():
+                part.unlink()
     print(f"OK  {pdf.name}  ({pdf.stat().st_size:,} bytes)")
     return pdf
 

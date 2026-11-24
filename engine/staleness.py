@@ -184,10 +184,12 @@ def read_tracker_pdfs(files):
     """Job Tracker → Saved printed to PDF (any number of pages or files, overlapping is fine) ->
     ({job_id: card text}, saved count from the page header or None). Each job's link covers its whole card (title,
     company · location, Posted/closed line), so the card is read from the link's area and matched by job ID. If a
-    link covers only part of its card (no Posted/closed line inside it), the area is widened to the page's right edge
-    and down to the next job link below it (at most CARD_REACH points), so the status line is still found."""
+    link covers only part of its card (no Posted/closed line inside it), the area is widened within the card's own
+    column (up to the next job link to its right on the same rows, else the page edge) and down to the next job link
+    below it in that column (else CARD_REACH points), so the status line is still found without reaching into another
+    card. Across overlapping pages, a reading whose status came from the link's own area beats a widened one."""
     import pymupdf
-    cards, header = {}, None
+    cards, header = {}, None  # cards: {job_id: (score, text)}
     for f in files:
         with pymupdf.open(f) as doc:
             for page in doc:
@@ -197,18 +199,24 @@ def read_tracker_pdfs(files):
                          if (m := re.search(r"/jobs/view/(\d+)", l.get("uri") or ""))]
                 for rect, jid in links:
                     text = page.get_textbox(rect).strip()
+                    widened = False
                     if not has_status(text):
-                        below = [r.y0 for r, other in links if other != jid and r.y0 > rect.y0 + 1]
-                        bottom = min(below + [rect.y1 + CARD_REACH])
-                        text = page.get_textbox(pymupdf.Rect(rect.x0, rect.y0, page.rect.x1, bottom)).strip()
-                    old = cards.get(jid, "")
-                    # keep the reading that has a status line; between equals, the longer one
-                    if (has_status(text), len(text)) > (has_status(old), len(old)):
-                        cards[jid] = text
-    return cards, header
+                        others = [r for r, other in links if other != jid]
+                        # the column ends where another card starts to the right on overlapping rows
+                        right = min([r.x0 for r in others if r.x0 >= rect.x1 - 1 and r.y0 < rect.y1 + CARD_REACH
+                                     and r.y1 > rect.y0] + [page.rect.x1])
+                        # the card ends where the next card in the same column starts
+                        below = [r.y0 for r in others if r.y0 > rect.y0 + 1 and r.x0 < right and r.x1 > rect.x0]
+                        bottom = min(below) if below else min(rect.y1 + CARD_REACH, page.rect.y1)
+                        text = page.get_textbox(pymupdf.Rect(rect.x0, rect.y0, right, bottom)).strip()
+                        widened = True
+                    score = (has_status(text), not widened, len(text))
+                    if jid not in cards or score > cards[jid][0]:
+                        cards[jid] = (score, text)
+    return {jid: text for jid, (_, text) in cards.items()}, header
 
 
-CARD_REACH = 60  # points below a partial link to look for its card's status line (about three lines of text)
+CARD_REACH = 150  # points below a partial link to look for its status line when no other card follows in its column
 
 
 def has_status(text):

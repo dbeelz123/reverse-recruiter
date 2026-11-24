@@ -183,6 +183,22 @@ class PrintSafety(unittest.TestCase):
                     prep_pdf.print_pdf("browser", "<html></html>", pdf, timeout=2)
             self.assertEqual(pdf.read_bytes(), b"%PDF old")
 
+    def test_a_failed_swap_keeps_the_pdf_and_leaves_no_part_file(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            pdf = Path(td) / "packet.pdf"
+            pdf.write_bytes(b"%PDF old")
+
+            def fake_run(cmd, **kw):
+                out = next(a for a in cmd if a.startswith("--print-to-pdf=")).split("=", 1)[1]
+                Path(out).write_bytes(b"%PDF new")
+            with mock.patch.object(prep_pdf.subprocess, "run", fake_run), \
+                    mock.patch.object(prep_pdf.os, "replace", side_effect=PermissionError("open in a viewer")):
+                with self.assertRaises(PermissionError):
+                    prep_pdf.print_pdf("browser", "<html></html>", pdf, timeout=2)
+            self.assertEqual(pdf.read_bytes(), b"%PDF old")
+            self.assertFalse(pdf.with_name("packet.pdf.part").exists())
+
     def test_a_good_print_replaces_the_pdf(self):
         from unittest import mock
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:

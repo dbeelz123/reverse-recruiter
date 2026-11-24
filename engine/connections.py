@@ -55,8 +55,20 @@ def load(P):
         if not isinstance(e, dict) or e.get("strength") not in ("plus", "neutral"):
             raise SystemExit(f"{P.connections.name}: '{key}' needs \"strength\": \"plus\" or \"neutral\"")
         out[recommendations.slug(key)] = {"name": e.get("name") or key, "strength": e["strength"],
-                                          "job_ids": [str(i) for i in e.get("job_ids") or []]}
+                                          "job_ids": job_ids(P, key, e.get("job_ids"))}
     return out
+
+
+def job_ids(P, key, value):
+    """A person's job_ids as strings. Must be a list of job IDs (digits): "42" or 42 alone would otherwise turn into
+    the wrong IDs (a string iterates as "4", "2")."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(i, (str, int)) and not isinstance(i, bool)
+                                              and str(i).strip().isdigit() for i in value):
+        raise SystemExit(f"{P.connections.name}: '{key}' \"job_ids\" must be a list of job IDs, "
+                         f"e.g. [\"4482029334\"]; got {value!r}")
+    return [str(i).strip() for i in value]
 
 
 def people_at(job, recs, people):

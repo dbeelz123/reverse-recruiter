@@ -125,6 +125,17 @@ class WithData(helpers.SampleCase):
         self.assertIn("must be an object", out)
         self.assertNotIn("Traceback", out)
 
+    def test_job_ids_must_be_a_list(self):
+        from connections import load
+        f = self.data / "5-criteria" / "connections.json"
+        for bad in ("4482029334", 42, ["42", "not-an-id"]):
+            f.write_text(json.dumps({"people": {"pat-x": {"strength": "neutral", "job_ids": bad}}}), encoding="utf-8")
+            with self.assertRaises(SystemExit) as cm:
+                load(Paths(self.data))
+            self.assertIn("must be a list of job IDs", str(cm.exception))
+        f.write_text(json.dumps({"people": {"pat-x": {"strength": "neutral", "job_ids": ["42", 43]}}}), encoding="utf-8")
+        self.assertEqual(load(Paths(self.data))["pat-x"]["job_ids"], ["42", "43"])
+
     def test_cli_lists_levels(self):
         self.set_spec()
         self.classify("plus")
