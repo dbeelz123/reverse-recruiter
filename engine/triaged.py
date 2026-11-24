@@ -388,8 +388,9 @@ def watch(entries):
         rows.append({
             "entry": e, "days": len(d), "first": d[0], "last": d[-1], "span": (d[-1] - d[0]).days,
             "resurfaced": any(g >= RESURFACE_GAP for g in gaps),
-            # A saved copy was removed (closed, DQ'd), and the listing showed up in search results after that.
-            "after_removal": next((g for g in gone if d[-1] > g), None),
+            # A saved copy was removed (closed, DQ'd), and the listing showed up in search results after that:
+            # the latest such removal before the last sighting.
+            "after_removal": max((g for g in gone if g < d[-1]), default=None),
             "reposted": any("repost" in str(s.get("posted", "")).lower() for s in sightings(e)),
             "salaries": salaries,
         })

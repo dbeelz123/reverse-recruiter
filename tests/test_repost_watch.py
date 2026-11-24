@@ -50,6 +50,20 @@ class MalformedSightings(unittest.TestCase):
         self.assertEqual([(r["entry"]["company"], r["days"]) for r in rows], [("Acme", 1)])
 
 
+class AfterRemoval(unittest.TestCase):
+    def test_reports_the_latest_removal_before_the_sighting(self):
+        # Copilot review 2026-11-24 (round 2): two removals, then seen again -> cite the later removal.
+        rows = triaged.watch([{"company": "Acme", "title": "PM", "decision": "dq", "seen": [
+            {"search": "saved", "date": "2026-11-10"}, {"search": "saved", "date": "2026-11-20"},
+            {"search": "S1", "date": "2026-11-25"}]}])
+        self.assertEqual(str(rows[0]["after_removal"]), "2026-11-20")
+
+    def test_removal_after_the_last_sighting_is_not_a_return(self):
+        rows = triaged.watch([{"company": "Acme", "title": "PM", "decision": "dq", "seen": [
+            {"search": "S1", "date": "2026-11-05"}, {"search": "saved", "date": "2026-11-10"}]}])
+        self.assertIsNone(rows[0]["after_removal"])
+
+
 class Sightings(unittest.TestCase):
     def test_run_listing_terms_go_on_the_sighting(self):
         run = {"search": "S1", "date": "2026-11-24", "listings": [
