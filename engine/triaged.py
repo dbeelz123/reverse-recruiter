@@ -23,7 +23,8 @@ job_id when both sides have one. A repost with the same title is caught; a chang
 Each sighting keeps the card's salary, location and posted line, so check can tell when a listing DQ'd before
 comes back with different terms (a salary or location not seen before): it is flagged for a fresh look, not skipped.
 Abbreviations used in triage files (PM, Sr, TPM) are expanded so they match the full titles on cards.
-An entry with title "*" covers the whole company (blocklisted companies and aggregators).
+An entry with title "*" covers the whole company: written for a listing whose DQ reason starts with "blocklist"
+(blocklisted companies, job-board aggregators included).
 """
 import datetime
 import json
@@ -31,7 +32,7 @@ import re
 import sys
 from pathlib import Path
 
-from paths import Paths, blocked_by, blocklist, case_by_case, read_json, write_json, tombstones
+from paths import Paths, blocked_by, blocklist, case_by_case, read_json, to_date, write_json, tombstones
 
 P = Paths()
 ROOT = P.data.parent
@@ -107,6 +108,12 @@ def norm_terms(s):
     return " ".join(re.sub(r"[^a-z0-9$%+\-]+", " ", s).split())
 
 
+def sightings(entry):
+    """An entry's sightings that are objects; a missing, null or hand-edited 'seen' (or odd items in it) is skipped."""
+    seen = entry.get("seen") if isinstance(entry, dict) else None
+    return [s for s in seen if isinstance(s, dict)] if isinstance(seen, list) else []
+
+
 def changed_terms(card, entry):
     """Terms on this card that no earlier sighting of the entry showed. Comparing against every earlier value,
     not just the last, keeps one posting listed in several cities (or at several levels) from looking changed.
@@ -114,7 +121,7 @@ def changed_terms(card, entry):
     out = {}
     for f in TERMS:
         new = card.get(f)
-        olds = [s[f] for s in entry.get("seen", []) if isinstance(s.get(f), str) and s[f].strip()]
+        olds = [s[f] for s in sightings(entry) if isinstance(s.get(f), str) and s[f].strip()]
         if isinstance(new, str) and new.strip() and olds and norm_terms(new) not in {norm_terms(o) for o in olds}:
             out[f] = {"was": olds[-1], "now": new}
     return out
@@ -127,7 +134,7 @@ def merge(entries, new):
         k = key(n["company"], n["title"])
         if k in idx:
             e = idx[k]
-            e["seen"] += [s for s in n["seen"] if s not in e["seen"]]
+            e["seen"] = sightings(e) + [s for s in n["seen"] if s not in sightings(e)]
             if n["decision"] != e["decision"] or n["reason"] != e["reason"]:
                 e["decision"], e["reason"] = n["decision"], n["reason"]  # latest decision wins
             for f in ("job_id",):
@@ -169,9 +176,11 @@ def add_tombstones(entries, only_new=False):
             entries.append(e)  # (an older tombstone without company/title matches only by job ID)
             continue
         # A removal older than the entry's latest decision (e.g. a posting that closed, then was relisted and kept)
-        # adds its date but doesn't overrule that decision.
-        later = [s.get("date") for s in old["seen"] if str(s.get("date") or "") > str(r.get("removed") or "")]
-        old["seen"] += [s for s in e["seen"] if s not in old["seen"]]
+        # adds its date but doesn't overrule that decision. A removal on the same day does: within a day, removal
+        # follows the decision (a job kept in triage, then removed in the round). No removal date: can't order it.
+        gone = to_date(r.get("removed"))
+        later = gone is None or any((to_date(s.get("date")) or gone) > gone for s in sightings(old))
+        old["seen"] = sightings(old) + [s for s in e["seen"] if s not in sightings(old)]
         if not later:
             old["decision"], old["reason"] = e["decision"], e["reason"]
         if not old.get("job_id"):
@@ -247,7 +256,8 @@ def check(path):
         if hit:
             # Company-group cuts are not judgments on the job itself (rule changed 2026-11-17): flag, don't skip.
             group_cut = "company group" in (hit.get("reason") or "")
-            c["triaged"] = {"decision": hit["decision"], "reason": hit["reason"], "seen": hit["seen"][-1],
+            c["triaged"] = {"decision": hit["decision"], "reason": hit["reason"],
+                            "seen": (sightings(hit) or [None])[-1],
                             "action": "skip" if hit["decision"] == "dq" and not group_cut else "flag"}
             # A DQ'd listing back with terms not seen before (e.g. a higher salary, now remote): look again.
             changed = changed_terms(c, hit) if c["triaged"]["action"] == "skip" else {}
@@ -332,13 +342,12 @@ RESURFACE_GAP = 7  # gone from the results for at least this many days, then bac
 def _dates(entry, saved=False):
     """Separate days the entry was seen in search results (saved=True: days a saved copy was removed instead)."""
     out = set()
-    for s in entry.get("seen", []):
+    for s in sightings(entry):
         if (str(s.get("search")).lower() == "saved") != saved:
             continue
-        try:
-            out.add(datetime.date.fromisoformat(str(s.get("date"))[:10]))
-        except ValueError:
-            continue
+        d = to_date(s.get("date"))  # malformed or missing dates are skipped (paths.to_date)
+        if d:
+            out.add(d)
     return sorted(out)
 
 
@@ -355,12 +364,10 @@ def watch(entries):
     listing ran without it. A gap that only means the search wasn't run is not a relisting."""
     runs = {}  # search id -> dates it ran (from every sighting on record)
     for e in entries:
-        for s in e.get("seen", []):
-            try:
-                runs.setdefault(_search_id(s.get("search")), set()).add(
-                    datetime.date.fromisoformat(str(s.get("date"))[:10]))
-            except ValueError:
-                continue
+        for s in sightings(e):
+            d = to_date(s.get("date"))
+            if d:
+                runs.setdefault(_search_id(s.get("search")), set()).add(d)
     runs.pop("SAVED", None)
     rows = []
     for e in entries:
@@ -370,11 +377,11 @@ def watch(entries):
         if not d:
             continue
         gone = _dates(e, saved=True)
-        mine ={_search_id(s.get("search")) for s in e.get("seen", [])} - {"SAVED"}
+        mine = {_search_id(s.get("search")) for s in sightings(e)} - {"SAVED"}
         ran = set().union(*(runs.get(m, set()) for m in mine)) if mine else set()
         gaps = [(b - a).days for a, b in zip(d, d[1:]) if any(a < r < b for r in ran)]
         salaries = []
-        for s in e.get("seen", []):
+        for s in sightings(e):
             v = s.get("salary")
             if isinstance(v, str) and v.strip() and norm_terms(v) not in {norm_terms(x) for x in salaries}:
                 salaries.append(v)
@@ -383,7 +390,7 @@ def watch(entries):
             "resurfaced": any(g >= RESURFACE_GAP for g in gaps),
             # A saved copy was removed (closed, DQ'd), and the listing showed up in search results after that.
             "after_removal": next((g for g in gone if d[-1] > g), None),
-            "reposted": any("repost" in str(s.get("posted", "")).lower() for s in e.get("seen", [])),
+            "reposted": any("repost" in str(s.get("posted", "")).lower() for s in sightings(e)),
             "salaries": salaries,
         })
     for r in rows:

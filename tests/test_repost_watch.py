@@ -35,6 +35,21 @@ class ChangedTerms(unittest.TestCase):
         self.assertEqual(triaged.changed_terms({"salary": None}, e), {})
 
 
+class MalformedSightings(unittest.TestCase):
+    # Copilot review 2026-11-24: hand-edited triaged.json entries with odd 'seen' values must not crash.
+    def test_changed_terms_skips_non_dict_sightings(self):
+        e = {"seen": ["bad", None, 3, {"salary": "$100K/yr"}]}
+        self.assertEqual(triaged.changed_terms({"salary": "$150K/yr"}, e)["salary"]["was"], "$100K/yr")
+        self.assertEqual(triaged.changed_terms({"salary": "$150K/yr"}, {"seen": None}), {})
+
+    def test_watch_skips_bad_sightings_and_dates(self):
+        rows = triaged.watch([
+            {"company": "Acme", "title": "PM", "decision": "dq", "seen": [None, "x", {"date": "not a date"},
+                                                                         {"date": "2026-11-01", "search": "S1"}]},
+            {"company": "Globex", "title": "PM", "decision": "dq", "seen": None}])
+        self.assertEqual([(r["entry"]["company"], r["days"]) for r in rows], [("Acme", 1)])
+
+
 class Sightings(unittest.TestCase):
     def test_run_listing_terms_go_on_the_sighting(self):
         run = {"search": "S1", "date": "2026-11-24", "listings": [
@@ -75,6 +90,23 @@ class CheckAndReport(SampleCase):
                                 "status": []}])
         self.assertEqual(cards[0]["triaged"]["action"], "skip")
         self.assertIn("removed:", cards[0]["triaged"]["reason"])
+
+    def test_check_survives_entries_without_sightings(self):
+        self.write_db([{"company": "Acme", "title": "Senior Product Manager", "decision": "dq", "reason": "x",
+                        "seen": []},
+                       {"company": "Globex", "title": "Principal Product Manager", "decision": "dq", "reason": "y"}])
+        cards, _ = self.check([{"company": "Acme", "title": "Senior Product Manager", "status": []},
+                               {"company": "Globex", "title": "Principal Product Manager", "status": []}])
+        self.assertEqual([c["triaged"]["action"] for c in cards], ["skip", "skip"])
+        self.assertIsNone(cards[0]["triaged"]["seen"])
+
+    def test_same_day_removal_overrules_a_keep(self):
+        # Deliberate: a removal on the day of a keep came after it (a job kept in triage, then removed in the round).
+        self.write_db([entry("Velocity Rideshare Freight", "Product Manager, Field Ops",
+                             [{"search": "S1 v2", "date": "2026-11-10"}], decision="keep", reason="kept")])
+        cards, _ = self.check([{"company": "Velocity Rideshare Freight", "title": "Product Manager, Field Ops",
+                                "status": []}])
+        self.assertEqual(cards[0]["triaged"]["action"], "skip")
 
     def test_older_removal_does_not_overrule_a_newer_keep(self):
         # A saved posting closed and was removed on 11-10; a relisting was kept on 11-20.

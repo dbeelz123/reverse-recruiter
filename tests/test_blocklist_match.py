@@ -47,6 +47,25 @@ class BlockedBy(unittest.TestCase):
         self.assertEqual(blocked_by("Acme Defense Systems", entries)["reason"], "unit")
         self.assertEqual(blocked_by("Acme Corporation", entries)["reason"], "parent")
 
+    def test_ampersand_and_accents_normalize(self):
+        # Copilot review 2026-11-24: "Pratt & Whitney" missed "Pratt and Whitney"; "TUSAŞ" missed "Tusas".
+        self.assertEqual(self.hit("Pratt and Whitney"), "r3")
+        entries = [{"value": "Turkish Aerospace (TUSAŞ)", "aliases": ["TUSAŞ"], "reason": "t", "status": "confirmed"}]
+        self.assertEqual(blocked_by("Tusas", entries)["reason"], "t")
+        self.assertEqual(blocked_by("TUSAŞ Engine Industries", entries)["reason"], "t")
+        exact = [{"value": "Moog (Moog Inc.)", "aliases": ["Moog Inc"], "match": "exact", "reason": "m",
+                  "status": "confirmed"}]
+        self.assertEqual(blocked_by("MOOG, Inc.", exact)["reason"], "m")
+        self.assertIsNone(blocked_by("Moog Music", exact))
+
+    def test_aliases_must_be_a_list(self):
+        # A string would be read one character at a time, so "A" would block every company named "A ...".
+        from paths import DataFileError, blocklist
+        with self.assertRaises(DataFileError):
+            blocklist({"company_blocklist": [{"value": "Acme", "aliases": "Acme Corp"}]}, "spec.json")
+        with self.assertRaises(DataFileError):
+            blocklist({"company_blocklist": [{"value": "Acme", "aliases": ["ok", 3]}]}, "spec.json")
+
     def test_confirmed_only(self):
         self.assertEqual(self.hit("Proposed Co"), "r6")
         self.assertIsNone(self.hit("Proposed Co", confirmed_only=True))

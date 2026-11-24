@@ -16,6 +16,7 @@ REVERSE_RECRUITER_DATA environment variable, else <project>/my-data.
 import json
 import os
 import re
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -68,7 +69,19 @@ def blocklist(spec, path):
     for i, b in enumerate(entries):
         if not (isinstance(b, dict) and isinstance(b.get("value"), str) and b["value"].strip()):
             raise DataFileError(f"Malformed {path}: company_blocklist[{i}] needs a 'value' with the company name.")
+        al = b.get("aliases")
+        if al is not None and not (isinstance(al, list) and all(isinstance(a, str) and a.strip() for a in al)):
+            # A plain string would be read one character at a time, so "A" would block every "A ..." company.
+            raise DataFileError(f"Malformed {path}: company_blocklist[{i}] 'aliases' must be a list of names.")
     return entries
+
+
+def norm_name(s):
+    """Company name for blocklist matching: accents dropped ('TUSAŞ' -> 'tusas'), '&' read as 'and', case and
+    punctuation ignored ('MOOG, Inc.' -> 'moog inc')."""
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode("ascii")
+    s = s.casefold().replace("&", " and ")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
 
 
 def blocklist_names(entry):
@@ -91,7 +104,7 @@ def blocked_by(company, entries, confirmed_only=False):
     ('SAIC' doesn't hit 'Mosaic', 'Arity' doesn't hit 'Clarity'); an entry with "match": "exact" must equal the
     whole company name (e.g. 'Via', which would otherwise also hit 'Via Transportation'). A firm entry wins over a
     case-by-case one, so 'Boeing Defense, Space & Security' matches the unit's entry, not the parent's."""
-    c = " ".join((company or "").lower().split())
+    c = norm_name(company)
     if not c:
         return None
     soft = None
@@ -99,9 +112,11 @@ def blocked_by(company, entries, confirmed_only=False):
         if confirmed_only and b.get("status") != "confirmed":
             continue
         for n in blocklist_names(b):
-            n = " ".join(n.lower().split())
+            n = norm_name(n)
+            if not n:
+                continue
             if b.get("match") == "exact":
-                hit = re.sub(r"[^a-z0-9]+", " ", c).strip() == re.sub(r"[^a-z0-9]+", " ", n).strip()
+                hit = c == n
             else:
                 hit = bool(re.search(r"(?<![a-z0-9])" + re.escape(n) + r"(?![a-z0-9])", c))
             if hit:

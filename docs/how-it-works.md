@@ -54,7 +54,7 @@ A round processes new saved jobs and re-ranks everything. In order:
 4. **Calibration** (you and Claude): a few questions, only about what's new: conflicts between sources, uncertain signals, proposed disqualifiers. Approved answers become rules in `spec.json` and `changelog.md`.
 5. **Search insights:** Claude looks across the round for patterns (level, domain, employer type, location) and proposes search changes. You approve each.
 6. **Resume and profile review** (optional, offered every round): things calibration uncovered that your documents don't show yet.
-7. **Re-screen:** `rescreen.py` flags every current job a rule may now hit; Claude judges each flag. Real dealbreakers go through the **removal prompt**: Claude asks before anything is removed, and `remove_job.py` keeps a one-line tombstone with the reason.
+7. **Re-screen:** `rescreen.py` flags every current job a rule may now hit (jobs already excluded, tier X, are skipped); Claude judges each flag. Real dealbreakers go through the **removal prompt**: Claude asks before anything is removed, and `remove_job.py` keeps a one-line tombstone with the reason.
 8. **Metrics:** `metrics.py --round N` records the search funnel and time per stage.
 9. **Triage precision:** `precision.py --round N` compares the agent's calls with your decisions; new miss patterns become calling guidance.
 10. **Mode signals:** `modes.py signals` reports whether the system looks settled enough to switch triage modes.
