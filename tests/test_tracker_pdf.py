@@ -17,6 +17,15 @@ def card(page, y, jid, title, company, status):
                       "uri": f"https://www.linkedin.com/jobs/view/{jid}/?trk=tracker"})
 
 
+def title_only_card(page, y, jid, title, company, status):
+    """A card whose link covers only its title line (the status line sits below the link's area)."""
+    page.insert_text((40, y), title)
+    page.insert_text((40, y + 14), f"{company} · United States (Remote)")
+    page.insert_text((40, y + 28), status)
+    page.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(36, y - 12, 300, y + 3),
+                      "uri": f"https://www.linkedin.com/jobs/view/{jid}/"})
+
+
 def make_pdfs(folder, rows, header, per_file=4):
     """rows: [(job_id, title, company, status)], split over several files; the first page carries the header."""
     folder.mkdir(parents=True, exist_ok=True)
@@ -94,6 +103,22 @@ class TrackerPdf(helpers.SampleCase):
         out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
         self.assertEqual(self.job("9100000002")["open_check"]["result"], "closed")
         self.assertIn("1 kept a newer check", out)
+
+    def test_partial_link_area_still_finds_the_status(self):
+        folder = self.tmp / "pdfs"
+        folder.mkdir()
+        doc = pymupdf.open()
+        page = doc.new_page()
+        rows = self.rows()[:3]
+        statuses = ["Posted 3d ago", "No longer accepting applications", "Reposted 1w ago"]
+        for k, ((jid, title, company, _), st) in enumerate(zip(rows, statuses)):
+            title_only_card(page, 80 + k * 60, jid, title, company, st)
+        doc.save(folder / "Job tracker _ LinkedIn1.pdf")
+        doc.close()
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.assertIn("marked 2 open, 1 closed", out)
+        self.assertNotIn("no Posted/closed line", out)
+        self.assertEqual(self.job(rows[1][0])["open_check"]["result"], "closed")  # not the next card's status
 
     def test_text_paste_still_works(self):
         j = self.job("9100000002")

@@ -148,6 +148,10 @@ class Anonymize(unittest.TestCase):
         self.assertEqual(text, "The Client wins. We like the Client.\n- The Client rules\n| The Client | x |\n"
                                "## 3 The Client")
 
+    def test_capitalize_matches_the_whole_phrase_only(self):
+        text, _ = prep_pdf.anonymize("the Clientele grew. the Client wins.", "capitalize: the Client")
+        self.assertEqual(text, "the Clientele grew. The Client wins.")
+
     def test_bad_regex_is_a_clear_error(self):
         with self.assertRaises(SystemExit):
             prep_pdf.anonymize("x", "re: ( ==> y\n")
@@ -161,6 +165,37 @@ class Anonymize(unittest.TestCase):
                             "--out", td / "out.md")
             self.assertEqual(code, 0, out)
             self.assertEqual((td / "out.md").read_text(encoding="utf-8"), "the Client here.")
+
+
+class PrintSafety(unittest.TestCase):
+    def test_a_failed_copy_keeps_the_previous_pdf(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            pdf = Path(td) / "packet.pdf"
+            pdf.write_bytes(b"%PDF old")
+
+            def fake_run(cmd, **kw):  # the "browser" writes its output where --print-to-pdf points
+                out = next(a for a in cmd if a.startswith("--print-to-pdf=")).split("=", 1)[1]
+                Path(out).write_bytes(b"%PDF new")
+            with mock.patch.object(prep_pdf.subprocess, "run", fake_run), \
+                    mock.patch.object(prep_pdf.shutil, "copyfile", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    prep_pdf.print_pdf("browser", "<html></html>", pdf, timeout=2)
+            self.assertEqual(pdf.read_bytes(), b"%PDF old")
+
+    def test_a_good_print_replaces_the_pdf(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            pdf = Path(td) / "packet.pdf"
+            pdf.write_bytes(b"%PDF old")
+
+            def fake_run(cmd, **kw):
+                out = next(a for a in cmd if a.startswith("--print-to-pdf=")).split("=", 1)[1]
+                Path(out).write_bytes(b"%PDF new")
+            with mock.patch.object(prep_pdf.subprocess, "run", fake_run):
+                prep_pdf.print_pdf("browser", "<html></html>", pdf, timeout=2)
+            self.assertEqual(pdf.read_bytes(), b"%PDF new")
+            self.assertFalse(pdf.with_name("packet.pdf.part").exists())
 
 
 def browser():

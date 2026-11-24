@@ -59,6 +59,13 @@ class Units(unittest.TestCase):
         self.assertEqual(network_points(spec, 8, job("Sam Ortiz (fictional)"), {}, {})[0], 8)
         self.assertEqual(network_points(spec, 8, job("Sam Ortiz (fictional)"), {SLUG: "both"}, {})[0], 12)
 
+    def test_levels_off_still_counts_a_teaser_only_recommender(self):
+        from connections import network_points
+        spec = {"scoring": {"network": {"points": 8, "recommendation_points": 12}}}
+        people = {SLUG: {"name": "Sam Ortiz (fictional)", "strength": "plus", "job_ids": ["42"]}}
+        self.assertEqual(network_points(spec, 8, {"job_id": "42"}, {SLUG: "received"}, people)[0], 12)
+        self.assertEqual(network_points(spec, 8, {"job_id": "43"}, {SLUG: "received"}, people)[0], 8)
+
 
 class WithData(helpers.SampleCase):
     def set_spec(self):
@@ -109,6 +116,14 @@ class WithData(helpers.SampleCase):
         code, out = helpers.run("build_report.py", "--data", self.data, "--round", "2")
         self.assertNotEqual(code, 0)
         self.assertIn("plus", out)
+
+    def test_people_must_be_an_object(self):
+        self.set_spec()
+        (self.data / "5-criteria" / "connections.json").write_text(json.dumps({"people": []}), encoding="utf-8")
+        code, out = helpers.run("build_report.py", "--data", self.data, "--round", "2")
+        self.assertNotEqual(code, 0)
+        self.assertIn("must be an object", out)
+        self.assertNotIn("Traceback", out)
 
     def test_cli_lists_levels(self):
         self.set_spec()

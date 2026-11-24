@@ -51,6 +51,7 @@ written to a temporary folder outside the project.
 import argparse
 import html
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -359,7 +360,8 @@ def anonymize(text, rules_text):
             unused.append(f"line {n}: {('re: ' if kind == 're' else '') + old[:70]}")
     if caps:
         alt = "|".join(re.escape(c) for c in sorted(caps, key=len, reverse=True))
-        text = re.sub(CAP_START + rf"({alt})", lambda m: m.group(1) + m.group(2)[0].upper() + m.group(2)[1:],
+        # (?!\w): the whole phrase only, so "the Client" never capitalizes "the Clientele"
+        text = re.sub(CAP_START + rf"({alt})(?!\w)", lambda m: m.group(1) + m.group(2)[0].upper() + m.group(2)[1:],
                       text, flags=re.M)
     return text, unused
 
@@ -401,9 +403,11 @@ def print_pdf(browser, page, pdf, timeout=180):
             time.sleep(0.5)
         if not out.exists() or out.stat().st_size == 0:
             raise SystemExit(f"The browser did not write {pdf.name}")
-        if pdf.exists():
-            pdf.unlink()
-        shutil.move(str(out), str(pdf))
+        # Copy next to the destination first, then swap it in with one os.replace: if the copy fails, the
+        # previous PDF is still there.
+        part = pdf.with_name(pdf.name + ".part")
+        shutil.copyfile(str(out), str(part))
+        os.replace(str(part), str(pdf))
     print(f"OK  {pdf.name}  ({pdf.stat().st_size:,} bytes)")
     return pdf
 

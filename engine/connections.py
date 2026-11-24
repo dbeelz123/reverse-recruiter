@@ -45,8 +45,13 @@ def settings(spec):
 def load(P):
     """{slug: entry} from 5-criteria/connections.json; each entry has name, strength and job_ids."""
     data = read_json(P.connections, {}, expect=dict)
+    people = data.get("people")
+    if people is None:
+        people = {}
+    if not isinstance(people, dict):  # e.g. a hand-edited "people": [] (empty lists are falsy, so test the type)
+        raise SystemExit(f"{P.connections.name}: \"people\" must be an object keyed by first-last name")
     out = {}
-    for key, e in (data.get("people") or {}).items():
+    for key, e in people.items():
         if not isinstance(e, dict) or e.get("strength") not in ("plus", "neutral"):
             raise SystemExit(f"{P.connections.name}: '{key}' needs \"strength\": \"plus\" or \"neutral\"")
         out[recommendations.slug(key)] = {"name": e.get("name") or key, "strength": e["strength"],
@@ -79,7 +84,14 @@ def network_points(spec, review_bonus, job, recs, people):
     """-> (points, [(name, level)]). The best connection at the company sets the points."""
     cfg = settings(spec)
     if cfg is None:
-        return recommendations.network_points(spec, review_bonus, job, recs), people_at(job, recs, {})
+        # The older rule: the review's bonus, raised for a recommendation. A recommender tied to the job only by
+        # job_ids (named in the posting's teaser) counts too.
+        found = people_at(job, recs, people)
+        bonus = recommendations.network_points(spec, review_bonus, job, recs)
+        rp = ((spec.get("scoring") or {}).get("network") or {}).get("recommendation_points")
+        if isinstance(rp, (int, float)) and any(lv == "recommendation" for _, lv in found):
+            bonus = max(bonus, rp)
+        return bonus, found
     pts, unc = cfg
     found = people_at(job, recs, people)
     if not found:

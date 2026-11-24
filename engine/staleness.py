@@ -183,7 +183,9 @@ def tracker_files(paths):
 def read_tracker_pdfs(files):
     """Job Tracker → Saved printed to PDF (any number of pages or files, overlapping is fine) ->
     ({job_id: card text}, saved count from the page header or None). Each job's link covers its whole card (title,
-    company · location, Posted/closed line), so the card is read from the link's area and matched by job ID."""
+    company · location, Posted/closed line), so the card is read from the link's area and matched by job ID. If a
+    link covers only part of its card (no Posted/closed line inside it), the area is widened to the page's right edge
+    and down to the next job link below it (at most CARD_REACH points), so the status line is still found."""
     import pymupdf
     cards, header = {}, None
     for f in files:
@@ -191,13 +193,26 @@ def read_tracker_pdfs(files):
             for page in doc:
                 if header is None and (m := re.search(r"Saved · (\d+)", page.get_text())):
                     header = int(m.group(1))
-                for link in page.get_links():
-                    m = re.search(r"/jobs/view/(\d+)", link.get("uri") or "")
-                    if m:
-                        text = page.get_textbox(link["from"]).strip()
-                        if len(text) > len(cards.get(m.group(1), "")):
-                            cards[m.group(1)] = text
+                links = [(l["from"], m.group(1)) for l in page.get_links()
+                         if (m := re.search(r"/jobs/view/(\d+)", l.get("uri") or ""))]
+                for rect, jid in links:
+                    text = page.get_textbox(rect).strip()
+                    if not has_status(text):
+                        below = [r.y0 for r, other in links if other != jid and r.y0 > rect.y0 + 1]
+                        bottom = min(below + [rect.y1 + CARD_REACH])
+                        text = page.get_textbox(pymupdf.Rect(rect.x0, rect.y0, page.rect.x1, bottom)).strip()
+                    old = cards.get(jid, "")
+                    # keep the reading that has a status line; between equals, the longer one
+                    if (has_status(text), len(text)) > (has_status(old), len(old)):
+                        cards[jid] = text
     return cards, header
+
+
+CARD_REACH = 60  # points below a partial link to look for its card's status line (about three lines of text)
+
+
+def has_status(text):
+    return bool(re.search(r"(?m)^\s*(Posted|Reposted)\b", text or "", re.I) or re.search(CLOSED, text or "", re.I))
 
 
 def tracker_pdf(P, files, date):
