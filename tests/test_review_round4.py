@@ -89,6 +89,14 @@ class MalformedDates(SampleCase):
         self.assertIsNone(to_date("2026-11-19 garbage"))
         self.assertEqual(str(to_date("2026-11-19T05:13:00Z")), "2026-11-19")
         self.assertEqual(str(to_date("2026-11-19T05:13:00.123+00:00")), "2026-11-19")
+        # Copilot review round 5: Python also reads ISO week dates and compact forms; only YYYY-MM-DD counts.
+        import argparse
+        from paths import iso_date
+        for s in ("2021-W01-1", "2026-W47-2T10:00:00", "2026-11-19T"):
+            self.assertIsNone(to_date(s))
+        with self.assertRaises(argparse.ArgumentTypeError):
+            iso_date("2021-W01-1")
+        self.assertEqual(iso_date("2026-11-19"), "2026-11-19")
         self.assertEqual(str(to_date("2026-11-19 05:13:00")), "2026-11-19")
         self.assertEqual(str(to_date("2026-11-19")), "2026-11-19")
         self.assertEqual(triaged._dates({"seen": [{"date": "2026-11-24junk"}]}), [])

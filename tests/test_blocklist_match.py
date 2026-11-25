@@ -66,6 +66,17 @@ class BlockedBy(unittest.TestCase):
         with self.assertRaises(DataFileError):
             blocklist({"company_blocklist": [{"value": "Acme", "aliases": ["ok", 3]}]}, "spec.json")
 
+    def test_option_fields_are_checked(self):
+        # Copilot review round 5: "case_by_case": "false" is truthy, and a misspelled "match" would silently fall
+        # back to whole-word matching. Both stop with the entry named.
+        from paths import DataFileError, blocklist
+        for bad in ({"case_by_case": "false"}, {"case_by_case": 1}, {"match": "Exact"}, {"match": "whole"}):
+            with self.assertRaises(DataFileError):
+                blocklist({"company_blocklist": [dict({"value": "Acme"}, **bad)]}, "spec.json")
+        ok = [{"value": "Acme", "case_by_case": True}, {"value": "Via", "match": "exact"},
+              {"value": "Globex", "case_by_case": False}]
+        self.assertEqual(len(blocklist({"company_blocklist": ok}, "spec.json")), 3)
+
     def test_confirmed_only(self):
         self.assertEqual(self.hit("Proposed Co"), "r6")
         self.assertIsNone(self.hit("Proposed Co", confirmed_only=True))

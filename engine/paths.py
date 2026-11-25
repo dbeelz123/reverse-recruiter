@@ -43,10 +43,15 @@ def iso_date(s):
     if s == "unknown":
         return s
     try:
+        if not YMD.fullmatch(s):  # Python also reads week dates ('2021-W01-1') and compact forms: not allowed here
+            raise ValueError
         datetime.date.fromisoformat(s)
         return s
     except (TypeError, ValueError):
         raise argparse.ArgumentTypeError(f"not a date (YYYY-MM-DD): {s!r}")
+
+
+YMD = re.compile(r"\d{4}-\d{2}-\d{2}", re.ASCII)
 
 
 def to_date(s):
@@ -58,6 +63,8 @@ def to_date(s):
     if not s:
         return None
     s = str(s)
+    if not YMD.match(s):  # week dates ('2021-W01-1') and other ISO forms Python accepts are not data dates
+        return None
     try:
         if len(s) == 10:
             return datetime.date.fromisoformat(s)
@@ -84,6 +91,12 @@ def blocklist(spec, path):
         if al is not None and not (isinstance(al, list) and all(isinstance(a, str) and a.strip() for a in al)):
             # A plain string would be read one character at a time, so "A" would block every "A ..." company.
             raise DataFileError(f"Malformed {path}: company_blocklist[{i}] 'aliases' must be a list of names.")
+        # "case_by_case": "false" would read as true, and a misspelled "match" would fall back to whole-word
+        # matching without a word, so both must be exactly what the matcher expects.
+        if not isinstance(b.get("case_by_case", False), bool):
+            raise DataFileError(f"Malformed {path}: company_blocklist[{i}] 'case_by_case' must be true or false.")
+        if b.get("match", "exact") != "exact":
+            raise DataFileError(f"Malformed {path}: company_blocklist[{i}] 'match' can only be \"exact\".")
     return entries
 
 

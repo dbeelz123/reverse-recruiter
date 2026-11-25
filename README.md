@@ -65,7 +65,7 @@ Every claim in an application comes from one career record (`career-master.md`),
                                                      searches tuned by yield
 ```
 
-The round ends with a **re-screen** (every current job against the latest rules), funnel metrics, a triage-precision check, and the report.
+The round ends with a **re-screen** (every current job against the latest rules), funnel metrics, a triage-precision check, the triage-mode signals, a repost watch, and the report.
 
 ## Results from the author's own search
 
@@ -140,7 +140,7 @@ reverse-recruiter/
 │   ├─ extract.py          saved job PDFs → structured job records
 │   ├─ ingest_results.py   pasted search results → triage cards
 │   ├─ ingest_external.py  a job from anywhere (recruiter document, other site) → a job record
-│   ├─ triaged.py          skips listings already decided
+│   ├─ triaged.py          skips listings already decided; blocklist confirm; repost watch
 │   ├─ searches.py         criteria → ready-to-run search links
 │   ├─ sweep.py            backlog sweep → searches that bring removed jobs back to dismiss
 │   ├─ rescreen.py         flags jobs a newer rule may hit
