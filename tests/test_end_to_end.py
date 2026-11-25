@@ -36,7 +36,8 @@ class EndToEnd(SampleCase):
 
     def test_funnel_per_100(self):
         out = self.ok("linkedin_project.py", "check", "--data", self.data)
-        self.assertIn("per 100 100 / 31 / 13 / 9", out)
+        # 92 listings: 90 search cards + 2 saves that were never cards (the removed rideshare job, the external job)
+        self.assertIn("per 100 100 / 30 / 13 / 9 (real 92 /", out)
 
 
 if __name__ == "__main__":

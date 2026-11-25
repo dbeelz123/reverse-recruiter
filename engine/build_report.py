@@ -183,7 +183,8 @@ def main():
         import metrics
         w("## Search funnel: progress through the sea of jobs\n")
         w("Each job is counted once per stage (by company + title), so a job that reappears in later searches isn't "
-          "counted again. 'Job listings processed' includes cards ruled out automatically; 'LinkedIn baseline match' "
+          "counted again. 'Job listings processed' includes cards ruled out automatically and saved postings that never "
+          "showed up as a search card (direct saves); 'LinkedIn baseline match' "
           "is your triage call on LinkedIn's match; 'Agent deep-fit review' is every saved PDF the agent read in full; "
           "'Qualified targets' are the jobs on the ranked list. Recorded at the end of each round by "
           "`engine/metrics.py --round N`.\n")

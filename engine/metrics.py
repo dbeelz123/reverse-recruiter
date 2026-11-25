@@ -9,9 +9,12 @@ Usage:  python engine/metrics.py --round N [--data my-data]      record round N,
 Run at the end of every round, after the re-screen and before build_report.py (the report shows the table).
 
 Stages (each job counted once, by normalized company + title, across every search run):
-  1. Search results processed  unique cards from pasted or filmed search results (6-system/search-runs/*.json,
+  1. Job listings processed    unique cards from pasted or filmed search results (6-system/search-runs/*.json,
                                each tagged with "round"); same-day duplicates and invalid runs are skipped.
                                A run's "unrecorded_cards" (seen but never written down as rows) count here too.
+                               Plus every saved posting that never showed up as a card (alert and direct saves,
+                               backlog sweeps), in the round it arrived (added 2026-11-25: without them a round
+                               of direct saves had deep-fit reviews with no listings behind them).
   2. Triage decision           cards the user decided in triage (keep / maybe / DQ). Auto-DQs by rule and cards
                                skipped because they were already Saved or decided earlier are not counted.
   3. PDF saved                 new job PDFs extracted this round (6-system/jobs + removed.json tombstones, by job ID);
@@ -34,32 +37,121 @@ LABELS = ("Job listings processed", "LinkedIn baseline match", "Agent deep-fit r
 DECIDED_STATUSES =("", "candidate", "check location", "viewed")
 
 
+def saved_postings(P):
+    """Every saved posting ever extracted, current or removed: {job ID: company + title key, or None if nameless}."""
+    out = {}
+    for f in P.jobs.glob("*.json"):
+        j = read_json(f)
+        if isinstance(j, dict) and isinstance(j.get("job_id"), str):
+            out[j["job_id"]] = j
+    removed = tombstones(P.removed)
+    for t in removed if isinstance(removed, list) else []:
+        out.setdefault(t["job_id"], t)
+    return {jid: (key(str(j.get("company") or ""), str(j.get("title") or ""))
+                  if (j.get("company") or j.get("title")) else None) for jid, j in out.items()}
+
+
+def saves_by_round(P, rounds):
+    """Which round each saved posting arrived in, from the job-ID snapshots metrics.json keeps per round.
+
+    Returns ({round: [job IDs]}, early, first): a snapshot round's new IDs are its snapshot minus the previous one.
+    The first snapshot also holds every save from the backfilled rounds before it, which kept no IDs; those are
+    returned as `early` (attributed to `first`), and funnel_from_runs spreads their count back over the backfilled
+    rounds. IDs in no snapshot yet (a round still in progress) go to the round after the last recorded one."""
+    snaps = [(r["round"], set(r["job_ids"])) for r in rounds
+             if isinstance(r.get("job_ids"), list) and all(isinstance(i, str) for i in r["job_ids"])]
+    snaps.sort(key=lambda s: s[0])
+    ids, out, prev = set(saved_postings(P)), {}, None
+    early, first = set(), None
+    for rnd, snap in snaps:
+        if prev is None:
+            first, early = rnd, snap & ids
+        else:
+            out[rnd] = sorted((snap - prev) & ids)
+        prev = snap if prev is None else prev | snap
+    last = max([r["round"] for r in rounds if isinstance(r.get("round"), int)] or [0])
+    rest = ids - (prev or set())
+    if rest:
+        if first is None:  # no snapshots at all: treat every save as early, landing in the last recorded round
+            first, early = last, rest
+        else:
+            out.setdefault(last + 1, []).extend(sorted(rest))
+    return out, sorted(early), first
+
+
 def funnel_from_runs(P):
-    """Stages 1-2 per round from the search-run files, deduplicated across all runs in round order."""
+    """Stages 1-2 per round, deduplicated across all search runs and saves in round order.
+
+    Job listings processed = unique search-result cards (plus a run's unrecorded_cards) + saved postings that never
+    showed up as a card ("direct": alert and direct saves, backlog sweeps). A save whose company + title matches a
+    card already counted adds nothing; a second posting with the same company + title counts (a card stands for one
+    posting). Each round's entry also carries "cards" and "direct"."""
     runs = []
     for f in sorted(P.search_runs.glob("*.json")):
         d = read_json(f)
         if "round" in d:
             runs.append((d["round"], d.get("date", ""), f.name, d))
     runs.sort(key=lambda r: (r[0], r[1], r[2]))
-    seen, decided, per = set(), set(), {}
-    for rnd, _, name, d in runs:
-        r = per.setdefault(rnd, {"processed": 0, "decided": 0, "keep": 0, "maybe": 0, "dq": 0, "runs": []})
-        r["runs"].append(name)
-        r["processed"] += d.get("unrecorded_cards", 0)
-        for x in d.get("listings", []):
-            s = x.get("status") or ""
-            if s == "invalid run" or s.startswith("duplicate"):
+    rounds = [r for r in load(P).get("rounds", []) if isinstance(r, dict) and isinstance(r.get("round"), int)]
+    keys = saved_postings(P)
+    saves, early, first = saves_by_round(P, rounds)
+    seen, claimed, decided, per = set(), set(), set(), {}
+    entry = lambda rnd: per.setdefault(rnd, {"processed": 0, "cards": 0, "direct": 0, "decided": 0, "keep": 0,
+                                             "maybe": 0, "dq": 0, "runs": []})
+
+    def add_saves(rnd, jids):
+        n = 0
+        for jid in jids:
+            k = keys.get(jid)
+            if k is not None and k in seen and k not in claimed:
+                claimed.add(k)  # the card already counted this posting
                 continue
-            k = key(x.get("company", ""), x.get("title", ""))
-            if k not in seen:
+            n += 1
+            if k is not None:
                 seen.add(k)
-                r["processed"] += 1
-            dec = x.get("decision")
-            if dec in ("keep", "maybe", "dq") and s in DECIDED_STATUSES and k not in decided:
-                decided.add(k)
-                r["decided"] += 1
-                r["maybe" if x.get("note_maybe") else dec] += 1  # maybes later saved still count as maybes
+                claimed.add(k)
+        entry(rnd)["direct"] += n
+        entry(rnd)["processed"] += n
+        return n
+
+    by_round = {}
+    for run in runs:
+        by_round.setdefault(run[0], []).append(run)
+    for rnd in sorted(set(by_round) | set(saves) | ({first} if first is not None else set())):
+        for _, _, name, d in by_round.get(rnd, []):
+            r = entry(rnd)
+            r["runs"].append(name)
+            r["processed"] += d.get("unrecorded_cards", 0)
+            r["cards"] += d.get("unrecorded_cards", 0)
+            for x in d.get("listings", []):
+                s = x.get("status") or ""
+                if s == "invalid run" or s.startswith("duplicate"):
+                    continue
+                k = key(x.get("company", ""), x.get("title", ""))
+                if k not in seen:
+                    seen.add(k)
+                    r["processed"] += 1
+                    r["cards"] += 1
+                dec = x.get("decision")
+                if dec in ("keep", "maybe", "dq") and s in DECIDED_STATUSES and k not in decided:
+                    decided.add(k)
+                    r["decided"] += 1
+                    r["maybe" if x.get("note_maybe") else dec] += 1  # maybes later saved still count as maybes
+        if rnd == first:
+            # Saves from before the first snapshot: deduplicate against every card up to here, then hand the
+            # backfilled rounds their recorded direct count (pdfs_new - pdfs_from_triage) and keep the rest here.
+            n = add_saves(rnd, early)
+            for b in sorted((r for r in rounds if r["round"] < rnd), key=lambda r: r["round"]):
+                try:
+                    known = max(0, int(b["pdfs_new"]) - int(b["pdfs_from_triage"]))
+                except (KeyError, TypeError, ValueError):
+                    continue  # no recorded split: its direct saves stay with the first snapshot round
+                give = min(known, n)
+                for k_ in ("direct", "processed"):
+                    entry(b["round"])[k_] += give
+                    entry(rnd)[k_] -= give
+                n -= give
+        add_saves(rnd, saves.get(rnd, []))
     return per
 
 
@@ -128,7 +220,8 @@ def table(P):
     m, per = load(P), funnel_from_runs(P)
     rows = []
     cum = {"processed": 0, "decided": 0, "pdfs": 0}
-    out = [f"| Round | {LABELS[0]} | {LABELS[1]} (keep / maybe / DQ) | {LABELS[2]} (from triage + direct) "
+    out = [f"| Round | {LABELS[0]} (search cards + direct saves) | {LABELS[1]} (keep / maybe / DQ) "
+           f"| {LABELS[2]} (from triage + direct) "
            f"| {LABELS[3]} at round end |", "|---|---|---|---|---|"]
     for r in done(m):
         f = per.get(r["round"], {"processed": 0, "decided": 0, "keep": 0, "maybe": 0, "dq": 0})
@@ -139,7 +232,9 @@ def table(P):
                  if r.get("pdfs_from_triage") is not None else "")
         approx = "≈" if r.get("ranked_approx") else ""
         dec = f"{f['decided']} ({f['keep']} / {f['maybe']} / {f['dq']})" if f["decided"] else "–"
-        out.append(f"| {r['round']} | {f['processed'] or '–'} | {dec} | {r.get('pdfs_new', 0)}{split} "
+        proc = (f"{f['processed']} ({f.get('cards', 0)} + {f['direct']})" if f.get("direct")
+                else str(f["processed"] or "–"))
+        out.append(f"| {r['round']} | {proc} | {dec} | {r.get('pdfs_new', 0)}{split} "
                    f"| {approx}{r['ranked_end']} |")
         rows.append(r)
     if rows:

@@ -73,7 +73,7 @@ Seven rounds over about a week, several hundred listings, shown **per 100 job li
 
 | Stage | Per 100 listings |
 |---|---|
-| Job listings processed (search results seen) | 100 |
+| Job listings processed (search results seen, plus jobs saved outside a search) | 100 |
 | Baseline match (kept in a quick triage, mostly on the platform's own match line) | 41 |
 | Agent deep-fit review (postings saved and read in full) | 21 |
 | Qualified targets (on the ranked list after calibration and re-screen) | 9 |
