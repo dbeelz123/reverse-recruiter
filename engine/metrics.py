@@ -57,9 +57,15 @@ def saves_by_round(P, rounds):
     Returns ({round: [job IDs]}, early, first): a snapshot round's new IDs are its snapshot minus the previous one.
     The first snapshot also holds every save from the backfilled rounds before it, which kept no IDs; those are
     returned as `early` (attributed to `first`), and funnel_from_runs spreads their count back over the backfilled
-    rounds. IDs in no snapshot yet (a round still in progress) go to the round after the last recorded one."""
-    snaps = [(r["round"], set(r["job_ids"])) for r in rounds
-             if isinstance(r.get("job_ids"), list) and all(isinstance(i, str) for i in r["job_ids"])]
+    rounds. IDs in no snapshot go to the latest recorded round when it kept no usable snapshot (they arrived by
+    then, so they must stay in the totals), otherwise to the round after it (a round still in progress).
+    A snapshot's non-text IDs are ignored; a snapshot with nothing usable in it counts as missing."""
+    snaps = []
+    for r in rounds:
+        raw = r.get("job_ids")
+        good = {i for i in raw if isinstance(i, str)} if isinstance(raw, list) else set()
+        if isinstance(raw, list) and (good or not raw):
+            snaps.append((r["round"], good))
     snaps.sort(key=lambda s: s[0])
     ids, out, prev = set(saved_postings(P)), {}, None
     early, first = set(), None
@@ -70,12 +76,15 @@ def saves_by_round(P, rounds):
             out[rnd] = sorted((snap - prev) & ids)
         prev = snap if prev is None else prev | snap
     last = max([r["round"] for r in rounds if isinstance(r.get("round"), int)] or [0])
+    last_done = max([r["round"] for r in rounds if r.get("ranked_end") is not None] or [0])
     rest = ids - (prev or set())
     if rest:
         if first is None:  # no snapshots at all: treat every save as early, landing in the last recorded round
-            first, early = last, rest
+            first, early = last_done or last, rest
         else:
-            out.setdefault(last + 1, []).extend(sorted(rest))
+            last_snap = snaps[-1][0]
+            target = last_done if last_done > last_snap else max(last_done, last_snap) + 1
+            out.setdefault(target, []).extend(sorted(rest))
     return out, sorted(early), first
 
 
@@ -85,7 +94,9 @@ def funnel_from_runs(P):
     Job listings processed = unique search-result cards (plus a run's unrecorded_cards) + saved postings that never
     showed up as a card ("direct": alert and direct saves, backlog sweeps). A save whose company + title matches a
     card already counted adds nothing; a second posting with the same company + title counts (a card stands for one
-    posting). Each round's entry also carries "cards" and "direct"."""
+    posting). A card row that carries a saved posting's job ID (written by triaged.py match-saved) is that posting
+    even when the titles differ (a card title cut short, a PDF title with extra words), so the pair counts once.
+    Each round's entry also carries "cards" and "direct"."""
     runs = []
     for f in sorted(P.search_runs.glob("*.json")):
         d = read_json(f)
@@ -96,12 +107,16 @@ def funnel_from_runs(P):
     keys = saved_postings(P)
     saves, early, first = saves_by_round(P, rounds)
     seen, claimed, decided, per = set(), set(), set(), {}
+    counted = set()  # job IDs of saved postings already counted, as a card or as a direct save
     entry = lambda rnd: per.setdefault(rnd, {"processed": 0, "cards": 0, "direct": 0, "decided": 0, "keep": 0,
                                              "maybe": 0, "dq": 0, "runs": []})
 
     def add_saves(rnd, jids):
         n = 0
         for jid in jids:
+            if jid in counted:  # a card row linked to this job ID already counted it
+                continue
+            counted.add(jid)
             k = keys.get(jid)
             if k is not None and k in seen and k not in claimed:
                 claimed.add(k)  # the card already counted this posting
@@ -128,10 +143,25 @@ def funnel_from_runs(P):
                 if s == "invalid run" or s.startswith("duplicate"):
                     continue
                 k = key(x.get("company", ""), x.get("title", ""))
-                if k not in seen:
-                    seen.add(k)
-                    r["processed"] += 1
-                    r["cards"] += 1
+                jid = x.get("job_id")
+                jid = jid if isinstance(jid, str) and jid in keys else None  # linked to a saved posting
+                if jid is not None and jid in counted:
+                    seen.add(k)  # the same posting under another title: already counted
+                    claimed.add(k)
+                else:
+                    new = k not in seen
+                    if new:
+                        seen.add(k)
+                        r["processed"] += 1
+                        r["cards"] += 1
+                    # This card stands for the linked posting unless its title already stands for another saved
+                    # posting (then the save counts itself, as a second posting with the same title).
+                    if jid is not None and (new or k not in claimed):
+                        counted.add(jid)
+                        claimed.add(k)
+                        if keys[jid] is not None:
+                            seen.add(keys[jid])
+                            claimed.add(keys[jid])
                 dec = x.get("decision")
                 if dec in ("keep", "maybe", "dq") and s in DECIDED_STATUSES and k not in decided:
                     decided.add(k)

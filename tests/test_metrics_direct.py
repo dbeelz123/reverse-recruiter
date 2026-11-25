@@ -82,6 +82,62 @@ class DirectSaves(SampleCase):
         self.assertEqual(f[1]["direct"], 1)
         self.assertEqual(f[2]["direct"], total_direct - 1)
 
+    def link_card(self, company, jid, rnd_file="s1-run-2026-11-13.json"):
+        """Write a saved posting's job ID onto that company's card row, as triaged.py match-saved does."""
+        def link(d):
+            next(x for x in d["listings"] if x["company"] == company)["job_id"] = jid
+        edit_json(self.data / "6-system/search-runs" / rnd_file, link)
+
+    def test_a_card_linked_by_job_id_is_not_counted_again_under_a_longer_title(self):
+        # The card's title was cut short; the saved posting's PDF title carries more words. Same job ID: one listing.
+        before = self.funnel()
+        self.link_card("Lattice Haul", "9100000510")
+        self.add_job("9100000510", "Lattice Haul", "Senior Product Manager, Freight Payments, Enterprise", 2)
+        after = self.funnel()
+        self.assertEqual(after[2]["processed"], before[2]["processed"])
+        self.assertEqual(after[2]["direct"], before[2]["direct"])
+
+    def test_a_direct_save_whose_linked_card_comes_later_under_another_title_counts_once(self):
+        before = self.funnel()
+        self.link_card("Lattice Haul", "9100000511")
+        self.add_job("9100000511", "Lattice Haul", "Senior Product Manager, Freight Payments, Enterprise", 1)
+        after = self.funnel()
+        self.assertEqual(after[1]["processed"], before[1]["processed"] + 1)
+        self.assertEqual(after[2]["processed"], before[2]["processed"] - 1)
+
+    def test_a_linked_second_posting_with_a_claimed_title_still_counts(self):
+        # One posting saved directly in round 1; a second posting with the same title is the round 2 card.
+        self.add_job("9100000512", "Lattice Haul", "Senior Product Manager, Freight Payments", 1)
+        before = self.funnel()
+        self.link_card("Lattice Haul", "9100000513")
+        self.add_job("9100000513", "Lattice Haul", "Senior Product Manager, Freight Payments", 2)
+        self.assertEqual(self.funnel()[2]["processed"], before[2]["processed"] + 1)
+
+    def test_saves_stay_in_the_totals_when_the_last_round_has_no_usable_snapshot(self):
+        P = Paths(str(self.data))
+        want = metrics.totals(P)["processed"]
+        original = (self.data / "6-system/metrics.json").read_text(encoding="utf-8")
+        damage = {"junk": lambda m: m["rounds"][-1].update(job_ids="junk"),
+                  "missing": lambda m: m["rounds"][-1].pop("job_ids") and None,
+                  "one number": lambda m: m["rounds"][-1]["job_ids"].append(123),
+                  "all numbers": lambda m: m["rounds"][-1].update(job_ids=[1, 2, 3])}
+        for name, fn in damage.items():
+            with self.subTest(name):
+                (self.data / "6-system/metrics.json").write_text(original, encoding="utf-8")
+                edit_json(self.data / "6-system/metrics.json", fn)
+                self.assertEqual(metrics.totals(P)["processed"], want)
+                self.assertLessEqual(max(metrics.funnel_from_runs(P)), 2)  # nothing pushed into an unrecorded round
+
+    def test_a_save_after_the_last_recorded_round_waits_for_the_next_round(self):
+        P = Paths(str(self.data))
+        want = metrics.totals(P)["processed"]
+        edit_json(self.data / "6-system/removed.json",
+                  lambda t: t.append({"job_id": "9100000514", "company": "Nowhere Card Co", "title": "Pending Save"}))
+        self.assertEqual(metrics.totals(P)["processed"], want)
+        self.assertEqual(self.funnel()[3]["direct"], 1)
+        metrics.add_event(P, 3, "capture")  # round 3 now has an entry, still not recorded
+        self.assertEqual(self.funnel()[3]["direct"], 1)
+
     def test_bad_snapshots_and_nameless_tombstones_do_not_crash(self):
         edit_json(self.data / "6-system/removed.json", lambda t: t.append({"job_id": "9100000508"}))
         edit_json(self.data / "6-system/metrics.json",
