@@ -174,8 +174,10 @@ def latest_reviews(P, upto=None, check=None):
 
 
 def tombstones(path):
-    """removed.json entries that are usable: objects with a job_id. Anything else is skipped."""
-    return [t for t in read_json(path, []) or [] if isinstance(t, dict) and t.get("job_id")]
+    """removed.json entries that are usable: objects with a text job_id. Anything else is skipped (an object or
+    list as job_id would break the ID lookups)."""
+    return [t for t in read_json(path, []) or [] if isinstance(t, dict) and isinstance(t.get("job_id"), str)
+            and t["job_id"].strip()]
 
 
 def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):

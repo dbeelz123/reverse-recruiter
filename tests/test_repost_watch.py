@@ -144,6 +144,41 @@ class CheckAndReport(SampleCase):
             self.assertIn("triaged.json", out)
             self.assertNotIn("Traceback", out)
 
+    def test_malformed_inputs_stop_with_the_file_named(self):
+        # Copilot review round 6: a damaged cards file (check) or run file (match-saved, keeps) gives a clear
+        # message naming the file, not a traceback.
+        from helpers import run
+        self.write_db([])
+        for name, content, cmd in (
+                ("cards.json", {"company": "Acme"}, "check"),
+                ("cards.json", ["bad"], "check"),
+                ("cards.json", [{"company": "Acme", "status": []}], "check"),
+                ("run.json", {"search": "S1", "listings": ["bad"]}, "match-saved"),
+                ("run.json", {"search": "S1", "listings": [{"company": "Acme"}]}, "match-saved"),
+                ("run.json", {"search": "S1", "listings": "bad"}, "keeps"),
+                ("run.json", {"search": "S1", "listings": [{"decision": "keep", "title": "PM"}]}, "keeps")):
+            path = self.tmp / name
+            path.write_text(json.dumps(content), encoding="utf-8")
+            code, out = run("triaged.py", "--data", self.data, cmd, path)
+            self.assertNotEqual(code, 0, (cmd, content))
+            self.assertIn(name, out, (cmd, content))
+            self.assertNotIn("Traceback", out, (cmd, content))
+
+    def test_non_text_job_ids(self):
+        # Copilot review round 6: a job_id that is an object or list must not crash set or dict lookups.
+        from helpers import run
+        path = self.data / "6-system/removed.json"
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps(rows + [{"job_id": {"x": 1}, "company": "A", "title": "B"},
+                                           {"job_id": ["1"], "company": "C", "title": "D"}]), encoding="utf-8")
+        self.write_db([])
+        self.ok("triaged.py", "--data", self.data, "reposts")  # unusable tombstones are skipped, as documented
+        self.write_db([dict(entry("Acme", "PM", []), job_id=["1"])])
+        code, out = run("triaged.py", "--data", self.data, "reposts")
+        self.assertNotEqual(code, 0)
+        self.assertIn("triaged.json", out)
+        self.assertNotIn("Traceback", out)
+
     def test_seed_survives_odd_removal_dates(self):
         # Copilot review round 4: mixed-type 'removed' values made max() raise TypeError.
         path = self.data / "6-system/removed.json"

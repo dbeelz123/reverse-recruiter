@@ -71,13 +71,30 @@ def key(company, title):
     return norm_company(company) + "|" + ("*" if title == "*" else norm_title(title))
 
 
+def run_listings(run, src):
+    """A run file's listings, checked to be a list of objects; anything else stops with the file named (a skipped
+    listing could silently drop a triage decision)."""
+    listings = run.get("listings", []) if isinstance(run, dict) else None
+    if not isinstance(listings, list):
+        raise DataFileError(f"Malformed {src}: expected an object with a 'listings' list.")
+    for i, x in enumerate(listings):
+        if not isinstance(x, dict):
+            raise DataFileError(f"Malformed {src}: listings[{i}] is not an object.")
+    return listings
+
+
+def require_names(x, i, src, what="listings"):
+    """Stop with the file named unless a listing or card has a company and a title."""
+    for f in ("company", "title"):
+        if not (isinstance(x.get(f), str) and x[f].strip()):
+            raise DataFileError(f"Malformed {src}: {what}[{i}] ({x.get('id', x.get('n', 'no id'))}) has no {f}.")
+
+
 def listing_entries(run, src):
     """Turn one triage/run file into entries. Saved jobs are skipped (they live in jobs/)."""
     search, date = run.get("search", "?"), run.get("date", "?")
-    for i, x in enumerate(run.get("listings", [])):
+    for i, x in enumerate(run_listings(run, src)):
         # A malformed decided listing stops with the file named: skipping it would silently drop a decision.
-        if not isinstance(x, dict):
-            raise DataFileError(f"Malformed {src}: listings[{i}] is not an object.")
         status = x.get("status")
         if status == "saved":
             continue
@@ -161,11 +178,13 @@ def load():
         entries = db.get("entries")
         if not isinstance(entries, list):
             raise DataFileError(f"Malformed {OUT}: 'entries' must be a list.")
-        # Every entry must be an object with a company and title (strings; company may be "" for an old tombstone).
+        # Every entry must be an object with a company and title (strings; company may be "" for an old tombstone)
+        # and, if it has one, a text job_id (an object or list would break the ID lookups).
         for i, e in enumerate(entries):
-            if not (isinstance(e, dict) and isinstance(e.get("company"), str) and isinstance(e.get("title"), str)):
-                raise DataFileError(f"Malformed {OUT}: entries[{i}] needs 'company' and 'title'. Fix it by hand or "
-                                    f"rebuild the file with 'triaged.py seed'.")
+            if not (isinstance(e, dict) and isinstance(e.get("company"), str) and isinstance(e.get("title"), str)
+                    and isinstance(e.get("job_id") or "", str)):
+                raise DataFileError(f"Malformed {OUT}: entries[{i}] needs 'company' and 'title' (and a text "
+                                    f"'job_id', if any). Fix it by hand or rebuild the file with 'triaged.py seed'.")
         return db
     return {"updated": None, "note": __doc__.split("\n\n")[0], "entries": []}
 
@@ -220,6 +239,7 @@ def seed():
 def add(path):
     p = Path(path).resolve()
     run = read_json(p)
+    run_listings(run, p.name)
     # Triage mode (docs/PLAN.md -> Triage modes): stamp the current mode on the run, and check that every card
     # The user decided in a batch carries the agent's own call ("likely"), so agreement can be measured.
     if "mode" not in run:
@@ -241,6 +261,10 @@ def add(path):
 
 def check(path):
     cards = read_json(Path(path))
+    if not isinstance(cards, list) or not all(isinstance(c, dict) for c in cards):
+        raise DataFileError(f"Malformed {Path(path).name}: expected a list of card objects (from ingest_results.py).")
+    for i, c in enumerate(cards):
+        require_names(c, i, Path(path).name, what="cards")
     db = load()
     # Jobs removed since the last seed are in removed.json only: add them to this lookup (triaged.json is unchanged).
     add_tombstones(db["entries"], only_new=True)
@@ -310,7 +334,8 @@ def match_saved(path):
     p = Path(path)
     run = read_json(p)
     rows = {}
-    for e in run.get("listings", []):
+    for i, e in enumerate(run_listings(run, p.name)):
+        require_names(e, i, p.name)
         rows.setdefault(key(e["company"], e["title"]), []).append(e)
     linked, conflicts, outside = [], [], []
     for f in sorted(P.jobs.glob("*.json")):
@@ -339,7 +364,9 @@ def keeps(path):
     """Save-check list at the end of a triage: every keep in the run, as a Markdown table with links,
     so the user can confirm each one is marked Saved on LinkedIn before saving the PDFs."""
     run = read_json(Path(path))
-    rows = [e for e in run.get("listings", []) if e.get("decision") == "keep"]
+    rows = [e for e in run_listings(run, Path(path).name) if e.get("decision") == "keep"]
+    for i, e in enumerate(rows):
+        require_names(e, i, Path(path).name, what="keeps")
     print(f"{len(rows)} keeps in {run.get('search', '?')} ({run.get('date', '?')}). Confirm each is Saved on LinkedIn.\n")
     print("| # | Job | Location | Batch | LinkedIn match | PDF saved |")
     print("|---|---|---|---|---|---|")
