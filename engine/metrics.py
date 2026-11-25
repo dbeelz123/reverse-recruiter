@@ -51,6 +51,16 @@ def saved_postings(P):
                   if (j.get("company") or j.get("title")) else None) for jid, j in out.items()}
 
 
+def snapshot(r):
+    """A round's usable job-ID snapshot as a set, or None. Non-text IDs are ignored; a snapshot with nothing usable
+    in it counts as missing."""
+    raw = r.get("job_ids")
+    if not isinstance(raw, list):
+        return None
+    good = {i for i in raw if isinstance(i, str)}
+    return good if (good or not raw) else None
+
+
 def saves_by_round(P, rounds):
     """Which round each saved posting arrived in, from the job-ID snapshots metrics.json keeps per round.
 
@@ -60,12 +70,7 @@ def saves_by_round(P, rounds):
     rounds. IDs in no snapshot go to the latest recorded round when it kept no usable snapshot (they arrived by
     then, so they must stay in the totals), otherwise to the round after it (a round still in progress).
     A snapshot's non-text IDs are ignored; a snapshot with nothing usable in it counts as missing."""
-    snaps = []
-    for r in rounds:
-        raw = r.get("job_ids")
-        good = {i for i in raw if isinstance(i, str)} if isinstance(raw, list) else set()
-        if isinstance(raw, list) and (good or not raw):
-            snaps.append((r["round"], good))
+    snaps = [(r["round"], snapshot(r)) for r in rounds if snapshot(r) is not None]
     snaps.sort(key=lambda s: s[0])
     ids, out, prev = set(saved_postings(P)), {}, None
     early, first = set(), None
@@ -86,6 +91,34 @@ def saves_by_round(P, rounds):
             target = last_done if last_done > last_snap else max(last_done, last_snap) + 1
             out.setdefault(target, []).extend(sorted(rest))
     return out, sorted(early), first
+
+
+def share_early(n, rounds, first):
+    """How many of the `n` direct saves from before the first snapshot each backfilled round gets: {round: count}.
+    Whatever isn't handed out stays with the first snapshot round.
+
+    Each round's recorded direct count is pdfs_new - pdfs_from_triage; a round without that split gets none. When
+    enough saves are left after deduplication, every backfilled round gets its recorded count. When fewer are left
+    (some direct saves later showed up as search cards, and without job IDs there is no telling whose), the rounds,
+    the first snapshot round included, share them in proportion to their recorded counts, largest remainders first
+    and earlier rounds first on a tie."""
+    known = {}
+    for b in rounds:
+        if b["round"] > first:
+            continue
+        try:
+            known[b["round"]] = max(0, int(b["pdfs_new"]) - int(b["pdfs_from_triage"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    total = sum(known.values())
+    if n >= total or not total:
+        share = dict(known)
+    else:
+        share = {r: n * k // total for r, k in known.items()}
+        by_remainder = sorted(known, key=lambda r: (-(n * known[r] % total), r))
+        for r in by_remainder[:n - sum(share.values())]:
+            share[r] += 1
+    return {r: c for r, c in share.items() if r != first and c}
 
 
 def funnel_from_runs(P):
@@ -168,19 +201,13 @@ def funnel_from_runs(P):
                     r["decided"] += 1
                     r["maybe" if x.get("note_maybe") else dec] += 1  # maybes later saved still count as maybes
         if rnd == first:
-            # Saves from before the first snapshot: deduplicate against every card up to here, then hand the
-            # backfilled rounds their recorded direct count (pdfs_new - pdfs_from_triage) and keep the rest here.
+            # Saves from before the first snapshot: deduplicate against every card up to here, then share them
+            # between the backfilled rounds and this one by their recorded direct counts (see share_early).
             n = add_saves(rnd, early)
-            for b in sorted((r for r in rounds if r["round"] < rnd), key=lambda r: r["round"]):
-                try:
-                    known = max(0, int(b["pdfs_new"]) - int(b["pdfs_from_triage"]))
-                except (KeyError, TypeError, ValueError):
-                    continue  # no recorded split: its direct saves stay with the first snapshot round
-                give = min(known, n)
+            for b, give in share_early(n, rounds, rnd).items():
                 for k_ in ("direct", "processed"):
-                    entry(b["round"])[k_] += give
+                    entry(b)[k_] += give
                     entry(rnd)[k_] -= give
-                n -= give
         add_saves(rnd, saves.get(rnd, []))
     return per
 
@@ -213,10 +240,19 @@ def done(m):
 def record(P, rnd):
     m = load(P)
     ids, ranked = current_state(P)
+    entry = next((r for r in m["rounds"] if r["round"] == rnd), None)
+    if any(r["round"] > rnd and snapshot(r) is not None for r in m["rounds"]):
+        # A later round is already recorded. Every job ID known today that this round's snapshot lacks arrived
+        # after it, so writing today's IDs, counts and date here would move later rounds' saves into this round.
+        if entry is not None and entry.get("ranked_end") is not None:
+            print(f"Round {rnd} is already recorded and a later round builds on it: left as it is.")
+            return m
+        print(f"Round {rnd} is recorded after a later round: jobs saved since the round before it stay with the "
+              f"rounds that recorded them, so this round adds no saved jobs.")
+        ids = set().union(*[snapshot(r) or set() for r in m["rounds"] if r["round"] < rnd])
     prev = [r for r in m["rounds"] if r["round"] < rnd and r.get("job_ids")]
     prev_ids = set(prev[-1]["job_ids"]) if prev else set()
     new_ids = sorted(ids - prev_ids)
-    entry = next((r for r in m["rounds"] if r["round"] == rnd), None)
     if entry is None:
         entry = {"round": rnd}
         m["rounds"].append(entry)

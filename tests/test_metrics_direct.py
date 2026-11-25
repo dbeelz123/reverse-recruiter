@@ -138,6 +138,56 @@ class DirectSaves(SampleCase):
         metrics.add_event(P, 3, "capture")  # round 3 now has an entry, still not recorded
         self.assertEqual(self.funnel()[3]["direct"], 1)
 
+    def backfill_round_1(self, direct_1, direct_2):
+        """Round 1 keeps no job IDs (backfilled); both rounds record how many of their saves were direct."""
+        def backfill(m):
+            for r, direct in zip(m["rounds"], (direct_1, direct_2)):
+                r["pdfs_from_triage"] = r["pdfs_new"] - direct
+            m["rounds"][0].pop("job_ids")
+        edit_json(self.data / "6-system/metrics.json", backfill)
+
+    def test_too_few_early_saves_are_shared_by_recorded_direct_counts(self):
+        # Four early direct saves are left after deduplication, but the rounds recorded 6 and 2: share them 3 and 1
+        # instead of handing all four to the earliest round.
+        self.add_job("9100000520", "Nowhere Card Co", "Staff Product Manager, Early One", 2)
+        self.add_job("9100000521", "Nowhere Card Co", "Staff Product Manager, Early Two", 2)
+        self.backfill_round_1(6, 2)
+        f = self.funnel()
+        self.assertEqual((f[1]["direct"], f[2]["direct"]), (3, 1))
+        self.assertEqual(f[1]["processed"], f[1]["cards"] + 3)
+
+    def test_enough_early_saves_give_each_backfilled_round_its_recorded_count(self):
+        self.add_job("9100000522", "Nowhere Card Co", "Staff Product Manager, Early One", 2)
+        self.add_job("9100000523", "Nowhere Card Co", "Staff Product Manager, Early Two", 2)
+        self.backfill_round_1(1, 1)
+        f = self.funnel()
+        self.assertEqual((f[1]["direct"], f[2]["direct"]), (1, 3))  # the rest stays with the first snapshot round
+
+    def test_sharing_early_saves_keeps_the_total(self):
+        for n in range(0, 12):
+            rounds = [{"round": 1, "pdfs_new": 5, "pdfs_from_triage": 0}, {"round": 2, "pdfs_new": 4},
+                      {"round": 3, "pdfs_new": 3, "pdfs_from_triage": 1}, {"round": 4, "pdfs_new": 9, "pdfs_from_triage": 6}]
+            share = metrics.share_early(n, rounds, 4)
+            self.assertLessEqual(sum(share.values()), n)
+            self.assertNotIn(4, share)
+            self.assertNotIn(2, share)  # no recorded split
+            self.assertTrue(all(share.get(r, 0) <= k for r, k in ((1, 5), (3, 2))))
+
+    def test_recording_an_earlier_round_again_changes_nothing(self):
+        metrics_file = self.data / "6-system/metrics.json"
+        before, funnel = json.loads(metrics_file.read_text(encoding="utf-8")), self.funnel()
+        out = self.ok("metrics.py", "--data", self.data, "--round", "1")
+        self.assertIn("left as it is", out)
+        self.assertEqual(json.loads(metrics_file.read_text(encoding="utf-8")), before)
+        self.assertEqual(self.funnel(), funnel)
+
+    def test_a_round_first_recorded_after_a_later_one_takes_no_saves_from_it(self):
+        edit_json(self.data / "6-system/metrics.json",
+                  lambda m: m.update(rounds=[{"round": 1, "ranked_end": None}, m["rounds"][1]]))
+        before = self.funnel()
+        self.ok("metrics.py", "--data", self.data, "--round", "1")
+        self.assertEqual(self.funnel(), before)
+
     def test_bad_snapshots_and_nameless_tombstones_do_not_crash(self):
         edit_json(self.data / "6-system/removed.json", lambda t: t.append({"job_id": "9100000508"}))
         edit_json(self.data / "6-system/metrics.json",
