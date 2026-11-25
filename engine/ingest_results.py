@@ -108,8 +108,12 @@ def from_rows(rows):
         if bad:
             sys.exit(f"row {n}: {', '.join(bad)} must be text" + (" (status and network may be a list of text)"
                      if {"status", "network"} & set(bad) else "") + "; fix the row and rerun")
-        if not (r.get("title") and r.get("company")):
-            continue  # a blank or partial row (e.g. a trailing empty CSV line)
+        if not any(v for v in r.values() if isinstance(v, str)) and not any(isinstance(v, list) and v
+                                                                         for v in r.values()):
+            continue  # a fully blank row (e.g. a trailing empty CSV line)
+        if not (r.get("title") and r.get("company")):  # a half-filled row would silently lose a listing
+            sys.exit(f"row {n}: title and company are both required (got title {r.get('title')!r}, company "
+                     f"{r.get('company')!r}); fix the row and rerun")
         if not r.get("location"):  # required for CSV/JSON (see the docstring): the workplace filter guard needs it
             sys.exit(f"row {n}: location is missing (required with title and company); fix the row and rerun")
         loc = r["location"]
@@ -132,7 +136,12 @@ def main():
         cards = parse_paste(src.read_text(encoding="utf-8"))
     elif ext == ".csv":
         with src.open(encoding="utf-8-sig", newline="") as f:
-            cards = from_rows(csv.DictReader(f))
+            reader = csv.DictReader(f)
+            missing = {"title", "company", "location"} - {(h or "").strip().lower() for h in reader.fieldnames or []}
+            if missing:
+                sys.exit(f"{src}: the header row needs columns {', '.join(sorted(missing))} "
+                         f"(found: {', '.join(reader.fieldnames or []) or 'none'})")
+            cards = from_rows(reader)
     elif ext == ".json":
         rows = read_json(src, expect=list)
         if not all(isinstance(r, dict) for r in rows):

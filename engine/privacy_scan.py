@@ -72,14 +72,22 @@ def allowed(f):
 
 
 def read_text(f):
-    """A file's text, or None when it isn't text. Every file is checked, whatever its extension: known text
-    types are read as text; anything else counts as text only if it has no NUL bytes and decodes as UTF-8, so an
-    archive or other binary can't slip past the scan just because its extension isn't listed."""
+    """A file's text, or None when it isn't text. Every file is checked, whatever its extension: UTF-16 with a
+    byte-order mark is decoded; any other file with NUL bytes isn't text; known text types are read as UTF-8;
+    anything else counts as text only if it decodes as UTF-8, so an archive or other binary can't slip past the scan
+    just because its extension isn't listed."""
     data = f.read_bytes()
+    # UTF-16 text (with its byte-order mark) is decoded properly; read as UTF-8 its letters are split by NUL bytes
+    # and no term would match.
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            return data.decode("utf-16")
+        except UnicodeDecodeError:
+            return None
+    if b"\0" in data:  # NUL bytes without a BOM: not readable text, whatever the extension (a hit)
+        return None
     if f.suffix.lower() in TEXT:
         return data.decode("utf-8", errors="replace")
-    if b"\0" in data[:8192]:
-        return None
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError:

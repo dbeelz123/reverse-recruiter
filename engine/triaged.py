@@ -61,6 +61,10 @@ def norm_title(t):
 
 
 def norm_company(c):
+    # Deliberate (code reviews, 2026-11-25): suffixes such as Inc, LLC, Group and Technologies are dropped because
+    # LinkedIn shows one employer under several of them ("Acme" on a card, "Acme Technologies" on the posting). Two
+    # different employers that collide this way are rare, and a collision only skips a card whose title also
+    # matches and whose terms haven't changed (changed_terms flags those for a fresh look).
     c = c.lower().replace("&", " and ")
     c = re.sub(r"\s+-\s+[a-z]{1,4}$", " ", c)  # ATS tag on the Job Tracker name, e.g. "Acme - GH" (2026-11-17)
     c = re.sub(r"\b(inc|llc|ltd|corp|corporation|co|group|technologies|technology)\b\.?", " ", c)

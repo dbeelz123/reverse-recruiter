@@ -25,8 +25,13 @@ LOOSE_HEADER = re.compile(r"^\s*\d{1,2}/\d{1,2}/\d{2},")
 FOOTER_TAIL = re.compile(r"\s*https://www\.linkedin\.com/\S+(?:\s+\d+/\d+)?\s*$")
 JOB_URL = re.compile(r"https://www\.linkedin\.com/jobs/view/(\d+)/")
 PRINT_DATE = re.compile(r"^\s*(\d{1,2}/\d{1,2}/\d{2})")
-# Name, optionally followed by credentials after a comma ("Jane Doe, M.S."), then the degree marker.
-PERSON = re.compile(r"^\s*([A-Z][\w.'\-]+(?: [A-Z][\w.'\-]+){1,3})(?:,\s*[\w.\-]+(?:\s[\w.\-]+){0,2})?\s*[•·]\s*(1st|2nd|3rd)\b")
+# Name, optionally followed by credentials after a comma ("Jane Doe, M.S."), then the degree marker. Each name part
+# starts with a capital (accented ones too: "Élodie"); lowercase particles may sit between parts ("Jamie van der Meer",
+# "Ana de la Cruz"), so the removal guard (remove_job.py) sees those connections as well.
+_CAP = r"[A-ZÀ-ÖØ-Þ][\w.'\-]+"
+_PARTICLE = r"(?:van|von|der|den|de|del|della|da|di|du|la|le|dos|das|bin|ibn|al|el|y)"
+PERSON = re.compile(rf"^\s*({_CAP}(?: (?:{_PARTICLE} ){{0,3}}{_CAP}){{1,3}})"
+                    r"(?:,\s*[\w.\-]+(?:\s[\w.\-]+){0,2})?\s*[•·]\s*(1st|2nd|3rd)\b")
 WORKPLACE = ("Remote", "Hybrid", "On-site")
 EMPLOYMENT = ("Full-time", "Part-time", "Contract", "Temporary", "Internship")
 SALARY = re.compile(r"\$\s?\d[\d,.]*\s?[Kk]?(?:\s?(?:/yr|/hr|per year|per hour|USD))?"

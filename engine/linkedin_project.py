@@ -96,16 +96,20 @@ def check(P):
 
 def update(P):
     rec, now = load(P), current(P)
+    # Check the description first: a failure here must leave the live images untouched.
+    ref = P.linkedin_dir / "linkedin-profile.md"
+    if not ref.exists():
+        raise SystemExit(f"{P.rel(ref) if P.inside(ref) else ref} not found: no numbers sentence to update; "
+                         f"no images rendered.")
+    text = ref.read_text(encoding="utf-8")
+    if not NUMBERS.search(text):
+        raise SystemExit(f"Couldn't find the numbers sentence in {P.rel(ref)}; nothing changed, no images rendered.")
     args = ["--data", str(P.data)]
     override = rec.get("grades_override") or {}
     if override.get("grades"):  # the user's chosen split for the public grade image (see linkedin_images.py)
         args += ["--grades", ",".join(f"{g}={n}" for g, n in override["grades"].items())]
         print(f"Grade image uses the recorded override: {override['grades']} ({override.get('reason', 'no reason')})")
     imgs = linkedin_images.main(args)
-    ref = P.linkedin_dir / "linkedin-profile.md"
-    text = ref.read_text(encoding="utf-8")
-    if not NUMBERS.search(text):
-        raise SystemExit(f"Couldn't find the numbers sentence in {P.rel(ref)}; nothing changed there.")
     ref.write_text(NUMBERS.sub(sentence(now), text, count=1), encoding="utf-8")
     rec["ready"] = dict(now, prepared=dt.date.today().isoformat(), images=imgs["files"], per100=imgs["per100"],
                         shown={"funnel": imgs["funnel"], "grades": imgs["grades"]})

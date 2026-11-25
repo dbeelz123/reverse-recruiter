@@ -90,7 +90,8 @@ def due_items(job, today, soon=0):
                 out.append((d, f"Round {iv['round']} on {d}" + (f" with {iv['with']}" if iv.get("with") else "")
                                + ": run the staleness gate and the primer check"))
         ty = iv.get("thank_you") or {}
-        if iv.get("status") == "done" and ty.get("due") and not ty.get("sent") and day(ty["due"]) <= horizon:
+        # day() is None for an unreadable hand-edited due date: skipped here rather than crashing the comparison.
+        if iv.get("status") == "done" and day(ty.get("due")) and not ty.get("sent") and day(ty["due"]) <= horizon:
             to = ", ".join(ty.get("to") or []) or "the panel"
             out.append((day(ty["due"]), f"Send the round {iv['round']} thank-you to {to} (draft in the kit folder)"))
     # Timers run from the most recent dated event or interview on the job.
@@ -175,9 +176,11 @@ def debrief(P, job, a):
         iv["date"] = a.date
     to = data.get("thank_you_to")
     if to is not None:
+        old = iv.get("thank_you") or {}
         when = day(iv["date"]) or dt.date.today()
-        iv["thank_you"] = {"to": to, "due": (when + dt.timedelta(days=1)).isoformat(),
-                           "sent": (iv.get("thank_you") or {}).get("sent")}
+        # A repeated debrief keeps the due date already set (with no interview date, today would restart the timer).
+        due = old.get("due") if day(old.get("due")) else (when + dt.timedelta(days=1)).isoformat()
+        iv["thank_you"] = {"to": to, "due": due, "sent": old.get("sent")}
     pl = job.setdefault("pipeline", {"events": []})
     pl["stage"] = f"round {a.round} done {iv['date']}" + (f"; next: {data['next']}" if data.get("next") else "")
     pl["updated"] = dt.date.today().isoformat()

@@ -177,6 +177,10 @@ def funnel_from_runs(P):
                 s = x.get("status") or ""
                 if s == "invalid run" or s.startswith("duplicate"):
                     continue
+                # Deliberate (code reviews, 2026-11-25): a card is one listing per company + title, so the same
+                # posting met again in a later search, or under another city's card, counts once. Search cards rarely
+                # carry a job ID, and LinkedIn shows one role in several cities as separate cards; counting those
+                # separately would inflate "listings processed". Linked job IDs refine it below.
                 k = key(x.get("company", ""), x.get("title", ""))
                 jid = x.get("job_id")
                 jid = jid if isinstance(jid, str) and jid in keys else None  # linked to a saved posting

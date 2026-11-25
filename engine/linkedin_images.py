@@ -156,8 +156,8 @@ def render(browser, html, out_png, tmp):
             time.sleep(0.5)  # let the write finish
             break
         time.sleep(0.5)
-    if not shot.exists():
-        raise SystemExit(f"The browser did not write {shot.name}")
+    if not shot.exists() or shot.stat().st_size == 0:  # an empty file is a failed render, not an image
+        raise SystemExit(f"The browser did not write {shot.name}" + (" (the file is empty)" if shot.exists() else ""))
     shutil.move(str(shot), str(out_png))
 
 

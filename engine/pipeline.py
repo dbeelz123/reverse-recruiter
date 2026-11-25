@@ -126,11 +126,20 @@ def record(P, a):
                  f"(the employer came back to you), rerun with --reopen; otherwise check the job ID and stage.")
     pl = rec.setdefault("pipeline", {})
     pl.setdefault("events", [])
+    # A step recorded late (dated before a stage already recorded) joins the history but leaves the status alone,
+    # so the job doesn't read as going backwards (e.g. a response dated before an interview recorded earlier).
+    new_date = to_date(a.date)
+    later = [e for e in pl["events"] if e.get("stage") not in OTHER and to_date(e.get("date"))
+             and new_date and to_date(e["date"]) > new_date]
     ev = {"date": a.date, "stage": a.stage}
     if a.note:
         ev["note"] = a.note
     pl["events"].append(ev)
-    if a.stage not in OTHER:
+    if a.stage not in OTHER and later:
+        latest = max(later, key=lambda e: to_date(e["date"]))
+        print(f"Recorded as history: {a.stage} on {a.date} is earlier than {latest['stage']} on {latest['date']}, "
+              f"so the status stays '{pl.get('status')}'.")
+    elif a.stage not in OTHER:
         pl["status"] = a.stage
         pl.pop("next", None)  # a new stage makes the old next step stale (e.g. a hold's "finish the application")
     if a.next:

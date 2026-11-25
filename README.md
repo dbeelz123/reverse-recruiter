@@ -20,7 +20,7 @@ Reverse Recruiter treats every save as a *candidate*, not a preference, and does
 
 **1. Screens every word, not just the headline.** For each saved posting it extracts role, level, pay, work arrangement, location, travel, requirements, industry and 1st-degree connections, then:
 - **excludes** jobs that hit a dealbreaker, and says which one;
-- **scores** the rest 0–100 (a fit judgment plus visible adjustments: core-domain bonus, travel scale, scored negatives, connection bonus) and sorts them into tiers A–D;
+- **scores** the rest: a 0–100 fit judgment plus visible adjustments (core-domain bonus, travel scale, scored negatives, connection bonus), so a strong fit with bonuses can total above 100, and sorts them into tiers A–D;
 - **flags "looks good, but…"** details a skim misses.
 
 **2. Learns your criteria, continuously.**

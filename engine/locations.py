@@ -66,7 +66,9 @@ US_STATES = {"AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas",
 def within_radius(location_text, center, radius_miles, home_state=None):
     """True/False when decidable; None when the place can't be placed (flag for a manual check).
     Assumes the radius is small next to the home state (about 50 miles from a center well inside it), so a city
-    in any other state is out of range. With no home_state, an unknown city in a named state stays None."""
+    in any other state is out of range. With no home_state, an unknown city in a named state stays None.
+    Deliberate (code reviews, 2026-11-25): for a center near a state line, add the nearby out-of-state cities to
+    5-criteria/places.json; a listed city is always measured, never assumed."""
     pt = lookup(location_text)
     if pt is not None:
         return miles(pt, center) <= radius_miles

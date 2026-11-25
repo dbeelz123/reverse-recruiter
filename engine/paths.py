@@ -176,8 +176,10 @@ def latest_reviews(P, upto=None, check=None):
 def tombstones(path):
     """removed.json entries that are usable: objects with a text job_id. Anything else is skipped (an object or
     list as job_id would break the ID lookups)."""
-    return [t for t in read_json(path, []) or [] if isinstance(t, dict) and isinstance(t.get("job_id"), str)
-            and t["job_id"].strip()]
+    # expect=list: a file whose top level isn't a list stops with the file named (iterating an object's keys would
+    # silently drop every removal). Single damaged entries are still skipped, by design (tests/test_robustness.py).
+    return [t for t in read_json(path, [], expect=list) or []
+            if isinstance(t, dict) and isinstance(t.get("job_id"), str) and t["job_id"].strip()]
 
 
 def removed_before(path, job_id):
@@ -207,8 +209,9 @@ def review_score_problems(r):
     if not is_score(r.get("network_bonus", 0)):
         problems.append(f"'network_bonus' must be a number, not {r.get('network_bonus')!r}")
     adj = r.get("adjustments", [])
-    if not isinstance(adj, list) or not all(isinstance(a, dict) and is_score(a.get("points")) for a in adj):
-        problems.append("'adjustments' must be a list of {reason, points}, with points a number")
+    if not isinstance(adj, list) or not all(isinstance(a, dict) and is_score(a.get("points"))
+                                            and isinstance(a.get("reason"), str) and a["reason"].strip() for a in adj):
+        problems.append("'adjustments' must be a list of {reason, points}: reason as text, points a number")
     return problems
 
 
