@@ -12,7 +12,8 @@ import json
 import re
 from pathlib import Path
 
-from paths import Paths, blocked_by, blocklist, case_by_case, latest_reviews, read_json, write_json
+from paths import (Paths, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
+                   write_json)
 from urllib.parse import quote
 
 import sys
@@ -71,20 +72,13 @@ def load(p: Path, default=None):
 
 def check_review(path, jid, r):
     """Stop with the file, job and field when a review entry is malformed, instead of a KeyError mid-report."""
-    num = (int, float)
     problems = []
     if not isinstance(r, dict):
         problems.append("the entry isn't an object")
     else:
-        if "fit" not in r or not (r["fit"] is None or isinstance(r["fit"], num)):
-            problems.append("'fit' must be a number (or null for an excluded job)")
+        problems += review_score_problems(r)
         if r.get("tier") not in TIER_ORDER:
             problems.append(f"'tier' must be one of {', '.join(TIER_ORDER)}")
-        if not isinstance(r.get("network_bonus", 0), num):
-            problems.append("'network_bonus' must be a number")
-        adj = r.get("adjustments", [])
-        if not isinstance(adj, list) or not all(isinstance(a, dict) and isinstance(a.get("points"), num) for a in adj):
-            problems.append("'adjustments' must be a list of {reason, points}")
         if not isinstance(r.get("summary", ""), str):
             problems.append("'summary' must be text")
     if problems:
@@ -161,9 +155,13 @@ def main():
     out = []
     w = out.append
     w(f"# Saved jobs re-screen - round {args.round} ({review['date']})\n")
+    # A job with no review in any round is listed on its own (never silently left out, never given a score).
+    unreviewed = sorted((j for j in jobs.values() if "review" not in j),
+                        key=lambda j: (j.get("company") or "", j.get("title") or ""))
     new = sum(1 for j in reviewed if j["review"].get("round") == args.round)
-    w(f"{len(reviewed)} saved jobs, each read in full ({new} new this round; the rest keep their earlier review). "
-      f"Calibration questions at the end may still adjust scores.\n")
+    w(f"{len(reviewed)} saved jobs, each read in full ({new} new this round; the rest keep their earlier review)"
+      + (f", plus {len(unreviewed)} not reviewed yet (listed after the ranked list)" if unreviewed else "")
+      + ". Calibration questions at the end may still adjust scores.\n")
     if levels_on:
         pts, _ = connections.settings(spec)
         net_text = (f" + a 1st-degree connection: {pts['recommendation']:+g} when they have given you a LinkedIn "
@@ -269,6 +267,15 @@ def main():
         w(f"| {i} | {score} | {r['tier']} | [{md_cell(j['title'])}]({j['url']}) | {md_cell(j['company'])} | "
           f"{md_cell(where)} | {md_cell(pay)} | {md_cell(conn)} |")
     w("")
+    if unreviewed:
+        w("## Not reviewed yet\n")
+        w("These jobs have a record but no review in any round's reviews file, so they have no score or tier. "
+          "Review them (engine/prompts/review-rubric.md) and rebuild the report.\n")
+        for j in unreviewed:
+            title = md_cell(j.get("title") or "(no title)")
+            w(f"- [{title}]({j['url']}) - {md_cell(j.get('company') or '')} ({j['job_id']})" if j.get("url")
+              else f"- {title} - {md_cell(j.get('company') or '')} ({j['job_id']})")
+        w("")
 
     # Company groups: several roles at one company are compared together before picking the top 1-2.
     groups = collections.defaultdict(list)

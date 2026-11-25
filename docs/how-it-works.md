@@ -49,12 +49,12 @@ Each folder keeps only working files; superseded ones move to an `archive/` subf
 A round processes new saved jobs and re-ranks everything. In order:
 
 1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided (a listing DQ'd before comes back for a fresh look if its salary or location is new; a listing from a blocklisted company is shown with the blocklist entry and reason for you to confirm, never dropped silently). Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
-2. **Extract:** `extract.py` turns new PDFs into job records (only new or changed files). It also flags duplicate saves and possible reposts. `triaged.py match-saved` links saves made outside the batches to the run.
+2. **Extract:** `extract.py` turns new PDFs into job records (only new or changed files). It also flags duplicate saves, possible reposts, and a job saved again after it was removed ("PREVIOUSLY REMOVED", with the earlier reason; Claude asks before reviewing it again). `triaged.py match-saved` links saves made outside the batches to the run.
 3. **Review** (Claude): every new posting read in full against `engine/prompts/review-rubric.md`: score, tier, positives, caveats, gaps, eligibility.
 4. **Calibration** (you and Claude): a few questions, only about what's new: conflicts between sources, uncertain signals, proposed disqualifiers. Approved answers become rules in `spec.json` and `changelog.md`.
 5. **Search insights:** Claude looks across the round for patterns (level, domain, employer type, location) and proposes search changes. You approve each.
 6. **Resume and profile review** (optional, offered every round): things calibration uncovered that your documents don't show yet.
-7. **Re-screen:** `rescreen.py` flags every current job a rule may now hit (jobs already excluded, tier X, are skipped); Claude judges each flag. Real dealbreakers go through the **removal prompt**: Claude asks before anything is removed, and `remove_job.py` keeps a one-line tombstone with the reason.
+7. **Re-screen:** `rescreen.py` flags every current job a rule may now hit (jobs already excluded, tier X, are skipped); Claude judges each flag. Real dealbreakers go through the **removal prompt**: Claude asks before anything is removed, and `remove_job.py` keeps a one-line tombstone with the reason. A job with a 1st-degree connection is never removed automatically: `remove_job.py` stops and names the connection, and runs only with `--confirm-connections` after the user says yes.
 8. **Metrics:** `metrics.py --round N` records the search funnel and time per stage.
 9. **Triage precision:** `precision.py --round N` compares the agent's calls with your decisions; new miss patterns become calling guidance.
 10. **Mode signals:** `modes.py signals` reports whether the system looks settled enough to switch triage modes.
@@ -87,7 +87,7 @@ Before you decide each card, Claude records its own call: `likely keep`, `lean k
 
 ## Reports
 
-- **Ranked list:** every current job with score, tier, work arrangement and distance, connections, and its caveats, plus a grade-band image (A/B/C/D).
+- **Ranked list:** every current job with score, tier, work arrangement and distance, connections, and its caveats, plus a grade-band image (A/B/C/D). A job with no review yet is listed under "Not reviewed yet", with no score, rather than left out.
 - **Search funnel:** job listings processed → baseline match (kept in triage) → agent deep-fit review (saved and read in full) → qualified targets (ranked), per round and cumulative, with an image.
 - **Time per round:** active minutes per stage and per 100 listings, from timing events logged at each stage boundary.
 - **Applications funnel:** qualified target → kit built → applied → employer response → interview → offer.

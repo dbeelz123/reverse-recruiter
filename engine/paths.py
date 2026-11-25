@@ -180,6 +180,35 @@ def tombstones(path):
             and t["job_id"].strip()]
 
 
+def removed_before(path, job_id):
+    """The latest removed.json tombstone for this job ID, or None: a job removed earlier and now saved or ingested
+    again. The job is still processed (a reopened posting is a legitimate re-save), but flagged for the user."""
+    hits = [t for t in tombstones(path) if t["job_id"] == job_id]
+    return hits[-1] if hits else None
+
+
+def is_score(x):
+    """A real, finite number: true/false (a subclass of int) and NaN/infinity don't count."""
+    import math
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def review_score_problems(r):
+    """What's wrong with a review entry's numbers (empty when nothing is): 'fit' is null (excluded job) or a number
+    from 0 to 100 (review-rubric.md); 'network_bonus' and each adjustment's 'points' are numbers.
+    Shared by build_report.py and rescreen.py."""
+    problems = []
+    fit = r.get("fit", "missing")
+    if fit is not None and not (is_score(fit) and 0 <= fit <= 100):
+        problems.append(f"'fit' must be a number from 0 to 100 (or null for an excluded job), not {fit!r}")
+    if not is_score(r.get("network_bonus", 0)):
+        problems.append(f"'network_bonus' must be a number, not {r.get('network_bonus')!r}")
+    adj = r.get("adjustments", [])
+    if not isinstance(adj, list) or not all(isinstance(a, dict) and is_score(a.get("points")) for a in adj):
+        problems.append("'adjustments' must be a list of {reason, points}, with points a number")
+    return problems
+
+
 def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):
     """Write JSON atomically: a temporary file in the same folder, then os.replace, so a crash mid-write never
     leaves a half-written record. Every script writes its JSON through this."""

@@ -24,7 +24,7 @@ import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
-from paths import Paths, read_json, write_json
+from paths import Paths, read_json, removed_before, write_json
 
 SALARY = re.compile(r"\$\s?\d[\d,.]*\s?[Kk]?(?:\s?(?:-|–|to)\s?\$\s?\d[\d,.]*\s?[Kk]?)?")
 
@@ -116,7 +116,13 @@ def main():
         pl.update({k: v for k, v in (("status", a.status), ("stage", a.stage)) if v})
         pl["updated"] = now[:10]
     rec.setdefault("connections_1st", [])
+    before = removed_before(P.removed, a.id)  # this ID was removed earlier: ingest it, but flag it for the user
+    if before:
+        rec["previously_removed"] = {"removed": before.get("removed"), "reason": before.get("reason")}
     write_json(out, rec, indent=2)
+    if before:
+        print(f"PREVIOUSLY REMOVED: {a.id} was removed {before.get('removed')}: {before.get('reason')}. "
+              f"Ask the user before reviewing it again.")
     ledger = read_json(P.ledger, {})
     st = src.stat()
     ledger[key] = {"job_id": a.id, "kind": "external", "sig": {"size": st.st_size, "mtime": int(st.st_mtime)},

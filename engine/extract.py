@@ -373,8 +373,16 @@ def repost_check(P, data, new_ids, dup_files):
                     and norm_title(t.get("title") or "") == ti:
                 hits.append({"job_id": t["job_id"], "where": "removed", "title": t.get("title"), "same_title": True,
                              "removed": t.get("removed"), "reason": t.get("reason")})
+        # The same job ID removed earlier and now saved again: still extracted (a reopened posting is a fair re-save),
+        # but flagged so the earlier removal reason is seen before the job is reviewed again.
+        before = next((t for t in reversed(tombs) if t["job_id"] == jid), None)
+        if before:
+            rec["previously_removed"] = {"removed": before.get("removed"), "reason": before.get("reason")}
+            out.append(f"PREVIOUSLY REMOVED: {jid} {rec.get('company')} - {rec.get('title')} was removed "
+                       f"{before.get('removed')}: {before.get('reason')}. Ask the user before reviewing it again.")
         if hits:
             rec["possible_repost_of"] = hits
+        if hits or before:
             write_json((P.jobs / f"{jid}.json"), rec, indent=2)
             for h in hits:
                 detail = (f"current, {h['tier']} {h['total']}, text {h['text_similarity']:.0%} alike" if h["where"] == "current"

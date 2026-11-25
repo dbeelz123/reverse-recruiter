@@ -27,6 +27,8 @@ def main():
     ap.add_argument("--reason", required=True)
     ap.add_argument("--data", default=None)
     ap.add_argument("--no-tombstone", action="store_true")
+    ap.add_argument("--confirm-connections", action="store_true",
+                    help="the user has confirmed removing jobs that have a 1st-degree connection")
     args = ap.parse_args()
     P = Paths(args.data)
     data = P.data
@@ -37,9 +39,28 @@ def main():
     tomb_p = P.removed
     tombs = read_json(tomb_p, [], expect=list)
 
+    # Jobs with a 1st-degree connection are never removed automatically: every job in the batch is checked before
+    # anything changes, and the connections are named, so the user confirms with them in view.
     for jid in args.job_ids:
         if not re.fullmatch(r"[\w-]+", jid):
             sys.exit(f"Not a job ID: {jid!r}")
+    import connections
+    import recommendations
+    people = connections.load(P)
+    recs = recommendations.load(P)
+    held = []
+    for jid in args.job_ids:
+        rec = read_json(P.jobs / f"{jid}.json", {}, expect=dict)
+        named = [n for n, _ in connections.people_at(dict(rec, job_id=jid), recs, people)]
+        if named:
+            held.append(f"{rec.get('company') or jid} - {rec.get('title') or ''} ({jid}): {', '.join(named)}")
+    if held and not args.confirm_connections:
+        sys.exit("Not removed: these jobs have a 1st-degree connection, which is never removed automatically.\n  "
+                 + "\n  ".join(held) + "\nAsk the user; on a yes, rerun with --confirm-connections.")
+    for h in held:
+        print(f"Removing with the user's confirmation; connection: {h}")
+
+    for jid in args.job_ids:
         done = []
         rec_p = P.jobs / f"{jid}.json"
         label = jid
