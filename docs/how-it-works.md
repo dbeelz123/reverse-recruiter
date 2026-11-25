@@ -79,7 +79,7 @@ A round processes new saved jobs and re-ranks everything. In order:
 | Searches | Wide windows, exploratory searches welcome | Only tuned searches, windows matched to the cadence |
 | Output | A full round each time | A short digest per check-in; the full round weekly |
 
-The mode lives in `5-criteria/searches.json` → `mode`. A new user starts in Catch-up with a short setup interview (goal, lookback, pace, what still feels fuzzy). The agent **asks** before switching and never switches on its own. It asks when volume is met and at least 2 of 4 stability signals hold: fewer than 1 new rule per 100 listings for two rounds; its triage calls match yours 90% of the time; 70% of a run's cards are already decided; a steady keep rate. In Keep-up it suggests a short Catch-up burst after a long gap or when drift shows.
+The mode lives in `5-criteria/searches.json` → `mode`. A new user starts in Catch-up with a short setup interview (goal, lookback, pace, what still feels fuzzy). The agent **asks** before switching and never switches on its own. It asks when volume is met and at least 2 of 4 stability signals hold: fewer than 1 new rule per 100 search cards for two rounds; its triage calls match yours 90% of the time; 70% of a run's cards are already decided; a steady keep rate. In Keep-up it suggests a short Catch-up burst after a long gap or when drift shows.
 
 ## The agent's triage calls, measured
 

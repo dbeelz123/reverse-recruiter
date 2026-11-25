@@ -52,8 +52,8 @@ def saved_postings(P):
 
 
 def snapshot(r):
-    """A round's usable job-ID snapshot as a set, or None. Non-text IDs are ignored; a snapshot with nothing usable
-    in it counts as missing."""
+    """A round's usable job-ID snapshot as a set, or None. Non-text IDs are ignored; a list that held only such IDs
+    counts as missing. An empty list is a real snapshot: the round was recorded with no saved jobs yet."""
     raw = r.get("job_ids")
     if not isinstance(raw, list):
         return None
@@ -84,8 +84,10 @@ def saves_by_round(P, rounds):
     last_done = max([r["round"] for r in rounds if r.get("ranked_end") is not None] or [0])
     rest = ids - (prev or set())
     if rest:
-        if first is None:  # no snapshots at all: treat every save as early, landing in the last recorded round
-            first, early = last_done or last, rest
+        if first is None:
+            # No snapshots at all: treat every save as early, landing in the last recorded round. With no recorded
+            # round either, they wait for the round in progress (or round 1), never a round 0.
+            first, early = last_done or max(last, 1), rest
         else:
             last_snap = snaps[-1][0]
             target = last_done if last_done > last_snap else max(last_done, last_snap) + 1
@@ -241,23 +243,27 @@ def record(P, rnd):
     m = load(P)
     ids, ranked = current_state(P)
     entry = next((r for r in m["rounds"] if r["round"] == rnd), None)
-    if any(r["round"] > rnd and snapshot(r) is not None for r in m["rounds"]):
-        # A later round is already recorded. Every job ID known today that this round's snapshot lacks arrived
-        # after it, so writing today's IDs, counts and date here would move later rounds' saves into this round.
+    earlier_ids = set().union(*[snapshot(r) or set() for r in m["rounds"] if r["round"] < rnd])
+    late = any(r["round"] > rnd and (snapshot(r) is not None or r.get("ranked_end") is not None) for r in m["rounds"])
+    if late:
+        # A later round is already recorded (with or without a usable snapshot). Every job ID known today that
+        # this round's snapshot lacks arrived after it, so writing today's IDs, counts and date here would move
+        # later rounds' saves into this round.
         if entry is not None and entry.get("ranked_end") is not None:
             print(f"Round {rnd} is already recorded and a later round builds on it: left as it is.")
             return m
         print(f"Round {rnd} is recorded after a later round: jobs saved since the round before it stay with the "
               f"rounds that recorded them, so this round adds no saved jobs.")
-        ids = set().union(*[snapshot(r) or set() for r in m["rounds"] if r["round"] < rnd])
-    prev = [r for r in m["rounds"] if r["round"] < rnd and r.get("job_ids")]
-    prev_ids = set(prev[-1]["job_ids"]) if prev else set()
+        ids = set(earlier_ids)
+    # Every ID an earlier round kept, not just the latest earlier snapshot: an ID that dropped out of one snapshot
+    # (or rounds listed out of order in a hand-edited file) must not come back as a new save, as in the funnel.
+    prev_ids = earlier_ids
     new_ids = sorted(ids - prev_ids)
     if entry is None:
         entry = {"round": rnd}
         m["rounds"].append(entry)
     searches = read_json(P.searches, {})
-    if prev_ids:  # exact: the difference from the last round that kept its job IDs
+    if prev_ids or late:  # exact: the difference from the rounds that kept their job IDs (none when late)
         pdfs_new = len(new_ids)
     elif entry.get("pdfs_new") is not None:  # backfilled by hand for this round: keep it
         pdfs_new = entry["pdfs_new"]

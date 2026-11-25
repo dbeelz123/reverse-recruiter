@@ -38,7 +38,19 @@ class ModesCountSearchCards(SampleCase):
         after = modes.rows(P)
         self.assertEqual([r["processed"] for r in after], [r["processed"] for r in before])
         self.assertEqual([r["rules_per_100"] for r in after], [r["rules_per_100"] for r in before])
-        self.assertEqual(modes.verdict(P, after)["total"], modes.verdict(P, before)["total"])
+        was, now = modes.verdict(P, before), modes.verdict(P, after)
+        self.assertEqual((now["total"], now["recent"], now["volume"]), (was["total"], was["recent"], was["volume"]))
+
+    def test_direct_saves_alone_do_not_meet_the_volume_check(self):
+        P = Paths(str(self.data))
+        today = __import__("datetime").date.today().isoformat()
+        edit_json(self.data / "6-system/metrics.json", lambda m: [r.update(date=today) for r in m["rounds"]])
+        edit_json(self.data / "5-criteria/searches.json", lambda d: d.setdefault("mode", {}).pop("goal", None))
+        self.add_direct_saves(modes.VOLUME_LISTINGS)
+        v = modes.verdict(P, modes.rows(P))
+        self.assertGreater(metrics.totals(P)["processed"], modes.VOLUME_LISTINGS)
+        self.assertLess(v["recent"], modes.VOLUME_LISTINGS)
+        self.assertFalse(v["volume"])
 
     def test_the_goal_is_reached_by_search_cards_only(self):
         P = Paths(str(self.data))

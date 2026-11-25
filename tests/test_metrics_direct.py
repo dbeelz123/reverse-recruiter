@@ -164,14 +164,93 @@ class DirectSaves(SampleCase):
         self.assertEqual((f[1]["direct"], f[2]["direct"]), (1, 3))  # the rest stays with the first snapshot round
 
     def test_sharing_early_saves_keeps_the_total(self):
-        for n in range(0, 12):
-            rounds = [{"round": 1, "pdfs_new": 5, "pdfs_from_triage": 0}, {"round": 2, "pdfs_new": 4},
-                      {"round": 3, "pdfs_new": 3, "pdfs_from_triage": 1}, {"round": 4, "pdfs_new": 9, "pdfs_from_triage": 6}]
-            share = metrics.share_early(n, rounds, 4)
-            self.assertLessEqual(sum(share.values()), n)
-            self.assertNotIn(4, share)
-            self.assertNotIn(2, share)  # no recorded split
-            self.assertTrue(all(share.get(r, 0) <= k for r, k in ((1, 5), (3, 2))))
+        # Recorded direct counts: round 1 = 5, round 3 = 2, round 4 (the first snapshot round) = 3; round 2 has no
+        # split. Expected hand-outs to rounds 1 and 3 for n = 0..11 (largest remainders, earlier round on a tie);
+        # round 4 keeps the rest.
+        rounds = [{"round": 1, "pdfs_new": 5, "pdfs_from_triage": 0}, {"round": 2, "pdfs_new": 4},
+                  {"round": 3, "pdfs_new": 3, "pdfs_from_triage": 1},
+                  {"round": 4, "pdfs_new": 9, "pdfs_from_triage": 6}]
+        want = {0: (0, 0), 1: (1, 0), 2: (1, 0), 3: (1, 1), 4: (2, 1), 5: (3, 1), 6: (3, 1), 7: (4, 1), 8: (4, 2),
+                9: (4, 2), 10: (5, 2), 11: (5, 2)}
+        for n, (r1, r3) in want.items():
+            with self.subTest(n=n):
+                share = metrics.share_early(n, rounds, 4)
+                self.assertEqual((share.get(1, 0), share.get(3, 0)), (r1, r3))
+                self.assertEqual(set(share) - {1, 3}, set())  # none for round 2 (no split) or round 4 (keeps its own)
+        # An equal split with one save over: the earlier round takes it.
+        tie = [{"round": 1, "pdfs_new": 2, "pdfs_from_triage": 0}, {"round": 2, "pdfs_new": 2, "pdfs_from_triage": 0},
+               {"round": 3, "pdfs_new": 0, "pdfs_from_triage": 0}]
+        self.assertEqual(metrics.share_early(3, tie, 3), {1: 2, 2: 1})
+
+    def metrics_rounds(self):
+        return json.loads((self.data / "6-system/metrics.json").read_text(encoding="utf-8"))["rounds"]
+
+    def test_recording_an_earlier_round_again_changes_nothing_when_the_later_round_has_no_snapshot(self):
+        edit_json(self.data / "6-system/metrics.json", lambda m: m["rounds"][1].pop("job_ids") and None)
+        before, funnel = self.metrics_rounds(), self.funnel()
+        self.assertIn("left as it is", self.ok("metrics.py", "--data", self.data, "--round", "1"))
+        self.assertEqual(self.metrics_rounds(), before)
+        self.assertEqual(self.funnel(), funnel)
+
+    def test_a_round_recorded_late_counts_no_old_job_as_new(self):
+        # Round 2's snapshot lost IDs that round 1 kept, and round 4 is recorded; then round 3 is recorded late.
+        # Checked with the rounds listed in order and out of order (a hand-edited file).
+        original = (self.data / "6-system/metrics.json").read_text(encoding="utf-8")
+        for order in ("in order", "out of order"):
+            with self.subTest(order):
+                (self.data / "6-system/metrics.json").write_text(original, encoding="utf-8")
+
+                def setup(m):
+                    r1, r2 = m["rounds"]
+                    full = r2["job_ids"]
+                    r2["job_ids"] = full[:5]
+                    r4 = {"round": 4, "date": "2026-11-20", "pdfs_new": 0, "ranked_end": 8, "job_ids": full}
+                    m["rounds"] = [r1, r2, r4] if order == "in order" else [r4, r2, r1]
+                edit_json(self.data / "6-system/metrics.json", setup)
+                counted = lambda: {r: v for r, v in self.funnel().items() if v["processed"]}  # round 3 adds nothing
+                before = counted()
+                self.ok("metrics.py", "--data", self.data, "--round", "3")
+                r3 = next(r for r in self.metrics_rounds() if r["round"] == 3)
+                self.assertEqual(r3["pdfs_new"], 0)
+                self.assertEqual([e for e in r3.get("events", []) if e["stage"] == "export"], [])
+                self.assertEqual(counted(), before)
+
+    def test_saves_before_any_recorded_round_wait_for_round_1(self):
+        edit_json(self.data / "6-system/metrics.json", lambda m: m.update(rounds=[]))
+        f = self.funnel()
+        self.assertNotIn(0, f)
+        self.assertEqual(f[1]["cards"], 44)  # round 1's cards are counted before the waiting saves
+        metrics.add_event(Paths(str(self.data)), 2, "capture")  # round 2 in progress, still nothing recorded
+        self.assertNotIn(0, self.funnel())
+
+    def test_an_empty_snapshot_is_a_recorded_round_with_no_saves_yet(self):
+        self.assertEqual(metrics.snapshot({"job_ids": []}), set())
+        self.assertIsNone(metrics.snapshot({"job_ids": [1, 2]}))
+        self.assertIsNone(metrics.snapshot({"job_ids": "junk"}))
+
+    def test_two_card_rows_with_one_job_id_count_once(self):
+        # The same saved posting on two rows under different titles (one cut short): one listing.
+        self.add_job("9100000530", "Lattice Haul", "Senior Product Manager, Freight Payments", 2)
+        before = self.funnel()
+
+        def second_row(d):
+            card = next(x for x in d["listings"] if x["company"] == "Lattice Haul")
+            card["job_id"] = "9100000530"
+            row = dict(card)
+            row.update(id="S1-900", title="Senior Product Manager", job_id="9100000530", decision=None)
+            d["listings"].append(row)
+        edit_json(self.data / "6-system/search-runs/s1-run-2026-11-13.json", second_row)
+        self.assertEqual(self.funnel()[2]["processed"], before[2]["processed"])
+
+    def test_a_job_id_on_a_duplicate_row_does_not_hide_a_direct_save(self):
+        # A skipped row (a same-day duplicate) carries the ID; no valid card stands for the posting: the save counts.
+        def dup_row(d):
+            d["listings"].append({"id": "S1-901", "company": "Nowhere Card Co", "status": "duplicate",
+                                  "title": "Lead Product Manager, Skipped", "decision": None, "job_id": "9100000531"})
+        edit_json(self.data / "6-system/search-runs/s1-run-2026-11-13.json", dup_row)
+        before = self.funnel()
+        self.add_job("9100000531", "Nowhere Card Co", "Lead Product Manager, Skipped", 2)
+        self.assertEqual(self.funnel()[2]["direct"], before[2]["direct"] + 1)
 
     def test_recording_an_earlier_round_again_changes_nothing(self):
         metrics_file = self.data / "6-system/metrics.json"
