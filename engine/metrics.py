@@ -23,7 +23,7 @@ Stages (each job counted once, by normalized company + title, across every searc
 
 Writes 6-system/metrics.json: one entry per round. Each entry keeps the set of job IDs seen so far, so the next
 round's "PDF saved" is an exact difference. Rounds 1-6 were backfilled on 2026-11-17 from the run files and the
-round summaries in docs/PLAN.md (marked "backfilled"; R2 and R3 ranked counts are approximate).
+round summaries in the user's own project notes (marked "backfilled"; R2 and R3 ranked counts are approximate).
 """
 import argparse
 import datetime as dt
@@ -277,7 +277,7 @@ def record(P, rnd):
         else:  # the first round: every job is new
             pdfs_new = len(new_ids)
     entry.update({"date": dt.date.today().isoformat(), "source": "recorded by metrics.py",
-                  "mode": (searches.get("mode") or {}).get("mode", "catch-up"),  # triage mode (docs/PLAN.md)
+                  "mode": (searches.get("mode") or {}).get("mode", "catch-up"),  # triage mode (docs/how-it-works.md -> Triage modes)
                   "pdfs_new": pdfs_new, "ranked_end": ranked, "job_ids": sorted(ids)})
     # File-time events (capture, export): replace earlier file-time events so re-recording doesn't double them.
     ev = [e for e in entry.get("events", []) if not (e.get("note") or "").startswith("file time:")]

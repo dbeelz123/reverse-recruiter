@@ -54,7 +54,7 @@ A round processes new saved jobs and re-ranks everything. In order:
 4. **Calibration** (you and Claude): a few questions, only about what's new: conflicts between sources, uncertain signals, proposed disqualifiers. Approved answers become rules in `spec.json` and `changelog.md`.
 5. **Search insights:** Claude looks across the round for patterns (level, domain, employer type, location) and proposes search changes. You approve each.
 6. **Resume and profile review** (optional, offered every round): things calibration uncovered that your documents don't show yet.
-7. **Re-screen:** `rescreen.py` flags every current job a rule may now hit (jobs already excluded, tier X, are skipped); Claude judges each flag. Real dealbreakers go through the **removal prompt**: Claude asks before anything is removed, and `remove_job.py` keeps a one-line tombstone with the reason. A job with a 1st-degree connection is never removed automatically: `remove_job.py` stops and names the connection, and runs only with `--confirm-connections` after the user says yes.
+7. **Re-screen:** `rescreen.py` flags every current job a rule may now hit (jobs already excluded, tier X, are skipped), including hybrid and on-site jobs outside the current radius or in a place it can't locate; Claude judges each flag. Real dealbreakers go through the **removal prompt**: Claude asks before anything is removed, and `remove_job.py` keeps a one-line tombstone with the reason. A job with a 1st-degree connection is never removed automatically: `remove_job.py` stops and names the connection, and runs only with `--confirm-connections` after the user says yes.
 8. **Metrics:** `metrics.py --round N` records the search funnel and time per stage.
 9. **Triage precision:** `precision.py --round N` compares the agent's calls with your decisions; new miss patterns become calling guidance.
 10. **Mode signals:** `modes.py signals` reports whether the system looks settled enough to switch triage modes.
@@ -99,7 +99,7 @@ Before you decide each card, Claude records its own call: `likely keep`, `lean k
 ## Applying
 
 ### Apply queue
-Progress lives in a `pipeline` block on each job record. Stages: kit → applied → response → interview → offer, plus `outreach`, `hold`, and the end states `passed`, `rejected`, `withdrawn`, `closed`. When you report a step, Claude runs `pipeline.py record` and rebuilds `2-reports/apply-queue.md`:
+Progress lives in a `pipeline` block on each job record. Stages: kit → applied → response → interview → offer, plus `outreach`, `hold`, and the end states `passed`, `rejected`, `withdrawn`, `closed`. A job in an end state goes back to an active stage only with `--reopen` (in `pipeline.py record` and `interviews.py schedule`). When you report a step, Claude runs `pipeline.py record` and rebuilds `2-reports/apply-queue.md`:
 - **Due:** debriefs, thank-you notes and follow-ups owed now or in the next 3 days;
 - **In progress:** with the last step and how long ago;
 - **Apply next:** A and B jobs without an application, best first, each with whether it's still open and its next step;
@@ -150,4 +150,4 @@ Prep is written in Markdown in the kit and read on a phone as PDFs. `prep_pdf.py
 
 ## Privacy
 
-The engine and docs never contain personal data. `engine/privacy_scan.py` checks any path for the terms in your private list plus home-folder paths, email addresses and profile links; the pre-commit hook in `scripts/hooks/` runs it on everything staged and refuses to run without your list (see [setup.md](setup.md)).
+The engine and docs never contain personal data. `engine/privacy_scan.py` checks any path for the terms in your private list plus home-folder paths, email addresses and profile links (an image counts as a hit until you've checked it by eye and listed it in `.privacy-allow`); the pre-commit hook in `scripts/hooks/` runs it on everything staged and refuses to run without your list (see [setup.md](setup.md)).

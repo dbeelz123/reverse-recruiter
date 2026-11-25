@@ -23,7 +23,7 @@
   "leads": [],
   "main_file": "3-applications/northwind-freight-sr-pm-marketplace/job-description.txt",
   "printed": null,
-  "extracted_at": "2026-11-18T22:20:01",
+  "extracted_at": "2026-11-25T06:14:28",
   "connections_1st": [],
   "pipeline": {
     "events": [
@@ -33,13 +33,13 @@
         "note": "Through the recruiter"
       },
       {
-        "date": "2026-11-18",
+        "date": "2026-11-25",
         "stage": "interview",
         "note": "Round 1 scheduled for 2026-11-17"
       }
     ],
     "status": "interview",
-    "updated": "2026-11-18",
+    "updated": "2026-11-25",
     "stage": "round 2 on 2026-11-24"
   },
   "interviews": [

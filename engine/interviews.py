@@ -135,6 +135,11 @@ def schedule(P, job, a):
     if was in TERMINAL and not a.reopen:  # checked before anything changes: a closed-out job is never revived quietly
         sys.exit(f"{short(job)} is marked '{was}'. If the employer has come back to you, rerun with --reopen to "
                  f"schedule the interview and reopen it; otherwise check the job ID.")
+    held = next((iv for iv in job.get("interviews", []) if str(iv.get("round")) == str(a.round)
+                 and iv.get("status") == "done"), None)
+    if held and not a.reopen:  # a debriefed round is never quietly reset to "scheduled" (due would ask again)
+        sys.exit(f"{short(job)}: round {a.round} already took place ({held.get('date') or 'date unknown'}) and was "
+                 f"debriefed. For a new round, use the next round number; to redo this one, rerun with --reopen.")
     iv = find_round(job, a.round, create=True)
     date = None if a.date == "unknown" else a.date
     iv.update({k: v for k, v in (("date", date), ("with", a.with_), ("format", a.format)) if v})
@@ -233,7 +238,8 @@ def main():
     s.add_argument("--with", dest="with_", help="who is on the panel")
     s.add_argument("--format", help="e.g. Teams video, phone, on site")
     s.add_argument("--reopen", action="store_true",
-                   help="schedule on a job marked passed, rejected, withdrawn or closed, and reopen it")
+                   help="schedule on a job marked passed, rejected, withdrawn or closed, and reopen it; or "
+                        "schedule a round number that was already debriefed")
     d = sub.add_parser("debrief")
     d.add_argument("job")
     d.add_argument("--round", required=True)

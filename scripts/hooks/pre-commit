@@ -10,7 +10,8 @@
 #     the fictional sample-data/) or a private-terms list;
 #   - a staged file is a document format the scan can't read (PDF, Word, Excel, PowerPoint, RTF, email);
 #   - engine/privacy_scan.py finds a private term, a home-folder path, an email address or a LinkedIn profile
-#     link in any staged text file;
+#     link in any staged text file, or a staged image that isn't listed in .privacy-allow as checked by eye;
+#   - a staged file can't be copied for the scan;
 #   - no private-terms list is configured (the scan runs with --strict).
 # Deliberate exceptions live in .privacy-allow ("<path> | <phrase>"): review any change to that file carefully.
 
@@ -52,10 +53,16 @@ fi
 # Scan the staged versions (what will actually be committed), copied to a temporary folder.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-printf '%s\n' "$files" | while IFS= read -r f; do
-    mkdir -p "$tmp/$(dirname "$f")"
-    git show ":$f" > "$tmp/$f"
-done
+# Every copy must succeed: a missing or partial copy would be scanned as if complete. (The loop reads a here-document,
+# not a pipe, so exit stops the hook itself rather than a subshell.)
+while IFS= read -r f; do
+    if ! mkdir -p "$tmp/$(dirname "$f")" || ! git show ":$f" > "$tmp/$f"; then
+        echo "pre-commit: could not copy the staged version of $f for the privacy scan; commit blocked."
+        exit 1
+    fi
+done <<EOF
+$files
+EOF
 # Deliberate exceptions (e.g. the author's name in LICENSE) come from the staged .privacy-allow only.
 [ -f "$tmp/.privacy-allow" ] || git show ":.privacy-allow" > "$tmp/.privacy-allow" 2>/dev/null || rm -f "$tmp/.privacy-allow"
 

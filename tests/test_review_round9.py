@@ -95,6 +95,8 @@ class ReviewScoreBounds(SampleCase):
         for value in (0, 100, 72.5, None):
             with self.subTest(fit=value):
                 self.set_first("fit", value)
+                if value is None:  # a null fit goes only with tier X or ? (second whole-project review, #7)
+                    self.set_first("tier", "X")
                 self.ok("build_report.py", "--data", self.data, "--round", "2")
 
 

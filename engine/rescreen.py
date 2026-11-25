@@ -7,6 +7,8 @@ mechanical half of the re-screen: for each current job it checks
   - each dealbreaker's `title_regex` against the title,
   - each rule's `rescreen_regex` (dealbreakers, negatives, qualifiers) against the full posting,
   - the company blocklist against the company name,
+  - each hybrid or on-site job's location against the current radius center and radius (OUTSIDE RADIUS, or
+    DISTANCE UNKNOWN when the place isn't in 5-criteria/places.json),
 and prints every hit with a short excerpt. It changes nothing.
 
 The judgment half is Claude's: read each flagged excerpt in context, decide whether the rule really
@@ -18,6 +20,7 @@ import json
 import re
 from pathlib import Path
 
+from locations import distance, home_state_of, load_places, within_radius
 from paths import Paths, blocked_by, blocklist, case_by_case, read_json, review_score_problems
 
 
@@ -65,6 +68,15 @@ def main():
             total = (rv.get("fit") or 0) + rv.get("network_bonus", 0) + sum(a["points"] for a in adj)
             reviews[jid] = dict(rv, round=rd.get("round"), total=total)
 
+    # The location rule has no text pattern: hybrid and on-site jobs are checked against the current center and
+    # radius, so a changed center or radius reaches jobs reviewed under the old one.
+    rule = (spec.get("work_arrangement") or {}).get("machine_rule") or {}
+    c = rule.get("hybrid_onsite_center")
+    center = (c["lat"], c["lon"]) if c else None
+    home_state = home_state_of(c.get("name")) if c else None
+    radius = rule.get("radius_miles", 50)
+    load_places(P)
+
     print(f"Re-screen against spec v{spec.get('version')}\n")
     checked = 0
     for f in sorted(P.jobs.glob("*.json")):
@@ -91,6 +103,16 @@ def main():
         if hit:
             soft = " (case by case: is this role in the blocked area?)" if case_by_case(hit) else ""
             hits.append(f"  BLOCKLIST{soft}: {hit['value']} ({hit.get('reason', 'no reason recorded')})")
+        if center and j.get("workplace") in ("Hybrid", "On-site"):
+            loc = j.get("location") or ""
+            inside = within_radius(loc, center, radius, home_state)
+            if inside is False:
+                d = distance(loc, center)
+                hits.append(f"  OUTSIDE RADIUS: {j['workplace']} in {loc}"
+                            + (f" (~{d} mi; radius {radius} mi)" if d is not None else f" (radius {radius} mi)"))
+            elif inside is None:
+                hits.append(f"  DISTANCE UNKNOWN: {j['workplace']} in {loc}: check it against the {radius}-mile "
+                            f"radius (add the city to places.json)")
         if hits:
             print(f"{j['company']} - {j['title']} (round {r.get('round')}, score {r.get('total')}, {j['job_id']})")
             print("\n".join(hits) + "\n")

@@ -1,4 +1,4 @@
-# LinkedIn search suggestions (2026-11-18)
+# LinkedIn search suggestions (2026-11-25)
 
 Built from your top-ranked saved jobs and your confirmed spec. Each link opens a LinkedIn job search with filters already set: remote US (or within 50 miles of Springfield, Illinois for local), posted in the past week, newest first, excluding crypto, security clearance, defense.
 

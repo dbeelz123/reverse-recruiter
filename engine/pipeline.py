@@ -118,6 +118,12 @@ def record(P, a):
     if a.stage not in STAGES + TERMINAL + OTHER:
         sys.exit(f"Unknown stage '{a.stage}'. Use one of: {', '.join(STAGES + OTHER + TERMINAL)}")
     rec = jobs[jid]
+    was = (rec.get("pipeline") or {}).get("status")
+    # A closed-out application is never revived quietly (as interviews.py schedule does): an active stage after
+    # passed/rejected/withdrawn/closed needs --reopen. Notes (outreach, hold) and another terminal status don't.
+    if was in TERMINAL and a.stage in STAGES and not a.reopen:
+        sys.exit(f"{rec.get('company')} - {rec.get('title')} ({jid}) is marked '{was}'. If it really is active again "
+                 f"(the employer came back to you), rerun with --reopen; otherwise check the job ID and stage.")
     pl = rec.setdefault("pipeline", {})
     pl.setdefault("events", [])
     ev = {"date": a.date, "stage": a.stage}
@@ -327,6 +333,8 @@ def main():
     r.add_argument("--date", type=iso_date, default=dt.date.today().isoformat(), help="YYYY-MM-DD; 'unknown' for no date")
     r.add_argument("--note")
     r.add_argument("--next", help="next step to show instead of the derived one (a new stage clears the old one)")
+    r.add_argument("--reopen", action="store_true",
+                   help="record an active stage on a job marked passed, rejected, withdrawn or closed")
     sub.add_parser("queue", parents=[common])
     a = ap.parse_args()
     P = Paths(getattr(a, "data", None))

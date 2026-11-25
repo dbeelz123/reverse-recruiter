@@ -8,8 +8,10 @@ What it looks for:
     home town, employers, contacts, accounts. The list never goes in the repo. It is found, in order, at:
     --terms FILE, the PRIVATE_TERMS environment variable, or <data>/private-terms.txt. --strict fails when
     no list is found (the pre-commit hook uses it).
-  - patterns that leak whatever the list misses: Windows or macOS home-folder paths, email addresses,
-    LinkedIn profile links.
+  - patterns that leak whatever the list misses: Windows home-folder paths (with backslashes, forward slashes or
+    JSON-escaped backslashes), macOS or Linux home-folder paths, email addresses, LinkedIn profile links.
+  - files it can't read: an image counts as a hit until it has been checked by eye and listed in the allow file
+    ("<path> | image checked by eye"); an archive or unknown binary is always a hit.
 A line marked "privacy-scan: ignore" is skipped only inside privacy_scan.py itself (its own pattern
 definitions); anywhere else the marker does nothing.
 Deliberate exceptions (e.g. the author's name in LICENSE) go in an allow file, one per line: "<path> | <phrase>",
@@ -29,7 +31,7 @@ from paths import ROOT, Paths  # noqa: E402
 
 IGNORE = "privacy-scan: " + "ignore"  # split so this line itself is still scanned
 PATTERNS = {
-    "home-folder path": r"[A-Za-z]:\\Users\\[^\\\s]+|/Users/[^/\s]+/|/home/[^/\s]+/",  # privacy-scan: ignore
+    "home-folder path": r"[A-Za-z]:(?:\\{1,2}|/)Users(?:\\{1,2}|/)[^\\/\s\"]+|/Users/[^/\s]+/|/home/[^/\s]+/",  # privacy-scan: ignore
     "email address": r"\b[\w.+-]+@(?!example\.(?:com|org|net)\b)[\w-]+\.[\w.]+\b",  # privacy-scan: ignore
     "LinkedIn profile link": r"linkedin\.com/in/[\w-]+",  # privacy-scan: ignore
 }
@@ -99,9 +101,14 @@ def scan(paths, words, allow_file=None):
                 continue
             shown = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
             text = read_text(f)
-            if text is None:  # not text: an image is only flagged for a look; anything else can't be checked
+            if text is None:  # not text: the scan can't read it, so it counts as a hit unless deliberately allowed
                 if f.suffix.lower() in IMAGES:
-                    print(f"{shown}: image, not scanned: check it by eye for names, paths or screenshots of personal data")
+                    if rel in allow:  # listed in .privacy-allow after a look by eye ("<path> | image checked by eye")
+                        print(f"{shown}: image, allowed in .privacy-allow (checked by eye)")
+                    else:
+                        hits += 1
+                        print(f"{shown}: image the scan can't read: check it by eye for names, paths or screenshots "
+                              f"of personal data, then list it in .privacy-allow as '{rel} | image checked by eye'")
                 else:
                     hits += 1
                     print(f"{shown}: binary file the scan can't read (archive or unknown format): keep it out of "

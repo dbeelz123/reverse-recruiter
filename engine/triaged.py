@@ -26,6 +26,7 @@ Abbreviations used in triage files (PM, Sr, TPM) are expanded so they match the 
 An entry with title "*" covers the whole company: written for a listing whose DQ reason starts with "blocklist"
 (blocklisted companies, job-board aggregators included).
 """
+import collections
 import datetime
 import json
 import re
@@ -240,7 +241,7 @@ def add(path):
     p = Path(path).resolve()
     run = read_json(p)
     run_listings(run, p.name)
-    # Triage mode (docs/PLAN.md -> Triage modes): stamp the current mode on the run, and check that every card
+    # Triage mode (docs/how-it-works.md -> Triage modes): stamp the current mode on the run, and check that every card
     # The user decided in a batch carries the agent's own call ("likely"), so agreement can be measured.
     if "mode" not in run:
         import modes
@@ -337,13 +338,27 @@ def match_saved(path):
     for i, e in enumerate(run_listings(run, p.name)):
         require_names(e, i, p.name)
         rows.setdefault(key(e["company"], e["title"]), []).append(e)
-    linked, conflicts, outside = [], [], []
-    for f in sorted(P.jobs.glob("*.json")):
-        j = read_json(f)
-        hits = rows.get(key(j.get("company", ""), j.get("title", "")), [])
+    linked, conflicts, outside, ambiguous = [], [], [], []
+    saved = [read_json(f) for f in sorted(P.jobs.glob("*.json"))]
+    # Several saved jobs with the same company and title (one role in two cities, say) can't be told apart by key:
+    # a row already carrying one of their IDs keeps it, and the other rows stay unlinked and are listed for the user,
+    # instead of each job overwriting the last one's link.
+    by_key = collections.defaultdict(list)
+    for j in saved:
+        by_key[key(j.get("company", ""), j.get("title", ""))].append(j["job_id"])
+    for j in saved:
+        k = key(j.get("company", ""), j.get("title", ""))
+        matched = rows.get(k, [])
+        hits = matched
+        shared = by_key[k] if len(by_key[k]) > 1 else None
+        if shared:
+            if j["job_id"] == shared[0]:  # list each unlinked row once, under the first of the look-alike jobs
+                ambiguous += [f'{e["id"]} {j["company"]} - {j["title"]}: matches saved jobs {", ".join(shared)}; '
+                              f'set its job_id by hand' for e in matched if e.get("job_id") not in shared]
+            hits = [e for e in matched if e.get("job_id") == j["job_id"]]  # only rows already tied to this job
         for e in hits:
-            if e.get("job_id") == j["job_id"]:
-                continue
+            if e.get("job_id") == j["job_id"] and not shared:
+                continue  # linked in an earlier run
             e["job_id"] = j["job_id"]
             if e.get("status") == "saved":  # already marked Saved on the results card
                 continue
@@ -352,12 +367,15 @@ def match_saved(path):
             elif not e.get("decision"):
                 e["decision"], e["reason"], e["status"] = "keep", "saved off-batch", "saved (off-batch)"
                 linked.append(f'{e["id"]} {j["company"]} - {j["title"]} ({j["job_id"]})')
-        if not hits and not j.get("review"):
+        if not matched and not j.get("review"):
             outside.append(f'{j["company"]} - {j["title"]} ({j["job_id"]})')
     write_json(p, run, indent=1)
     print(f"{len(linked)} undecided rows now saved (off-batch):", *linked, sep="\n  ")
     print(f"{len(conflicts)} saved jobs DQ'd in this run (check):", *conflicts, sep="\n  ")
     print(f"{len(outside)} new saved jobs outside this triage:", *outside, sep="\n  ")
+    if ambiguous:
+        print(f"{len(ambiguous)} rows match several saved jobs with the same company and title (ambiguous, "
+              f"left unlinked):", *ambiguous, sep="\n  ")
 
 
 def keeps(path):

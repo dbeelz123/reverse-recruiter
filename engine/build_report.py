@@ -150,6 +150,11 @@ def main():
             write_json(f, rec, indent=2)
         jobs[rec["job_id"]] = rec
 
+    # A review whose job record is gone (removed by hand, or a mistyped ID) is named rather than silently dropped.
+    for jid in sorted(set(all_reviews) - set(jobs)):
+        print(f"WARNING: review for job {jid} (round {all_reviews[jid][1]}) has no job record in "
+              f"{P.rel(P.jobs)}; it's left out of the report. Remove the entry, or check the job ID.")
+
     reviewed = [j for j in jobs.values() if "review" in j]
     reviewed.sort(key=lambda j: (TIER_ORDER.index(j["review"]["tier"]), -(j["review"]["total"] or 0)))
     out = []
@@ -196,7 +201,7 @@ def main():
             w("How long each stage took, from timing events logged during the round and file save times. "
               "'Per 100 job listings' divides the round's total by its job listings processed.\n")
             w(tt + "\n")
-        # Triage mode (engine/modes.py; docs/PLAN.md -> Triage modes): Catch-up progress and the stability signals
+        # Triage mode (engine/modes.py; docs/how-it-works.md -> Triage modes): Catch-up progress and the stability signals
         # that decide when to ask about switching to Keep-up.
         import modes
         w("### Triage mode\n")

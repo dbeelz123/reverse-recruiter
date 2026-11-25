@@ -35,7 +35,7 @@ def keywords(s, exclude):
 
 
 def window(s, d, md=None):
-    """(f_TPR value or None, label) for a search under the current triage mode (docs/PLAN.md -> Triage modes).
+    """(f_TPR value or None, label) for a search under the current triage mode (docs/how-it-works.md -> Triage modes).
 
     Catch-up: the setup interview's lookback (week, month, any, <N>d) if one is set, otherwise each search's own
     posted_within (the behaviour before triage modes). Keep-up: the cadence interval plus one day of overlap.

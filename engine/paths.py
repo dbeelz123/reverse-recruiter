@@ -194,13 +194,16 @@ def is_score(x):
 
 
 def review_score_problems(r):
-    """What's wrong with a review entry's numbers (empty when nothing is): 'fit' is null (excluded job) or a number
-    from 0 to 100 (review-rubric.md); 'network_bonus' and each adjustment's 'points' are numbers.
+    """What's wrong with a review entry's numbers (empty when nothing is): 'fit' is a number from 0 to 100, or null
+    only for tier X (excluded) or ? (incomplete) (review-rubric.md); 'network_bonus' and each adjustment's 'points'
+    are numbers.
     Shared by build_report.py and rescreen.py."""
     problems = []
     fit = r.get("fit", "missing")
     if fit is not None and not (is_score(fit) and 0 <= fit <= 100):
         problems.append(f"'fit' must be a number from 0 to 100 (or null for an excluded job), not {fit!r}")
+    if fit is None and r.get("tier") not in ("X", "?"):
+        problems.append(f"a null 'fit' goes only with tier X (excluded) or ? (incomplete), not tier {r.get('tier')!r}")
     if not is_score(r.get("network_bonus", 0)):
         problems.append(f"'network_bonus' must be a number, not {r.get('network_bonus')!r}")
     adj = r.get("adjustments", [])
@@ -291,9 +294,13 @@ class Paths:
         self.recommendations = d / RECOMMENDATIONS
 
     def inside(self, p, folder=None):
-        """True when p resolves inside folder (default: the data folder). Guards every delete and copy."""
+        """True when p resolves inside folder (default: the data folder). Guards every delete and copy. The folder
+        must itself resolve inside the data folder, so a linked folder (symlink or junction) pointing elsewhere
+        never widens the boundary."""
+        root = Path(self.data).resolve()
         base = Path(folder or self.data).resolve()
         try:
+            base.relative_to(root)
             Path(p).resolve().relative_to(base)
             return True
         except ValueError:

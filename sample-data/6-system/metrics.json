@@ -2,7 +2,7 @@
  "rounds": [
   {
    "round": 1,
-   "date": "2026-11-18",
+   "date": "2026-11-25",
    "source": "recorded by metrics.py",
    "mode": "catch-up",
    "pdfs_new": 9,
@@ -22,7 +22,7 @@
   },
   {
    "round": 2,
-   "date": "2026-11-18",
+   "date": "2026-11-25",
    "source": "recorded by metrics.py",
    "mode": "catch-up",
    "pdfs_new": 3,

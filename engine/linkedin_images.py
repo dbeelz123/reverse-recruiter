@@ -85,6 +85,16 @@ def parse_grades(s):
     return out
 
 
+def grades_note(grades, ranked):
+    """A warning when a chosen grade split doesn't add up to the funnel's qualified targets per 100 (the grade image
+    continues the funnel's story, so the two should agree); None when it does. The split stays the user's call."""
+    total = sum(grades.values())
+    if total == ranked:
+        return None
+    return (f"WARNING: the chosen grade split adds up to {total}, but the funnel shows {ranked} qualified targets "
+            f"per 100; the grade image's caption will say {total}. Check the split (linkedin-project.json).")
+
+
 def funnel_html(t, subtitle=""):
     vals = [t["processed"], t["decided"], t["pdfs"], t["ranked"]]
     colors = ["#B5D4F4", "#378ADD", "#185FA5", "#0C447C"]
@@ -178,6 +188,9 @@ def main(argv=None):
         shown, shown_g = per100(t, counts)
         if a.grades:  # the user's chosen split for the marketing image, recorded where it comes from
             shown_g = parse_grades(a.grades)
+            note = grades_note(shown_g, shown["ranked"])
+            if note:
+                print(note)
         kind = "per100-"
         f_sub = "Per 100 job listings processed"
         g_sub = f"{sum(shown_g.values())} qualified targets per 100 job listings processed"

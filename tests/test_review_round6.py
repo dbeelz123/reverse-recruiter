@@ -36,14 +36,19 @@ class PrivacyScanBinaries(SampleCase):
         self.assertEqual(code, 1, out)
         self.assertIn("Zanzibar Widgets", out)
 
-    def test_an_image_passes_with_a_warning(self):
+    def test_an_image_passes_only_once_checked_and_listed(self):
+        # Changed 2026-11-25 (second whole-project review): an image used to pass with a warning; now it fails
+        # until it's checked by eye and listed in .privacy-allow.
         folder = self.tmp / "repo"
         folder.mkdir()
         (folder / "chart.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + bytes(20))
         code, out = self.scan(folder)
-        self.assertEqual(code, 0, out)
+        self.assertEqual(code, 1, out)
         self.assertIn("chart.png", out)
         self.assertIn("by eye", out)
+        (folder / ".privacy-allow").write_text("chart.png | image checked by eye\n", encoding="utf-8")
+        code, out = self.scan(folder)
+        self.assertEqual(code, 0, out)
 
 
 class RescreenReviewChecks(SampleCase):

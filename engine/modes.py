@@ -8,7 +8,7 @@ Usage:
                                                     also stamp it, so this is for backfills)
 
 The mode itself lives in 5-criteria/searches.json -> "mode" (mode, builder, goal, lookback, pace, cadence,
-last_asked). Process and thresholds: docs/PLAN.md -> Triage modes (approved 2026-11-18).
+last_asked). Process and thresholds: docs/how-it-works.md -> Triage modes (approved 2026-11-18).
 
 Signals, per round:
   rules per 100   new criteria rules / search cards processed. A criteria rule is a changelog row whose Type changes a
@@ -48,6 +48,14 @@ AGREE_MIN, HEDGE_MAX = 0.90, 0.25              # firm calls match >= 90%, and no
 ALREADY_MIN = 0.70                             # 70% or more of a run's cards already decided
 STEADY_ROUNDS, STEADY_RATIO = 3, 1.5           # keep rate: last 3 rounds within a 1.5x band
 GAP_DAYS = 21
+
+
+def in_window(date, today):
+    """True when date (YYYY-MM-DD) falls in the last VOLUME_DAYS days up to today. A future date is a typo, not recent
+    work, so it never counts."""
+    d = to_date(date)
+    return bool(d) and 0 <= (today - d).days <= VOLUME_DAYS
+
 
 CRIT = re.compile(r"dealbreaker|negative|blocklist|qualifier|scoring|rule added|exception|open rule|evidence|"
                   r"neutral|exemption|confirmed", re.I)
@@ -156,7 +164,7 @@ def verdict(P, rs):
     with_runs = [r for r in rs if r["cards"]]
     today = dt.date.today()
     recent = sum(r["processed"] for r in rs
-                 if to_date(r["date"]) and (today - to_date(r["date"])).days <= VOLUME_DAYS)
+                 if in_window(r["date"], today))
     goal = mode(P).get("goal")
     total = sum(r["processed"] for r in rs)
     volume = recent >= VOLUME_LISTINGS or bool(goal and total >= goal)
@@ -233,7 +241,7 @@ def save_mode(P, md):
 
 
 def setup(P, a):
-    """Record the Catch-up setup interview's answers (Claude asks the questions; docs/PLAN.md -> Triage modes)."""
+    """Record the Catch-up setup interview's answers (Claude asks the questions; docs/how-it-works.md -> Triage modes)."""
     md = mode(P)
     if a.goal is not None:
         md["goal"] = a.goal if a.goal > 0 else None
@@ -280,7 +288,7 @@ def progress_md(P):
         return []
     total = sum(r["processed"] for r in rs)
     today = dt.date.today()
-    window = [r for r in rs if to_date(r["date"]) and (today - to_date(r["date"])).days <= VOLUME_DAYS]
+    window = [r for r in rs if in_window(r["date"], today)]
     recent = sum(r["processed"] for r in window)
     span = max(1, (today - min(to_date(r["date"]) for r in window)).days + 1) if window else None
     per_day = recent / span if span else 0

@@ -6,30 +6,30 @@
 
 ## Search funnel: progress through the sea of jobs
 
-Each job is counted once per stage (by company + title), so a job that reappears in later searches isn't counted again. 'Job listings processed' includes cards ruled out automatically; 'LinkedIn baseline match' is your triage call on LinkedIn's match; 'Agent deep-fit review' is every saved PDF the agent read in full; 'Qualified targets' are the jobs on the ranked list. Recorded at the end of each round by `engine/metrics.py --round N`.
+Each job is counted once per stage (by company + title), so a job that reappears in later searches isn't counted again. 'Job listings processed' includes cards ruled out automatically and saved postings that never showed up as a search card (direct saves); 'LinkedIn baseline match' is your triage call on LinkedIn's match; 'Agent deep-fit review' is every saved PDF the agent read in full; 'Qualified targets' are the jobs on the ranked list. Recorded at the end of each round by `engine/metrics.py --round N`.
 
 ![Search funnel after round 2](2026-11-14-round-02-funnel.svg)
 
-| Round | Job listings processed | LinkedIn baseline match (keep / maybe / DQ) | Agent deep-fit review (from triage + direct) | Qualified targets at round end |
+| Round | Job listings processed (search cards + direct saves) | LinkedIn baseline match (keep / maybe / DQ) | Agent deep-fit review (from triage + direct) | Qualified targets at round end |
 |---|---|---|---|---|
-| 1 | 44 | 20 (8 / 0 / 12) | 9 | 6 |
-| 2 | 46 | 8 (3 / 0 / 5) | 3 | 8 |
-| **Total** | **90** | **28** | **12** | **8** (now) |
+| 1 | 45 (44 + 1) | 20 (8 / 0 / 12) | 9 | 6 |
+| 2 | 47 (46 + 1) | 8 (3 / 0 / 5) | 3 | 8 |
+| **Total** | **92** | **28** | **12** | **8** (now) |
 
-Conversion so far: 31% of job listings processed reached a LinkedIn baseline match (your triage call); the agent's deep-fit review covered 43% as many jobs as that stage (it also takes alert and direct saves); 67% of deep-fit reviews are qualified targets now. Out of 90 job listings, 8 are qualified targets (9%).
+Conversion so far: 30% of job listings processed reached a LinkedIn baseline match (your triage call); the agent's deep-fit review covered 43% as many jobs as that stage (it also takes alert and direct saves); 67% of deep-fit reviews are qualified targets now. Out of 92 job listings, 8 are qualified targets (9%).
 
 ### Triage mode
 
-**Catch-up progress:** Goal: 200 listings. Processed: 90 (45%). Left: 110. At the last 14 days' pace (90 a day), about 2026-11-19. Backlog not yet captured: 66 listings LinkedIn reported beyond what the latest runs captured; no result count recorded for S2, S3. Lookback: each search’s own window. Pace plan: two sessions a week, about an hour each.
+**Catch-up progress:** Goal: 200 listings. Search cards processed: 90 (45%). Left: 110. At the last 14 days' pace (90 a day), about 2026-11-26. Backlog not yet captured: 66 listings LinkedIn reported beyond what the latest runs captured; no result count recorded for S2, S3. Lookback: each search’s own window. Pace plan: two sessions a week, about an hour each.
 
 Mode: **catch-up**
 
-| Round | Mode | Listings processed | New criteria rules | Rules per 100 | Already decided | Keeps per 100 cards | Agent calls (firm agree / hedged) |
+| Round | Mode | Search cards processed | New criteria rules | Rules per 100 | Already decided | Keeps per 100 cards | Agent calls (firm agree / hedged) |
 |---|---|---|---|---|---|---|---|
 | 1 | catch-up | 44 | 5 | 11.4 | 0% | 40 | – |
 | 2 | catch-up | 46 | 2 | 4.3 | 0% | 38 | 5/7 (71%) / 1 of 8 |
 
-Volume: not met (90 listings in the last 14 days; 90 in all, goal 200).
+Volume: not met (90 search cards in the last 14 days; 90 in all, goal 200).
 Stability: 0 of 4 (need 2): rules per 100 under 1 (two rounds) no; agreement 90%+ with few hedges no; 70%+ already decided no; steady keep rate no.
 No switch prompt: the signals aren't there yet.
 
