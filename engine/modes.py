@@ -11,7 +11,7 @@ The mode itself lives in 5-criteria/searches.json -> "mode" (mode, builder, goal
 last_asked). Process and thresholds: docs/PLAN.md -> Triage modes (approved 2026-11-18).
 
 Signals, per round:
-  rules per 100   new criteria rules / listings processed. A criteria rule is a changelog row whose Type changes a
+  rules per 100   new criteria rules / search cards processed. A criteria rule is a changelog row whose Type changes a
                   dealbreaker, negative, blocklist, qualifier, exception or scoring rule (process and search changes
                   don't count). Each changelog heading carries "[round N]".
   agreement       the agent's "likely" call on each triage card vs. the user's decision. "likely keep" / "lean keep"
@@ -24,6 +24,10 @@ Signals, per round:
 
 Catch-up -> Keep-up: ask when VOLUME (>= VOLUME_LISTINGS processed within VOLUME_DAYS, or the goal reached) and at
 least 2 of 4 STABILITY signals hold. In builder mode the verdict is reported, never asked.
+
+Volume, the goal and rules per 100 count search-result cards only (the funnel's "cards"), not the saved postings
+that never showed up as a card, which the funnel's "Job listings processed" also counts: the modes are about
+triage, and a backlog sweep of direct saves is not triage volume.
 Keep-up -> a Catch-up burst: suggest one after a gap of more than GAP_DAYS since the last round.
 """
 import argparse
@@ -136,7 +140,8 @@ def rows(P):
     out = []
     for r in metrics.done(m):
         n, c = r["round"], cards.get(r["round"], collections.Counter())
-        processed = funnel.get(n, {}).get("processed", 0)
+        f = funnel.get(n, {})
+        processed = f.get("cards", f.get("processed", 0))  # search cards only: direct saves aren't triage volume
         out.append({
             "round": n, "date": r.get("date"), "mode": r.get("mode"), "processed": processed, "rules": rules[n],
             "rules_per_100": 100 * rules[n] / processed if processed else None,
@@ -179,7 +184,7 @@ def signals_md(P):
     md, rs = mode(P), rows(P)
     out = [f"Mode: **{md.get('mode')}**{' (builder: report only, never ask)' if md.get('builder') else ''}"
            + (f" · cadence {md['cadence']}" if md.get("mode") == "keep-up" and md.get("cadence") else ""), "",
-           "| Round | Mode | Listings processed | New criteria rules | Rules per 100 | Already decided | "
+           "| Round | Mode | Search cards processed | New criteria rules | Rules per 100 | Already decided | "
            "Keeps per 100 cards | Agent calls (firm agree / hedged) |",
            "|---|---|---|---|---|---|---|---|"]
     for r in rs:
@@ -191,7 +196,7 @@ def signals_md(P):
                    f"{'%' if r['already'] is not None else ''} | {fmt(r['keep_rate'], '.0f')} | {calls} |")
     v = verdict(P, rs)
     goal = f", goal {v['goal']}" if v["goal"] else ""
-    out += ["", f"Volume: {'met' if v['volume'] else 'not met'} ({v['recent']} listings in the last {VOLUME_DAYS} "
+    out += ["", f"Volume: {'met' if v['volume'] else 'not met'} ({v['recent']} search cards in the last {VOLUME_DAYS} "
                 f"days; {v['total']} in all{goal}).",
             f"Stability: {v['met']} of 4 (need 2): " +
             "; ".join(f"{k} {'yes' if ok else 'no'}" for k, ok in v["stability"].items()) + "."]
@@ -283,7 +288,7 @@ def progress_md(P):
     out = []
     if goal:
         left = max(0, goal - total)
-        line = f"Goal: {goal} listings. Processed: {total} ({100 * total / goal:.0f}%). Left: {left}."
+        line = f"Goal: {goal} listings. Search cards processed: {total} ({100 * total / goal:.0f}%). Left: {left}."
         if left and per_day:
             finish = today + dt.timedelta(days=round(left / per_day))
             line += f" At the last {VOLUME_DAYS} days' pace ({per_day:.0f} a day), about {finish.isoformat()}."
@@ -291,7 +296,7 @@ def progress_md(P):
             line += " Goal reached: the switch check counts this as volume met."
         out.append(line)
     else:
-        out.append(f"No goal set (the Catch-up setup interview sets one). Processed so far: {total}; "
+        out.append(f"No goal set (the Catch-up setup interview sets one). Search cards processed so far: {total}; "
                    f"last {VOLUME_DAYS} days: {recent}.")
     known, unknown = backlog(P)
     out.append(f"Backlog not yet captured: {known} listings LinkedIn reported beyond what the latest runs captured"
