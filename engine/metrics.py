@@ -21,6 +21,13 @@ Stages (each job counted once, by normalized company + title, across every searc
                                "from triage" vs "direct" (alerts, other saves) is shown when known.
   4. Ranked                    jobs on the ranked list at the end of the round (current jobs not marked X or ?).
 
+Phone triage (added 2026-11-26): saves made straight from LinkedIn alerts on a phone, judged on LinkedIn's match
+signal alone, with no result cards captured. A run file with "triage_type": "phone" lists them in "saved_job_ids".
+How many listings were seen and decided behind them is unknown, so they are counted apart ("phone" in each round's
+funnel entry) and left out of the known funnel: totals() (and with it the per-100 numbers and the LinkedIn project
+images) leaves them out of every stage, qualified targets included. The round table shows their stages 1-2 as
+unknown. A phone save that matches a search card already counted is that card's listing, as for a direct save.
+
 Writes 6-system/metrics.json: one entry per round. Each entry keeps the set of job IDs seen so far, so the next
 round's "PDF saved" is an exact difference. Rounds 1-6 were backfilled on 2026-11-17 from the run files and the
 round summaries in the user's own project notes (marked "backfilled"; R2 and R3 ranked counts are approximate).
@@ -49,6 +56,16 @@ def saved_postings(P):
         out.setdefault(t["job_id"], t)
     return {jid: (key(str(j.get("company") or ""), str(j.get("title") or ""))
                   if (j.get("company") or j.get("title")) else None) for jid, j in out.items()}
+
+
+def phone_saves(P):
+    """Job IDs listed by phone-triage run files ("triage_type": "phone", "saved_job_ids"). See the module docstring."""
+    out = set()
+    for f in sorted(P.search_runs.glob("*.json")):
+        d = read_json(f)
+        if isinstance(d, dict) and d.get("triage_type") == "phone":
+            out |= {i for i in d.get("saved_job_ids") or [] if isinstance(i, str)}
+    return out
 
 
 def snapshot(r):
@@ -131,7 +148,8 @@ def funnel_from_runs(P):
     card already counted adds nothing; a second posting with the same company + title counts (a card stands for one
     posting). A card row that carries a saved posting's job ID (written by triaged.py match-saved) is that posting
     even when the titles differ (a card title cut short, a PDF title with extra words), so the pair counts once.
-    Each round's entry also carries "cards" and "direct"."""
+    Each round's entry also carries "cards" and "direct". Phone-triage saves (see the module docstring) are counted
+    in "phone" (their IDs in "phone_ids") instead of "direct" and "processed": the listings behind them are unknown."""
     runs = []
     for f in sorted(P.search_runs.glob("*.json")):
         d = read_json(f)
@@ -143,8 +161,9 @@ def funnel_from_runs(P):
     saves, early, first = saves_by_round(P, rounds)
     seen, claimed, decided, per = set(), set(), set(), {}
     counted = set()  # job IDs of saved postings already counted, as a card or as a direct save
+    phone = phone_saves(P)
     entry = lambda rnd: per.setdefault(rnd, {"processed": 0, "cards": 0, "direct": 0, "decided": 0, "keep": 0,
-                                             "maybe": 0, "dq": 0, "runs": []})
+                                             "maybe": 0, "dq": 0, "runs": [], "phone": 0, "phone_ids": []})
 
     def add_saves(rnd, jids):
         n = 0
@@ -156,10 +175,14 @@ def funnel_from_runs(P):
             if k is not None and k in seen and k not in claimed:
                 claimed.add(k)  # the card already counted this posting
                 continue
-            n += 1
             if k is not None:
                 seen.add(k)
                 claimed.add(k)
+            if jid in phone:  # phone triage: counted apart, never as a listing processed
+                entry(rnd)["phone"] += 1
+                entry(rnd)["phone_ids"].append(jid)
+                continue
+            n += 1
         entry(rnd)["direct"] += n
         entry(rnd)["processed"] += n
         return n
@@ -218,6 +241,16 @@ def funnel_from_runs(P):
     return per
 
 
+def ranked_ids(P):
+    """Job IDs of current jobs on the ranked list (tier not X, ? or missing); see current_state for where tiers come from."""
+    jobs = [read_json(f) for f in P.jobs.glob("*.json")]
+    reviews = latest_reviews(P)
+    tier = lambda j: (reviews[j["job_id"]][0] if j["job_id"] in reviews else j.get("review") or {}).get("tier")
+    held = lambda j: (reviews[j["job_id"]][0] if j["job_id"] in reviews else j.get("review") or {}).get("held")
+    # A job held for calibration (build_report.py) isn't on the ranked list until the calibration decides it.
+    return {j["job_id"] for j in jobs if tier(j) not in ("X", "?", None) and not held(j)}
+
+
 def current_state(P):
     jobs = [read_json(f) for f in P.jobs.glob("*.json")]
     removed = tombstones(P.removed)
@@ -228,10 +261,7 @@ def current_state(P):
     # Tiers come from the review files, not the job records: metrics runs before build_report.py in a round, and
     # only the report copies a round's new or changed reviews into the records. A job with no review entry falls
     # back to its record's copy (data written before the review files existed).
-    reviews = latest_reviews(P)
-    tier = lambda j: (reviews[j["job_id"]][0] if j["job_id"] in reviews else j.get("review") or {}).get("tier")
-    ranked = sum(1 for j in jobs if tier(j) not in ("X", "?", None))
-    return ids, ranked
+    return ids, len(ranked_ids(P))
 
 
 def load(P):
@@ -310,21 +340,36 @@ def table(P):
         dec = f"{f['decided']} ({f['keep']} / {f['maybe']} / {f['dq']})" if f["decided"] else "–"
         proc = (f"{f['processed']} ({f.get('cards', 0)} + {f['direct']})" if f.get("direct")
                 else str(f["processed"] or "–"))
+        if f.get("phone"):  # phone triage: the listings seen and decided behind these saves are unknown
+            proc = f"{proc} + unknown (phone triage)" if f["processed"] else "unknown (phone triage)"
+            dec = f"{dec} + unknown (phone triage)" if f["decided"] else "unknown (phone triage)"
+            split = f"{split} (incl. {f['phone']} phone triage)"
         out.append(f"| {r['round']} | {proc} | {dec} | {r.get('pdfs_new', 0)}{split} "
                    f"| {approx}{r['ranked_end']} |")
         rows.append(r)
     if rows:
-        last = rows[-1]
+        t = totals(P)
         pct = lambda a, b: f"{100 * a / b:.0f}%" if b else "–"
-        out.append(f"| **Total** | **{cum['processed']}** | **{cum['decided']}** | **{cum['pdfs']}** "
-                   f"| **{last['ranked_end']}** (now) |")
+        if t["phone_pdfs"]:
+            out.append(f"| **Total, known funnel** (leaves out phone triage) | **{t['processed']}** | **{t['decided']}** "
+                       f"| **{t['pdfs']}** | **{t['ranked']}** (now) |")
+            out.append(f"| Phone triage (listings unknown) | unknown | unknown | {t['phone_pdfs']} "
+                       f"| {t['phone_ranked']} (now) |")
+        else:
+            out.append(f"| **Total** | **{t['processed']}** | **{t['decided']}** | **{t['pdfs']}** "
+                       f"| **{t['ranked']}** (now) |")
         out.append("")
-        out.append(f"Conversion so far: {pct(cum['decided'], cum['processed'])} of job listings processed reached a "
+        out.append(f"Conversion so far: {pct(t['decided'], t['processed'])} of job listings processed reached a "
                    f"LinkedIn baseline match (your triage call); the agent's deep-fit review covered "
-                   f"{pct(cum['pdfs'], cum['decided'])} as many jobs as that stage (it also takes alert and direct saves); "
-                   f"{pct(last['ranked_end'], cum['pdfs'])} of deep-fit reviews are qualified targets now. Out of "
-                   f"{cum['processed']} job listings, {last['ranked_end']} are qualified targets "
-                   f"({pct(last['ranked_end'], cum['processed'])}).")
+                   f"{pct(t['pdfs'], t['decided'])} as many jobs as that stage (it also takes alert and direct saves); "
+                   f"{pct(t['ranked'], t['pdfs'])} of deep-fit reviews are qualified targets now. Out of "
+                   f"{t['processed']} job listings, {t['ranked']} are qualified targets "
+                   f"({pct(t['ranked'], t['processed'])}).")
+        if t["phone_pdfs"]:
+            out.append("")
+            out.append(f"Phone triage: {t['phone_pdfs']} saves made on a phone from LinkedIn alerts, judged on LinkedIn's "
+                       f"match signal alone; how many listings were seen behind them is unknown. They are left out of "
+                       f"the known funnel and the per-100 numbers; {t['phone_ranked']} of them are qualified targets now.")
     return "\n".join(out)
 
 
@@ -334,10 +379,16 @@ def totals(P):
     rs = done(m)
     if not rs:
         return None
+    # The known funnel: phone-triage saves (unknown listings behind them) are left out of every stage, qualified
+    # targets included, and reported apart. Qualified targets are the last recorded round's, less the phone saves
+    # on the ranked list today.
+    phone = set().union(*[set(per.get(r["round"], {}).get("phone_ids", [])) for r in rs])
+    phone_ranked = len(phone & ranked_ids(P)) if phone else 0
     return {"processed": sum(per.get(r["round"], {}).get("processed", 0) for r in rs),
             "decided": sum(per.get(r["round"], {}).get("decided", 0) for r in rs),
-            "pdfs": sum(r.get("pdfs_new", 0) for r in rs),
-            "ranked": rs[-1]["ranked_end"], "round": rs[-1]["round"]}
+            "pdfs": sum(r.get("pdfs_new", 0) for r in rs) - len(phone),
+            "ranked": rs[-1]["ranked_end"] - phone_ranked, "round": rs[-1]["round"],
+            "phone_pdfs": len(phone), "phone_ranked": phone_ranked, "phone_ids": sorted(phone)}
 
 
 def funnel_svg(P, path):
@@ -348,7 +399,7 @@ def funnel_svg(P, path):
     stages = [(LABELS[0], t["processed"], "#B5D4F4"), (LABELS[1], t["decided"], "#378ADD"),
               (LABELS[2], t["pdfs"], "#185FA5"), (LABELS[3], t["ranked"], "#0C447C")]
     W, left, top, bar, gap, maxw = 680, 190, 44, 26, 18, 380
-    H = top + len(stages) * (bar + gap) + 10
+    H = top + len(stages) * (bar + gap) + (32 if t["phone_pdfs"] else 10)
     top_n = max(v for _, v, _ in stages) or 1
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
          f'font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img">',
@@ -363,6 +414,9 @@ def funnel_svg(P, path):
               f'<rect x="{left}" y="{y}" width="{w}" height="{bar}" rx="4" fill="{color}"/>',
               f'<text x="{left + w + 8}" y="{y + bar / 2 + 5}" font-size="13" fill="#0B0B0B">'
               f'<tspan font-weight="600">{v}</tspan></text>']  # no % on bars: the bar length shows the share
+    if t["phone_pdfs"]:
+        s.append(f'<text x="16" y="{H - 14}" font-size="12" fill="#52514E">Leaves out {t["phone_pdfs"]} phone-triage '
+                 f'saves ({t["phone_ranked"]} qualified targets now): the listings behind them are unknown.</text>')
     s.append("</svg>")
     path.write_text("\n".join(s), encoding="utf-8")
     return path

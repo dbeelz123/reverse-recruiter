@@ -50,7 +50,8 @@ def current(P):
     if not t:
         raise SystemExit("No recorded rounds: run engine/metrics.py --round N first.")
     return {"round": t["round"], "processed": t["processed"], "decided": t["decided"], "pdfs": t["pdfs"],
-            "ranked": t["ranked"], "applications_in_progress": pipeline.in_progress_count(P),
+            "ranked": t["ranked"], "phone_pdfs": t["phone_pdfs"], "phone_ranked": t["phone_ranked"],
+            "applications_in_progress": pipeline.in_progress_count(P),
             "grades": linkedin_images.grade_counts(P)}
 
 
@@ -72,6 +73,9 @@ def check(P):
     live = rec.get("live")
     print(f"Now (round {now['round']}): per 100 {show(now)} (real {now['processed']} / {now['decided']} / "
           f"{now['pdfs']} / {now['ranked']})")
+    if now.get("phone_pdfs"):
+        print(f"Left out: {now['phone_pdfs']} phone-triage saves ({now['phone_ranked']} qualified targets now); the "
+              f"listings behind them are unknown, so they stay out of every per-100 number.")
     if rec.get("ready"):
         r = rec["ready"]
         print(f"Waiting for the user to upload: the update prepared {r['prepared']} (round {r['round']}). "

@@ -157,14 +157,22 @@ def main():
 
     reviewed = [j for j in jobs.values() if "review" in j]
     reviewed.sort(key=lambda j: (TIER_ORDER.index(j["review"]["tier"]), -(j["review"]["total"] or 0)))
+    # Held for calibration (added 2026-11-26): a review with "held" (e.g. "leadership", "role type") has a rule the
+    # user suspended for that job until a calibration decides it. It keeps its score for reference but stays off the
+    # ranked list, the grade bands and the company groups, in a section of its own. A held job that hits another
+    # dealbreaker (tier X) is listed as excluded as usual.
+    held = [j for j in reviewed if j["review"].get("held") and j["review"]["tier"] != "X"]
+    held_ids = {j["job_id"] for j in held}
+    reviewed = [j for j in reviewed if j["job_id"] not in held_ids]
     out = []
     w = out.append
     w(f"# Saved jobs re-screen - round {args.round} ({review['date']})\n")
     # A job with no review in any round is listed on its own (never silently left out, never given a score).
     unreviewed = sorted((j for j in jobs.values() if "review" not in j),
                         key=lambda j: (j.get("company") or "", j.get("title") or ""))
-    new = sum(1 for j in reviewed if j["review"].get("round") == args.round)
+    new = sum(1 for j in reviewed + held if j["review"].get("round") == args.round)
     w(f"{len(reviewed)} saved jobs, each read in full ({new} new this round; the rest keep their earlier review)"
+      + (f", plus {len(held)} held for calibration (listed after the ranked list)" if held else "")
       + (f", plus {len(unreviewed)} not reviewed yet (listed after the ranked list)" if unreviewed else "")
       + ". Calibration questions at the end may still adjust scores.\n")
     if levels_on:
@@ -220,14 +228,14 @@ def main():
 
     # Action items
     todo = []
-    for j in reviewed:
+    for j in reviewed + held:
         if j["review"]["tier"] == "?":
             todo.append(f"Re-save **{j['company']} - {j['title']}** with 'See more' expanded (description was collapsed).")
         if (any("in your network" in t for t in j.get("network_teaser", [])) and not j.get("people_file")
                 and not j["review"].get("network")):
             todo.append(f"Save a `_people` file for **{j['company']} - {j['title']}**: the page shows "
                         f"'{j['network_teaser'][0]}' but the connection list wasn't captured.")
-    unclassified = sorted({x["name"] for j in reviewed for x in j["review"].get("network", [])
+    unclassified = sorted({x["name"] for j in reviewed + held for x in j["review"].get("network", [])
                            if x["level"] == "unclassified"})
     if unclassified:
         todo.append(f"Connections not yet classified (would you ask them for a referral?): {', '.join(unclassified)}. "
@@ -272,6 +280,35 @@ def main():
         w(f"| {i} | {score} | {r['tier']} | [{md_cell(j['title'])}]({j['url']}) | {md_cell(j['company'])} | "
           f"{md_cell(where)} | {md_cell(pay)} | {md_cell(conn)} |")
     w("")
+    if held:
+        w("## Held for calibration\n")
+        w("These jobs fall under a rule suspended for them until a calibration decides it (the reason is in 'Held "
+          "for'). They are reviewed and scored as if that rule were lifted, but stay off the ranked list, the grade "
+          "bands and the company groups until then.\n")
+        held.sort(key=lambda j: (str(j["review"]["held"]), TIER_ORDER.index(j["review"]["tier"]),
+                                 -(j["review"]["total"] or 0)))
+        w("| # | Held for | Score if lifted | Tier if lifted | Role | Company | Where | Pay (as posted) |")
+        w("|---|---|---|---|---|---|---|---|")
+        for i, j in enumerate(held, 1):
+            r = j["review"]
+            pay = r.get("pay") or "; ".join(j.get("salary_mentions") or []) or "not listed"
+            where = f"{j.get('workplace') or ''} - {j.get('location') or ''}"
+            w(f"| {i} | {md_cell(str(r['held']))} | {'-' if r['total'] is None else r['total']} | {r['tier']} | "
+              f"[{md_cell(j['title'])}]({j['url']}) | {md_cell(j['company'])} | {md_cell(where)} | {md_cell(pay)} |")
+        w("")
+        for j in held:
+            r = j["review"]
+            w(f"#### {j['company']} - {j['title']} (held: {r['held']})\n")
+            w(f"{r['summary']}\n")
+            if r.get("held_findings"):
+                w("**Why it's held:** " + " / ".join(r["held_findings"]) + "\n")
+            if r.get("positives"):
+                w("**Looks good:** " + " / ".join(r["positives"]) + "\n")
+            if r.get("caveats"):
+                w("**But:** " + " / ".join(r["caveats"]) + "\n")
+            if r.get("gaps"):
+                w("*Skill gaps:* " + ", ".join(r["gaps"]) + "\n")
+            w(f"[Posting]({j['url']})\n")
     if unreviewed:
         w("## Not reviewed yet\n")
         w("These jobs have a record but no review in any round's reviews file, so they have no score or tier. "
@@ -302,7 +339,7 @@ def main():
         w("")
 
     # Network
-    net = [j for j in reviewed if j.get("connections_1st") or j["review"].get("network")]
+    net = [j for j in reviewed + held if j.get("connections_1st") or j["review"].get("network")]
     w("## Your 1st-degree connections at these companies\n")
     for j in net:
         if j["review"].get("network"):

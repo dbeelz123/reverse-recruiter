@@ -162,7 +162,12 @@ def render(browser, html, out_png, tmp):
 
 
 def grade_counts(P):
-    jobs = [read_json(f) for f in P.jobs.glob("*.json")]
+    """Current jobs per grade band, leaving out phone-triage saves (metrics.totals leaves them out of the funnel too,
+    so the grade image keeps splitting the funnel's own qualified targets)."""
+    t = metrics.totals(P)
+    phone = set(t["phone_ids"]) if t else set()
+    jobs = [j for j in (read_json(f) for f in P.jobs.glob("*.json"))
+            if j.get("job_id") not in phone and not (j.get("review") or {}).get("held")]  # held: off the ranked list
     counts = collections.Counter((j.get("review") or {}).get("tier") for j in jobs)
     return {g: counts.get(g, 0) for g, *_ in TIERS}
 

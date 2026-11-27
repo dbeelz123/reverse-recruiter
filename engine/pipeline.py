@@ -200,7 +200,9 @@ def build(P):
     tombs = tombstones(P.removed)
     kitmap = kits(P)
     today = dt.date.today()
-    ranked = [j for j in jobs.values() if (j.get("review") or {}).get("tier") in ("A", "B", "C", "D")]
+    # A job held for calibration (build_report.py) isn't a qualified target until the calibration decides it.
+    ranked = [j for j in jobs.values() if (j.get("review") or {}).get("tier") in ("A", "B", "C", "D")
+              and not (j.get("review") or {}).get("held")]
 
     # Company groups: the top 2 roles lead, the rest wait in reserve (same rule as the round report).
     groups = collections.defaultdict(list)

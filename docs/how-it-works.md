@@ -89,6 +89,7 @@ Before you decide each card, Claude records its own call: `likely keep`, `lean k
 
 - **Ranked list:** every current job with score, tier, work arrangement and distance, connections, and its caveats, plus a grade-band image (A/B/C/D). A job with no review yet is listed under "Not reviewed yet", with no score, rather than left out.
 - **Search funnel:** job listings processed → baseline match (kept in triage) → agent deep-fit review (saved and read in full) → qualified targets (ranked), per round and cumulative, with an image.
+- **Phone triage:** saves made straight from LinkedIn alerts on a phone, judged on LinkedIn's match signal alone, have no result cards behind them. Record them as one run file with `"triage_type": "phone"` and their job IDs in `saved_job_ids`; the funnel shows their listings and triage calls as unknown and leaves them out of the known totals and every per-100 number.
 - **Time per round:** active minutes per stage and per 100 listings, from timing events logged at each stage boundary.
 - **Applications funnel:** qualified target → kit built → applied → employer response → interview → offer.
 - **Leads:** similar jobs from saved postings, with search links, prioritized where you have connections.
