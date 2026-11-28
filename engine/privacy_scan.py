@@ -7,7 +7,7 @@ What it looks for:
   - every term in a private-terms list (one per line, case-insensitive; # starts a comment): the user's name,
     home town, employers, contacts, accounts. The list never goes in the repo. It is found, in order, at:
     --terms FILE, the PRIVATE_TERMS environment variable, or <data>/private-terms.txt. --strict fails when
-    no list is found or the list is empty (the pre-commit hook uses it).
+    no list is found or the list is empty (the hooks use it).
     A term is found with or without accents, with its words joined by anything but letters and digits (First Last,
     first-last, First_Last, firstlast), wrapped over a line break, and behind JSON escapes, URL encoding and HTML
     entities (%22Name%22 in a search link, \\nName in a job record). It is not found inside a longer word.
@@ -21,10 +21,12 @@ definitions); anywhere else the marker does nothing.
 Deliberate exceptions (e.g. the author's name in LICENSE) go in an allow file, one per line: "<path> | <phrase>",
 paths relative to the folder being scanned. The phrase is removed from that file's lines before checking, so every
 other term in the same line is still caught. Default: .privacy-allow in the folder being scanned; --allow FILE
-overrides it (the pre-commit hook passes the staged copy).
+overrides it (the hooks put the staged copy, or the commit's own, into the folder they scan).
 Run it on the engine after every change meant for the public repo, and on the whole repo before every push.
---message scans commit messages (scripts/hooks/commit-msg, pre-push): a co-author trailer's no-reply address is the
-one address allowed, and the diff that `git commit -v` adds below its scissors line is left out.
+--message scans commit messages (scripts/hooks/commit-msg): a co-author trailer's no-reply address is the one address
+not reported as an email address (it is still checked for terms), and what git itself adds in the editor (the diff
+below `git commit -v`'s scissors line, the instructions block) is left out. --message --final scans finished messages
+read from commits and tags (scripts/hooks/pre-push): nothing is left out of those.
 """
 import argparse
 import html
@@ -158,19 +160,37 @@ def read_text(f):
         return None
 
 
-SCISSORS = re.compile(r"(?m)^# -+ >8 -+\s*$")  # git commit -v: everything below is the diff, not the message
+# What git itself adds to a message being written in an editor, and removes before the commit is made. Both are
+# matched as git writes them, not loosely: text a person types that merely looks similar is published, so it is
+# scanned. (The finished message is scanned again before a push, with nothing left out: see `final` below.)
+#   - `git commit -v`: the scissors line, its "Do not modify" line, and the diff below them.
+#   - the instructions block: "# Please enter the commit message ..." and the comment lines after it, which name
+#     the branch, the author and the changed files.
+SCISSORS = re.compile(r"(?m)^# -+ >8 -+[ \t\r]*\n# Do not modify or remove the line above\.[ \t\r]*$")
+TEMPLATE = re.compile(r"(?m)^# Please enter (?:the|a) commit message [^\n]*\n(?:[ \t\r]*\n|#[^\n]*\n?)*\Z")
 # A trailer that names who else worked on the commit ("Co-Authored-By: Name <address>") carries an address by
-# design. Only a no-reply address is let through, and only there: the name beside it is still checked.
-TRAILER_ADDRESS = re.compile(r"(?im)^(\s*[a-z-]+-by:[^<>\n]*)<(?=[^<>\s]*noreply)[^<>\s@]+@[^<>\s@]+>[ \t\r]*$")
+# design. A no-reply address there (the mailbox "noreply", or a "noreply" label in the domain, as in GitHub's
+# "id+account" at users.noreply.github.com) is not reported as an email address. It is still checked for private
+# terms, like the name beside it: such an address can spell out an account name.
+TRAILER_ADDRESS = re.compile(
+    r"(?im)^(\s*[a-z-]+-by:[^<>\n]*<)"
+    r"((?:no-?reply)@[^<>\s@]+|[^<>\s@]+@(?:[^<>\s@.]+\.)*no-?reply\.[^<>\s@]+)"
+    r"(>[ \t\r]*)$")
 
 
-def message_text(text):
-    """A commit message as it will be published: without the diff `git commit -v` shows below the scissors line,
-    and without the no-reply address of a co-author trailer."""
-    return TRAILER_ADDRESS.sub(r"\1", SCISSORS.split(text)[0])
+def message_text(text, final=False):
+    """A commit message as it will be published. While it is being written (`final` False: the commit-msg hook),
+    git's own additions are left out: the diff below the scissors line and the instructions block. A finished
+    message (`final`: the pre-push hook reads it from the commit) holds neither, so nothing is left out of it and a
+    look-alike line typed into the message hides nothing. In both, a co-author trailer's no-reply address stops
+    reading as an email address ("@" becomes " at "), and stays in the text for the terms check."""
+    if not final:
+        text = SCISSORS.split(text)[0]
+        text = TEMPLATE.sub("", text)
+    return TRAILER_ADDRESS.sub(lambda m: m.group(1) + m.group(2).replace("@", " at ") + m.group(3), text)
 
 
-def scan(paths, words, allow_file=None, skip=True, message=False):
+def scan(paths, words, allow_file=None, skip=True, message=False, final=False):
     term_rxs = [(f"private term '{w}'", *term_rx(w)) for w in words]
     pattern_rxs = [(name, re.compile(p)) for name, p in PATTERNS.items()]
     hits = 0
@@ -204,7 +224,7 @@ def scan(paths, words, allow_file=None, skip=True, message=False):
                 print(f"{shown}: file name: {name}")
             text = read_text(f)
             if message and text is not None:
-                text = message_text(text)
+                text = message_text(text, final)
             if text is None:  # not text: the scan can't read it, so it counts as a hit unless deliberately allowed
                 if f.suffix.lower() in IMAGES:
                     # Listed in .privacy-allow after a look by eye, with that exact phrase: a line allowing some
@@ -247,9 +267,15 @@ def main():
     ap.add_argument("--no-skip", action="store_true",
                     help="scan every file, including __pycache__ and .git folders (the pre-commit hook uses it)")
     ap.add_argument("--message", action="store_true",
-                    help="the files are commit messages: the diff below git's scissors line is left out, and a "
-                         "co-author trailer's no-reply address is not a hit (the commit-msg and pre-push hooks)")
+                    help="the files are commit messages being written: what git itself adds in the editor (the diff "
+                         "below its scissors line, its instructions block) is left out, and a co-author trailer's "
+                         "no-reply address is not an email hit, though still checked for terms (the commit-msg hook)")
+    ap.add_argument("--final", action="store_true",
+                    help="with --message: the messages are finished ones read from commits or tags, so nothing is "
+                         "left out of them (the pre-push hook)")
     a = ap.parse_args()
+    if a.final and not a.message:
+        ap.error("--final goes with --message")
     P = Paths(a.data)
     f = terms_file(P, a.terms)
     words = terms(f)
@@ -271,7 +297,7 @@ def main():
     if missing:
         print("Nothing to scan at: " + ", ".join(missing) + ". Check the path; nothing was scanned.")
         sys.exit(2)
-    hits = scan(targets, words, a.allow, skip=not a.no_skip, message=a.message)
+    hits = scan(targets, words, a.allow, skip=not a.no_skip, message=a.message, final=a.final)
     print(f"{hits} hit{'' if hits == 1 else 's'} in {', '.join(t.name for t in targets)} "
           f"({len(words)} private terms + {len(PATTERNS)} patterns)")
     sys.exit(1 if hits else 0)

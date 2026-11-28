@@ -167,9 +167,20 @@ def parse_tracker(text):
     return out
 
 
+def same_company(a, b):
+    """True when two names are one employer for the tracker: the same company key, or one key's words found in
+    order as whole words in the other's ("Acme" and "Acme Robotics", as the saved-jobs list often shortens a name).
+    Whole words, never letters inside a word: the key drops legal words, so "ION Group" is "ion", which as plain
+    text sits inside "union pacific" and marked that company's job open or closed."""
+    x, y = match_key(a).split(), match_key(b).split()
+    if not x or not y:
+        return False
+    short, long_ = (x, y) if len(x) <= len(y) else (y, x)
+    return any(long_[i:i + len(short)] == short for i in range(len(long_) - len(short) + 1))
+
+
 def match_job(jobs, title, company):
-    cands = [j for j in jobs.values() if norm_co(company) and norm_co(j.get("company"))
-             and (norm_co(company) in norm_co(j.get("company")) or norm_co(j.get("company")) in norm_co(company))]
+    cands = [j for j in jobs.values() if same_company(company, j.get("company"))]
     exact = [j for j in cands if norm(j.get("title")) == norm(title)]
     if len(exact) == 1:
         return exact[0]

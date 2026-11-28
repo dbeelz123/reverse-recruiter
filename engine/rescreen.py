@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 from locations import distance, home_state_of, load_places, within_radius
-from paths import (Paths, blocked_by, blocklist, case_by_case, plain_bonus, radius_miles, read_job, read_json, review_score_problems,
+from paths import (Paths, blocked_by, blocklist, case_by_case, location_rule, plain_bonus, read_job, read_json, review_score_problems,
                    spec_rules)
 
 
@@ -45,7 +45,9 @@ def main():
              for r in spec_rules(spec, P.spec, section) if r["status"] == "confirmed"]
     blocklist(spec, P.spec)
     blocked = [b for b in spec_rules(spec, P.spec, "company_blocklist") if b["status"] == "confirmed"]
-    radius = radius_miles(spec, P.spec)
+    loc_rule = location_rule(spec, P.spec)
+    center, radius = loc_rule["center"], loc_rule["radius"]
+    home_state = home_state_of(loc_rule["name"]) if center else None
     # Check every rule's patterns once, up front, so a typo in spec.json names the rule instead of crashing midway.
     bad = []
     for kind, rule in rules:
@@ -81,10 +83,6 @@ def main():
 
     # The location rule has no text pattern: hybrid and on-site jobs are checked against the current center and
     # radius, so a changed center or radius reaches jobs reviewed under the old one.
-    rule = (spec.get("work_arrangement") or {}).get("machine_rule") or {}
-    c = rule.get("hybrid_onsite_center")
-    center = (c["lat"], c["lon"]) if c else None
-    home_state = home_state_of(c.get("name")) if c else None
     load_places(P)
 
     print(f"Re-screen against spec v{spec.get('version')}\n")
@@ -103,7 +101,7 @@ def main():
         text = "\n\n".join(t for t in (j.get("posting_text"), j.get("company_text")) if isinstance(t, str) and t)
         hits = []
         for kind, rule in rules:
-            name = rule["value"][:60]
+            name = rule["value"][:60]  # text: checked by paths.spec_rules
             if rule.get("title_regex") and re.search(rule["title_regex"], j.get("title") or "", re.I):
                 hits.append(f"  {kind} (title): {name}")
             if rule.get("rescreen_regex"):

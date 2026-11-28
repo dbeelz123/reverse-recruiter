@@ -50,7 +50,8 @@ trap 'rm -rf "$tmp"' EXIT
 # Every copy must succeed: a missing or partial copy would be scanned as if complete. (The loop reads a here-document,
 # not a pipe, so exit stops the hook itself rather than a subshell.)
 while IFS= read -r f; do
-    if ! mkdir -p "$tmp/$(dirname "$f")" || ! git show ":$f" > "$tmp/$f"; then
+    # dirname gets the whole path, never the bare name: a folder called "-notes" would read as an option.
+    if ! mkdir -p "$(dirname "$tmp/$f")" || ! git show ":$f" > "$tmp/$f"; then
         echo "pre-commit: could not copy the staged version of $f for the privacy scan; commit blocked."
         exit 1
     fi
@@ -60,7 +61,7 @@ EOF
 # Deliberate exceptions (e.g. the author's name in LICENSE) come from the staged .privacy-allow only.
 [ -f "$tmp/.privacy-allow" ] || git show ":.privacy-allow" > "$tmp/.privacy-allow" 2>/dev/null || rm -f "$tmp/.privacy-allow"
 
-PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$tmp" --terms "$terms" --strict --no-skip
+PYTHONDONTWRITEBYTECODE=1 "$py" engine/privacy_scan.py "$tmp" --terms "$terms" --strict --no-skip
 status=$?
 if [ $status -ne 0 ]; then
     echo "pre-commit: privacy scan failed (paths above are inside a temporary copy of the staged files)."

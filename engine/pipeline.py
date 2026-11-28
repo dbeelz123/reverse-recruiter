@@ -104,8 +104,13 @@ def resolve(jobs, kitmap, key):
     for jid, k in kitmap.items():
         if k["folder"] == key and jid in jobs:
             return jid
-    norm = lambda s: norm_name(s).replace(" ", "")  # "acmecorp" matches "Acme Corp Partners"; accents aside
-    hits = [jid for jid, j in jobs.items() if norm(key) and norm(key) in norm(j.get("company"))]
+    # A typed word is looked for inside the company name with spaces and punctuation aside, accents too:
+    # "acmecorp" finds "Acme Corp Partners", "oura" finds "Ōura", and "att" finds "AT&T". Two readings of "&" are
+    # tried, dropped ("att") and spelled out ("atandt"), since either may be what was typed.
+    norm = lambda s: norm_name(s).replace(" ", "")
+    bare = lambda s: norm_name(str(s or "").replace("&", " ")).replace(" ", "")
+    hits = [jid for jid, j in jobs.items() if (norm(key) and norm(key) in norm(j.get("company")))
+            or (bare(key) and bare(key) in bare(j.get("company")))]
     if len(hits) == 1:
         return hits[0]
     if hits:

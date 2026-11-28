@@ -365,16 +365,24 @@ def record(P, rnd):
     ev = [e for e in entry.get("events", []) if not (e.get("note") or "").startswith("file time:")]
     entry["events"] = sorted(ev + (file_events(P, rnd, new_ids) if prev_ids else []), key=lambda e: e["t"])
     m["rounds"].sort(key=lambda r: r["round"])
+    # The phone counts of an earlier recording of this round go before the first write: they were counted with the
+    # old ranked_end, and if this run stopped between the two writes below they would be read with the new one.
+    # Without them totals() falls back to today's list and says "now".
+    for field in ("phone_ranked_end", "rec_ranked_end", "phone_ids_end", "rec_ids_end"):
+        entry.pop(field, None)
     write_json(P.metrics, m, indent=1)
     # How many of the ranked jobs are phone-triage or recommendation saves, counted now, with ranked_end: totals()
     # takes them off the round's count, and both numbers must be from the same moment. (Taken off today's list
     # instead, a removal after the round moved the public per-100 numbers although nothing had been recorded.)
     # Counted after the write above: which saves belong to which round is read from the snapshots just stored.
+    # The saves counted over are kept too, so totals() can tell when the run files have changed since.
     per = funnel_from_runs(P)
     upto = [r["round"] for r in m["rounds"] if r["round"] <= rnd]
     on_list = ranked_ids(P)
-    for field, ids_key in (("phone_ranked_end", "phone_ids"), ("rec_ranked_end", "rec_ids")):
-        entry[field] = len(set().union(*[set(per.get(n, {}).get(ids_key, [])) for n in upto]) & on_list)
+    for name, ids_key in (("phone", "phone_ids"), ("rec", "rec_ids")):
+        saves = set().union(*[set(per.get(n, {}).get(ids_key, [])) for n in upto])
+        entry[f"{name}_ids_end"] = sorted(saves)
+        entry[f"{name}_ranked_end"] = len(saves & on_list)
     write_json(P.metrics, m, indent=1)
     return m
 
@@ -458,13 +466,18 @@ def totals(P):
     rec = set().union(*[set(per.get(r["round"], {}).get("rec_ids", [])) for r in rs])
     last = rs[-1]
     whole = lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 0
-    if whole(last.get("phone_ranked_end")) and whole(last.get("rec_ranked_end")):
+    # The stored counts hold only for the saves they were counted over. A phone or recommendation run file added or
+    # corrected after the round was recorded changes which saves are left out of the other stages, so the stored
+    # counts are then set aside (the "now" branch below) until the round is recorded again.
+    same_saves = (last.get("phone_ids_end") == sorted(phone) and last.get("rec_ids_end") == sorted(rec))
+    if whole(last.get("phone_ranked_end")) and whole(last.get("rec_ranked_end")) and same_saves:
         # Recorded with the round: every qualified-targets number below is as of that round's end.
         phone_ranked, rec_ranked = last["phone_ranked_end"], last["rec_ranked_end"]
         when, label = f"at the end of round {last['round']}", f"(end of round {last['round']})"
     else:
-        # A round recorded before these counts were kept: the phone saves on the ranked list today are all there
-        # is to take off, as before. Recording the round again, or the next round, makes it one moment.
+        # A round recorded before these counts were kept, or one whose phone or recommendation run files changed
+        # since: the phone saves on the ranked list today are all there is to take off, and the label says "now".
+        # Recording the round again, or the next round, makes it one moment.
         phone_ranked = len(phone & ranked_ids(P)) if phone else 0
         rec_ranked = len(rec & ranked_ids(P)) if rec else 0
         when, label = "now", "(now)"
@@ -504,7 +517,8 @@ def funnel_svg(P, path):
         kind = ("phone-triage" if not t["rec_pdfs"] else "recommendation" if t["rec_pdfs"] == t["phone_pdfs"]
                 else "phone-triage and recommendation")
         s.append(f'<text x="16" y="{H - 14}" font-size="12" fill="#52514E">Leaves out {t["phone_pdfs"]} {kind} '
-                 f'saves ({t["phone_ranked"]} qualified targets now): the listings behind them are unknown.</text>')
+                 f'saves ({t["phone_ranked"]} qualified targets {t["ranked_when"]}): the listings behind them are '
+                 f'unknown.</text>')
     s.append("</svg>")
     path.write_text("\n".join(s), encoding="utf-8")
     return path

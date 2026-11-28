@@ -141,8 +141,10 @@ class MessageScan(SampleCase):
                 self.assertEqual(code, 1, out)
 
     def test_the_diff_below_the_scissors_line_is_not_the_message(self):
-        text = ("Fix the report\n# Please enter the commit message.\n# ------------------------ >8 ------------------------\n"
-                "diff --git a/LICENSE b/LICENSE\n+Copyright Jordan Avery\n")
+        text = ("Fix the report\n# Please enter the commit message for your changes. Lines starting\n"
+                "# with '#' will be ignored, and an empty message aborts the commit.\n#\n# On branch main\n"
+                "# ------------------------ >8 ------------------------\n# Do not modify or remove the line above.\n"
+                "# Everything below it will be ignored.\ndiff --git a/LICENSE b/LICENSE\n+Copyright Jordan Avery\n")
         self.assertEqual(self.scan(text)[0], 0)
         self.assertEqual(self.scan(text.replace("# ---", "---"))[0], 1)  # not the scissors line: all of it counts
 

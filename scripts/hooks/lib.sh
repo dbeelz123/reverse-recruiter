@@ -1,8 +1,8 @@
 # Shared by the privacy hooks (pre-commit, commit-msg, pre-push). Sourced, never run by itself.
 # Every hook sets $hook to its own name first, for the messages.
 
-# Sets $terms to the private-terms list, or stops the hook: no list, or a path that has gone missing, would let
-# the scan fall back to another list, or to none.
+# Sets $terms to the private-terms list and $py to a Python 3, or stops the hook: no list, or a path that has gone
+# missing, would let the scan fall back to another list, or to none.
 need_terms() {
     terms=$(git config --get reverse-recruiter.privateTerms)
     if [ -z "$terms" ]; then
@@ -17,6 +17,19 @@ need_terms() {
     fi
     if [ ! -f engine/privacy_scan.py ]; then
         echo "$hook: engine/privacy_scan.py is missing; can't run the privacy check."
+        exit 1
+    fi
+    # "python" on Windows and in most virtual environments, "python3" where the system ships only that name
+    # (macOS, Debian). Each is tried by running it: on Windows "python3" can be a stub that opens the Store.
+    py=
+    for candidate in python python3; do
+        if "$candidate" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+            py=$candidate
+            break
+        fi
+    done
+    if [ -z "$py" ]; then
+        echo "$hook: no Python 3 found (tried \"python\" and \"python3\"); can't run the privacy check."
         exit 1
     fi
 }

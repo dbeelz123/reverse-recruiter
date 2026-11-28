@@ -9,7 +9,8 @@ removes the job only when rerun with --confirm-connections after the user has sa
 Deletes:  jobs/<id>.json, its entries in reviews/*.json and ledger.json, and its source PDFs in
           1-inbox/job-pdfs/. A source file anywhere else, or one that now belongs to another job, is left alone
           and listed.
-Keeps:    a one-line tombstone in removed.json (job ID, company, title, date, reason) so a later re-save,
+Keeps:    a tombstone in removed.json (job ID, company, title, date, reason, plus the job's application steps and
+          interview rounds when it had any, so the outcome funnel and `interviews.py lessons` keep them) so a later re-save,
           a discovered duplicate or a search-results card (engine/triaged.py) is recognized instead of re-reviewed. Skip with --no-tombstone.
 Reports, spec evidence, skills-gap entries and calibration questions that mention the job are cleaned
 by the judgment step and the next build_report.py run.
@@ -96,6 +97,7 @@ def main():
         label = jid
         rec = read_json(rec_p, {}, expect=dict)  # a damaged record stops here, before anything has changed
         company, title, pipeline = rec.get("company"), rec.get("title"), rec.get("pipeline")
+        interviews = rec.get("interviews") if isinstance(rec.get("interviews"), list) else None
         if rec:
             label = f"{company} - {title} ({jid})"
         # Only files inside the saved-PDF inbox are ever deleted; anything else in source_files is left alone.
@@ -119,6 +121,8 @@ def main():
                 tomb.update(company=company, title=title)
             if pipeline:  # keep application history so engine/pipeline.py's outcome funnel still counts it
                 tomb["pipeline"] = pipeline
+            if interviews:  # and the interview record: `interviews.py lessons` reads debriefs of removed jobs too
+                tomb["interviews"] = interviews
             tombs.append(tomb)
             write_json(tomb_p, tombs)
         elif (not args.no_tombstone and rec and (prior.get("reason") != args.reason or prior.get("removed") != today)):
@@ -131,6 +135,8 @@ def main():
                 prior.update(company=company, title=title)
             if pipeline:
                 prior["pipeline"] = pipeline
+            if interviews:
+                prior["interviews"] = interviews
             write_json(tomb_p, tombs)
             done.append("tombstone updated (removed before)")
         if not rec and prior is not None and jid not in owned and jid not in reviews:

@@ -93,11 +93,17 @@ def due_items(job, today, soon=0):
             elif d <= horizon:
                 out.append((d, f"Round {iv['round']} on {d}" + (f" with {iv['with']}" if iv.get("with") else "")
                                + ": run the staleness gate and the primer check"))
-        ty = iv.get("thank_you") or {}
-        # day() is None for an unreadable hand-edited due date: skipped here rather than crashing the comparison.
-        if iv.get("status") == "done" and day(ty.get("due")) and not ty.get("sent") and day(ty["due"]) <= horizon:
-            to = ", ".join(ty.get("to") or []) or "the panel"
-            out.append((day(ty["due"]), f"Send the round {iv['round']} thank-you to {to} (draft in the kit folder)"))
+        # A thank-you is owed for every sitting that took place: the round as it stands once debriefed, and each
+        # earlier sitting of a round held again (schedule --reopen), which was debriefed by definition.
+        owed = [e.get("thank_you") for e in iv.get("earlier") or [] if isinstance(e, dict)]
+        owed += [iv.get("thank_you")] if iv.get("status") == "done" else []
+        for ty in owed:
+            ty = ty if isinstance(ty, dict) else {}
+            # day() is None for an unreadable hand-edited due date: skipped here rather than crashing the comparison.
+            if day(ty.get("due")) and not ty.get("sent") and day(ty["due"]) <= horizon:
+                to = ", ".join(ty.get("to") or []) or "the panel"
+                out.append((day(ty["due"]),
+                            f"Send the round {iv['round']} thank-you to {to} (draft in the kit folder)"))
     # Timers run from the most recent dated event or interview on the job.
     # Steps on the same day keep the order they were recorded in (as pipeline.last_event does): the position breaks
     # the tie, not the stage's name, so "outreach, then applied" on one day runs the timer from applying. A finished
@@ -233,9 +239,19 @@ def debrief(P, job, a):
 
 def sent(P, job, a):
     iv = find_round(job, a.round)
-    iv.setdefault("thank_you", {})["sent"] = a.date
+    # A round held again keeps each earlier sitting's thank-you. While the new sitting hasn't been debriefed, a
+    # thank-you reported as sent is for the latest earlier sitting that still owes one; marking the new sitting
+    # instead would leave that one owed for good and make the new one read as sent before the interview.
+    waiting = [e for e in iv.get("earlier") or [] if isinstance(e, dict) and isinstance(e.get("thank_you"), dict)
+               and not e["thank_you"].get("sent")]
+    if waiting and iv.get("status") != "done":
+        waiting[-1]["thank_you"]["sent"] = a.date
+        which = f" (for the sitting of {waiting[-1].get('date') or 'an unknown date'})"
+    else:
+        iv.setdefault("thank_you", {})["sent"] = a.date
+        which = ""
     save(P, job)
-    print(f"{short(job)}: round {a.round} thank-you sent {a.date}")
+    print(f"{short(job)}: round {a.round} thank-you sent {a.date}{which}")
 
 
 def due(P, today, soon):

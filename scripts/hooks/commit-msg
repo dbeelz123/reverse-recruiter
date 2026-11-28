@@ -3,9 +3,13 @@
 # git passes the path of the message file as $1.
 #
 # Blocks the commit when the message holds a private term, a home-folder path, an email address or a LinkedIn
-# profile link. One address is allowed: the no-reply address of a co-author trailer
-# ("Co-Authored-By: Name <...noreply...>"); the name beside it is still checked. The diff that `git commit -v` shows
-# below its scissors line is not part of the message and is left out (pre-commit scans those files).
+# profile link. One kind of address is not reported as an email address: the no-reply address of a co-author
+# trailer ("Co-Authored-By: Name <noreply@...>" or "<...@users.noreply...>"). It is still checked for private terms,
+# like the name beside it.
+# What git itself adds to the file while the message is written, and removes before the commit is made, is left out:
+# the diff `git commit -v` shows below its scissors line, and the "# Please enter the commit message ..." block of
+# comment lines (they name the branch and, for someone else's commit, its author). Only git's own wording counts; a
+# line typed to look like it is scanned, and the finished message is scanned in full again by pre-push.
 
 hook=commit-msg
 . "$(dirname "$0")/lib.sh"
@@ -21,7 +25,7 @@ if ! cp "$1" "$tmp/commit-message.txt"; then
     echo "commit-msg: could not copy the message for the privacy scan; commit blocked."
     exit 1
 fi
-if ! PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$tmp/commit-message.txt" --terms "$terms" --strict --no-skip --message; then
+if ! PYTHONDONTWRITEBYTECODE=1 "$py" engine/privacy_scan.py "$tmp/commit-message.txt" --terms "$terms" --strict --no-skip --message; then
     echo "commit-msg: the commit message failed the privacy scan; reword it and commit again."
     exit 1
 fi

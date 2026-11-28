@@ -13,7 +13,7 @@ import math
 import re
 from pathlib import Path
 
-from paths import (PLAIN_BONUS, YMD, Paths, company_key, plain_bonus, radius_miles, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
+from paths import (PLAIN_BONUS, YMD, Paths, company_key, location_rule, plain_bonus, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
                    read_json, review_score_problems, to_date, write_json)
 
 import sys
@@ -149,11 +149,9 @@ def main():
     # Every blocklist entry, proposed ones included, hides leads: proposed criteria count in reviews too
     # (engine/prompts/review-rubric.md, rule 3). rescreen.py flags only confirmed rules, to keep its flags firm.
     blocked = blocklist(spec, P.spec)
-    rule = spec.get("work_arrangement", {}).get("machine_rule", {})
-    c = rule.get("hybrid_onsite_center")
-    center = (c["lat"], c["lon"]) if c else None
-    home_state = home_state_of(c.get("name")) if c else None
-    radius = radius_miles(spec, P.spec)  # checked here, before any job record is rewritten
+    loc_rule = location_rule(spec, P.spec)  # the whole rule is checked here, before any job record is rewritten
+    center, radius = loc_rule["center"], loc_rule["radius"]
+    home_state = home_state_of(loc_rule["name"]) if center else None
     load_places(P)
 
     jobs = {}
@@ -485,7 +483,7 @@ def main():
       "**Appeared on** links the saved jobs it was printed next to.\n")
     if out_of_area:
         w(f"{out_of_area} leads hidden because they are hybrid or on-site outside the allowed area "
-          f"(remote anywhere; hybrid/on-site within {radius} miles of {rule['hybrid_onsite_center']['name']}).\n")
+          f"(remote anywhere; hybrid/on-site within {radius} miles of {loc_rule['name']}).\n")
     w("### At companies where you have connections\n")
     w("| Role | Company | Location | Connections | Find | Appeared on |")
     w("|---|---|---|---|---|---|")

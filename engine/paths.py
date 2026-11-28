@@ -225,10 +225,14 @@ def spec_rules(spec, path, section):
     for i, r in enumerate(entries):
         if not isinstance(r, dict):
             raise DataFileError(f"Malformed {path}: {section}[{i}] is not an object ({str(r)[:60]!r}).")
+        if not (isinstance(r.get("value"), str) and r["value"].strip()):
+            raise DataFileError(f"Malformed {path}: {section}[{i}] needs a 'value': the rule in words (or, in the "
+                                f"blocklist, the company's name).")
         if not (isinstance(r.get("status"), str) and r["status"] in known):
             raise DataFileError(f"Malformed {path}: {section}[{i}] ({str(r.get('value', '?'))[:60]!r}) has the status "
                                 f"{r.get('status')!r}. Use one of: {', '.join(sorted(known))} (a rule counts in "
-                                f"screening only when it is \"confirmed\").")
+                                f"screening only when it is \"confirmed\"). To use a status of your own, add it to "
+                                f"status_legend in the same file.")
     return entries
 
 
@@ -236,12 +240,39 @@ def radius_miles(spec, path):
     """The radius for hybrid and on-site jobs (work_arrangement.machine_rule.radius_miles, 50 when not set), checked
     to be a number from 0 up. A negative radius put every city outside it, the center included, and text stopped
     with a traceback."""
-    rule = (spec.get("work_arrangement") or {}).get("machine_rule") or {}
-    r = rule.get("radius_miles", 50) if isinstance(rule, dict) else None
+    return location_rule(spec, path)["radius"]
+
+
+def location_rule(spec, path):
+    """The location rule for hybrid and on-site jobs (spec.json -> work_arrangement.machine_rule), checked as a
+    whole before anything uses it: {"radius": miles, "center": (lat, lon) or None, "name": the center's name or "",
+    "geo": its LinkedIn geo ID or None}. A user who only takes remote work has no center. Every script that screens
+    by distance reads the rule here, so a latitude typed as text, or a center with no longitude, stops each of them
+    with the field named instead of a traceback part way through a report."""
+    where = f"Malformed {path}: work_arrangement.machine_rule"
+    wa = spec.get("work_arrangement") if isinstance(spec, dict) else None
+    if wa is not None and not isinstance(wa, dict):
+        raise DataFileError(f"Malformed {path}: work_arrangement must be an object.")
+    rule = (wa or {}).get("machine_rule")
+    if rule is not None and not isinstance(rule, dict):
+        raise DataFileError(f"{where} must be an object.")
+    rule = rule or {}
+    r = rule.get("radius_miles", 50)
     if not (is_score(r) and r >= 0):
-        raise DataFileError(f"Malformed {path}: work_arrangement.machine_rule.radius_miles must be a number of "
-                            f"miles from 0 up, not {r!r}.")
-    return r
+        raise DataFileError(f"{where}.radius_miles must be a number of miles from 0 up, not {r!r}.")
+    c = rule.get("hybrid_onsite_center")
+    if c is None or c == {}:
+        return {"radius": r, "center": None, "name": "", "geo": None}
+    if not isinstance(c, dict):
+        raise DataFileError(f"{where}.hybrid_onsite_center must be an object with 'name', 'lat' and 'lon'.")
+    lat, lon = c.get("lat"), c.get("lon")
+    if not (is_score(lat) and -90 <= lat <= 90 and is_score(lon) and -180 <= lon <= 180):
+        raise DataFileError(f"{where}.hybrid_onsite_center needs 'lat' (-90 to 90) and 'lon' (-180 to 180) as "
+                            f"numbers, not lat {lat!r}, lon {lon!r}.")
+    name = c.get("name")
+    if name is not None and not isinstance(name, str):
+        raise DataFileError(f"{where}.hybrid_onsite_center 'name' must be text (\"City, ST\"), not {name!r}.")
+    return {"radius": r, "center": (lat, lon), "name": name or "", "geo": c.get("linkedin_geo_id")}
 
 
 def norm_name(s):
@@ -431,14 +462,14 @@ def read_json(path, default=_REQUIRED, expect=None):
 class Paths:
     def __init__(self, data=None):
         env = os.environ.get(DATA_ENV, "").strip()
-        if not data and env and not Path(env).is_dir():  # a typo here must not quietly fall back to my-data/
+        if data is None and env and not Path(env).is_dir():  # a typo here must not quietly fall back to my-data/
             raise DataFileError(f"{DATA_ENV} points to {env}, which isn't a folder. Fix the setting or pass --data.")
-        if data and not Path(data).is_dir():
+        if data is not None and not (str(data).strip() and Path(data).is_dir()):
             # A typo in --data must not read as an empty project, or be created as a new one by the first script
             # that writes (extract.py, sweep.py): the data folder is always made by the user (docs/setup.md).
-            raise DataFileError(f"--data {data} isn't a folder. Check the path; to start a new data folder, create "
+            raise DataFileError(f"--data {data!r} isn't a folder. Check the path; to start a new data folder, create "
                                 f"it first (docs/setup.md).")
-        d = Path(data) if data else Path(env) if env else DEFAULT_DATA
+        d = Path(data) if data is not None else Path(env) if env else DEFAULT_DATA
         self.data = d
         # inbox
         self.job_pdfs = d / JOB_PDFS
