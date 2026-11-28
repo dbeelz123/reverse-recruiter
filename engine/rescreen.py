@@ -45,11 +45,15 @@ def main():
     bad = []
     for kind, rule in rules:
         for field in ("title_regex", "rescreen_regex"):
-            if rule.get(field):
+            if rule.get(field) is not None and rule[field] != "":
+                name = str(rule.get("value", "?"))[:60]
+                if not isinstance(rule[field], str):  # a number or a list where the pattern's text belongs
+                    bad.append(f"  {kind} {name!r}: {field} must be text, not {rule[field]!r}")
+                    continue
                 try:
                     re.compile(rule[field])
                 except re.error as e:
-                    bad.append(f"  {kind} {rule.get('value', '?')[:60]!r}: {field} {rule[field]!r} ({e})")
+                    bad.append(f"  {kind} {name!r}: {field} {rule[field]!r} ({e})")
     if bad:
         raise SystemExit(f"Invalid patterns in {P.spec}:\n" + "\n".join(bad))
 

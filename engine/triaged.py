@@ -363,7 +363,7 @@ def match_saved(path):
     for i, e in enumerate(run_listings(run, p.name)):
         require_names(e, i, p.name)
         rows.setdefault(key(e["company"], e["title"]), []).append(e)
-    linked, conflicts, outside, ambiguous = [], [], [], []
+    linked, conflicts, outside, ambiguous, other = [], [], [], [], []
     saved, unnamed = named_jobs()
     # Several saved jobs with the same company and title (one role in two cities, say) can't be told apart by key:
     # a row already carrying one of their IDs keeps it, and the other rows stay unlinked and are listed for the user,
@@ -384,6 +384,12 @@ def match_saved(path):
         for e in hits:
             if e.get("job_id") == j["job_id"] and not shared:
                 continue  # linked in an earlier run
+            if e.get("job_id") and str(e["job_id"]) != str(j["job_id"]):
+                # The row is another posting's (an earlier listing since removed, a repost under a new ID): its ID
+                # and its decision stay as they are. Relinking it would hand that posting's decision to this job.
+                other.append(f'{e.get("id")} {j["company"]} - {j["title"]}: the row is job {e["job_id"]}, the '
+                             f'saved job is {j["job_id"]}')
+                continue
             e["job_id"] = j["job_id"]
             if e.get("status") == "saved":  # already marked Saved on the results card
                 continue
@@ -401,6 +407,9 @@ def match_saved(path):
     if ambiguous:
         print(f"{len(ambiguous)} rows match several saved jobs with the same company and title (ambiguous, "
               f"left unlinked):", *ambiguous, sep="\n  ")
+    if other:
+        print(f"{len(other)} rows with the same company and title already carry another job's ID (left as they are; "
+              f"if it is the same posting under a new ID, judge it as a repost):", *other, sep="\n  ")
     if unnamed:
         print(f"{len(unnamed)} job records have no company and title yet (only a connections PDF was read: save "
               f"the job's main PDF and run extract.py again), so they were not matched:", *unnamed, sep="\n  ")

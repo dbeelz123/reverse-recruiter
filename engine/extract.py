@@ -346,9 +346,12 @@ def main():
             flag = "  [TRUNCATED: re-save with 'See more' expanded]" if rec.get("truncated") and kind == "main" else ""
             summary.append(f"{kind:6} {job_id}  {key}{flag}")
 
-    write_json(ledger_path, ledger, indent=2, ensure_ascii=True)
+    # The repost check runs before the ledger is written: it is what flags a duplicate save, a possible repost and a
+    # job removed earlier, and it only looks at this run's new jobs. With the ledger written first, a stop in
+    # between left the PDFs marked as processed, and the next run had nothing new to check.
     summary += repost_check(P, data, [s.split()[1] for s in summary if s.startswith("main ")],
                             [P.rel(p) for p in P.job_pdfs.glob("*.pdf") if dup_original(p.name)])
+    write_json(ledger_path, ledger, indent=2, ensure_ascii=True)
     print("\n".join(summary) if summary else "Nothing new to process.")
 
 
