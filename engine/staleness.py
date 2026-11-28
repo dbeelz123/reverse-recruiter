@@ -33,7 +33,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from paths import Paths, iso_date, read_json, write_json, to_date  # noqa: E402
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
-OLD_DAYS = 30     # listings at least this old (estimated) get a warning even when last seen open
+OLD_DAYS = 30     # listings at least this old (estimated) are asked about even when a tracker capture shows them
+#                   open; the user's own confirmation within FRESH_DAYS passes the gate, with the age shown
+HAND = "confirmed by hand"  # source of an open check recorded by `confirm`
 UNITS = {"h": 0, "hour": 0, "min": 0, "minute": 0, "d": 1, "day": 1, "w": 7, "wk": 7, "week": 7,
          "mo": 30, "month": 30, "y": 365, "yr": 365, "year": 365}
 CLOSED = r"no longer accepting|not accepting applications|job (is )?closed|this job has expired"
@@ -87,6 +89,11 @@ def verdict(job, today):
         seen = f"seen open {oc['date']} ({oc.get('source')}, {ago} day{'' if ago == 1 else 's'} ago)"
         if ago <= FRESH_DAYS:
             if info["age"] is not None and info["age"] >= OLD_DAYS:
+                # The user has looked at this posting within the fresh window and said it is open: that answers
+                # the question an old listing raises, so the gate passes and keeps the age in view. A tracker
+                # capture only shows the job is still listed, so it still asks.
+                if oc.get("source") == HAND:
+                    return "fresh", f"{seen}; listed about {info['age']} days ago (an old listing)"
                 return "old", f"{seen}; listed about {info['age']} days ago, so ask whether it's still active"
             return "fresh", seen
         return "check", f"{seen}; check again"
@@ -388,7 +395,7 @@ def main():
     job = jobs[resolve(P, jobs, kits(P), a.job)]
     if a.cmd == "gate":
         sys.exit(0 if gate(P, job, today) else 1)
-    set_check(P, job, a.result, a.date, "confirmed by hand", a.note)
+    set_check(P, job, a.result, a.date, HAND, a.note)
     print(f"{job['company']} - {job['title']}: {a.result} on {a.date}")
     if a.result == "closed":
         print("  Closed: put it through the removal prompt (ask, then engine/remove_job.py) and record "

@@ -45,10 +45,24 @@ def lookup(location_text):
     if not m:
         return None
     city, state = m.group(1).strip(), (m.group(2) or "").upper()
+    # A state written in full ("Jacksonville, Florida, United States") is a state too: without this the city was
+    # looked up by name alone and matched the same-named city in the user's table.
+    state = state or state_of(location_text) or ""
     if state:
         return CITIES.get((city, state))
     hits = [v for (c, _), v in CITIES.items() if c == city]
     return hits[0] if len(hits) == 1 else None
+
+
+def state_of(location_text):
+    """The state named right after the city: 'Dallas, TX (On-site)' -> 'TX', 'Jacksonville, Florida, United States'
+    -> 'FL'; None when the text has no such part ('Greater Springfield', 'Springfield, United States')."""
+    parts = [p.strip() for p in re.sub(r"\(.*?\)", "", location_text or "").split(",")]
+    if len(parts) < 2:
+        return None
+    if re.fullmatch(r"[A-Z]{2}", parts[1]):
+        return parts[1]
+    return STATE_ABBR.get(parts[1].lower())
 
 
 US_STATES = {"AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas", "CA": "california",
@@ -61,6 +75,7 @@ US_STATES = {"AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas",
              "OR": "oregon", "PA": "pennsylvania", "RI": "rhode island", "SC": "south carolina",
              "SD": "south dakota", "TN": "tennessee", "TX": "texas", "UT": "utah", "VT": "vermont",
              "VA": "virginia", "WA": "washington", "WV": "west virginia", "WI": "wisconsin", "WY": "wyoming"}
+STATE_ABBR = {name: abbr for abbr, name in US_STATES.items()}
 
 
 def within_radius(location_text, center, radius_miles, home_state=None):
@@ -73,6 +88,11 @@ def within_radius(location_text, center, radius_miles, home_state=None):
     if pt is not None:
         return miles(pt, center) <= radius_miles
     text = re.sub(r"\(.*?\)", "", location_text).strip()
+    # The state right after the city decides, abbreviated or in full, so "Huntington, West Virginia" isn't read as
+    # Virginia and a city named like a state ("Oregon, Illinois") isn't read as that state.
+    named = state_of(location_text)
+    if named:
+        return None if not home_state or named == home_state else False
     m = re.search(r",\s*([A-Z]{2})\b", text)
     if m:
         return None if not home_state or m.group(1) == home_state else False

@@ -51,9 +51,25 @@ ABBR = [
 ]
 
 
+# Words in a title's parentheses that don't tell one role from another: workplace, country, time zone, contract
+# type, level range, and the notes a triage run adds ("several", "cut off"). Anything with a digit (pay, "100%")
+# counts as a note too.
+PAREN_NOTES = set("""remote hybrid onsite on site us usa u s united states america north only based fully
+    several cut off multiple levels level available contract temp temporary full part time zone zones pacific
+    mountain central eastern est edt cst cdt mst mdt pst pdt et ct mt pt or and in the year yr hour hr per""".split())
+
+
+def paren_note(m):
+    """A parenthetical is dropped only when it is a note: '(Remote)', '(USA)', '(Remote | $120,000-$160,000/year)',
+    '(several)', '(cut off)'. A team or product name stays in the title, so 'Product Manager (Payments)' and
+    'Product Manager (Growth)' at one company are two listings (whole-project review, 2026-11-27)."""
+    words = [w for w in re.findall(r"[^\W_]+", m.group(1)) if not any(ch.isdigit() for ch in w)]
+    return " " if all(w in PAREN_NOTES for w in words) else f" {m.group(1)} "
+
+
 def norm_title(t):
     t = t.lower()
-    t = re.sub(r"\([^)]*\)", " ", t)  # (Remote), (USA), (several), (cut off)
+    t = re.sub(r"\(([^)]*)\)", paren_note, t)
     for pat, rep in ABBR:
         t = re.sub(pat, rep, t)
     t = re.sub(r"[^a-z0-9]+", " ", t)
@@ -343,7 +359,7 @@ def match_saved(path):
         require_names(e, i, p.name)
         rows.setdefault(key(e["company"], e["title"]), []).append(e)
     linked, conflicts, outside, ambiguous = [], [], [], []
-    saved = [read_json(f) for f in sorted(P.jobs.glob("*.json"))]
+    saved, unnamed = named_jobs()
     # Several saved jobs with the same company and title (one role in two cities, say) can't be told apart by key:
     # a row already carrying one of their IDs keeps it, and the other rows stay unlinked and are listed for the user,
     # instead of each job overwriting the last one's link.
@@ -380,6 +396,20 @@ def match_saved(path):
     if ambiguous:
         print(f"{len(ambiguous)} rows match several saved jobs with the same company and title (ambiguous, "
               f"left unlinked):", *ambiguous, sep="\n  ")
+    if unnamed:
+        print(f"{len(unnamed)} job records have no company and title yet (only a connections PDF was read: save "
+              f"the job's main PDF and run extract.py again), so they were not matched:", *unnamed, sep="\n  ")
+
+
+def named_jobs():
+    """(job records with a text company and title, [IDs of the rest]). A record made from a connections PDF alone
+    has neither until the job's main PDF is extracted; it can't be matched by company and title."""
+    named, unnamed = [], []
+    for f in sorted(P.jobs.glob("*.json")):
+        j = read_json(f, expect=dict)
+        ok = all(isinstance(j.get(k), str) and j[k].strip() for k in ("company", "title"))
+        (named if ok else unnamed).append(j if ok else str(j.get("job_id") or f.stem))
+    return named, unnamed
 
 
 def keeps(path):
@@ -493,9 +523,8 @@ def reposts():
     comps = sorted([c for c in comp.values() if c["back"] or c["reposted"] >= 2],
                    key=lambda c: (-c["back"], -c["reposted"], -c["listings"]))
     current = {}
-    for f in sorted(P.jobs.glob("*.json")):
-        j = read_json(f)
-        current[key(j.get("company", ""), j.get("title", ""))] = j
+    for j in named_jobs()[0]:  # a record with no company and title yet can't be a current listing by name
+        current[key(j["company"], j["title"])] = j
     cur_ever = [r for r in ever if key(r["entry"]["company"], r["entry"]["title"]) in current]
 
     def name(r):

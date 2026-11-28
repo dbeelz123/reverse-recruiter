@@ -115,8 +115,12 @@ def parse_header(lines, stop):
     head = [l.strip() for l in lines[:stop] if l.strip()]
     rec = {"title": None, "company": None, "location": None, "posted": None,
            "applicants": None, "workplace": None, "employment_type": None}
+    chips = head  # where the workplace and employment type are read from
     for i, s in enumerate(head):
         if " · " in s and re.search(r"ago|applicants|clicked apply", s):
+            # From the location line on: the title and company above it are left out, so "Remote Patient
+            # Monitoring" or "Hybrid Cloud" in a title can't pass for the workplace (whole-project review, 2026-11-27).
+            chips = head[i:]
             parts = [p.strip() for p in s.split(" · ")]
             rec["location"] = parts[0]
             rec["posted"] = next((p for p in parts if "ago" in p), None)
@@ -126,7 +130,8 @@ def parse_header(lines, stop):
             if i >= 2:
                 rec["company"] = head[i - 2]
             break
-    tokens = " ".join(head)
+    cut = next((n for n, s in enumerate(chips) if s.startswith("People you can reach out to")), len(chips))
+    tokens = " ".join(chips[:cut])  # people's headlines in the teaser ("Engineer at Remote") are left out too
     rec["workplace"] = next((w for w in WORKPLACE if re.search(rf"\b{w}\b", tokens)), None)
     rec["employment_type"] = next((e for e in EMPLOYMENT if e in tokens), None)
     # Network teaser, e.g. "John and others in your network" or a single named person

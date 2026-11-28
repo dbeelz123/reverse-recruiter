@@ -17,7 +17,7 @@ from pathlib import Path
 import re
 import sys
 
-from paths import Paths, write_json, read_json
+from paths import Paths, is_score, latest_reviews, write_json, read_json
 
 
 def main():
@@ -48,10 +48,17 @@ def main():
     import recommendations
     people = connections.load(P)
     recs = recommendations.load(P)
+    reviews = latest_reviews(P)
     held = []
     for jid in args.job_ids:
         rec = read_json(P.jobs / f"{jid}.json", {}, expect=dict)
         named = [n for n, _ in connections.people_at(dict(rec, job_id=jid), recs, people)]
+        if not named:
+            # A connection recorded only as the review's bonus (a referral noted by hand, or a connection whose list
+            # wasn't captured): the report shows it as a connection, so it holds the removal as well.
+            bonus = (reviews[jid][0] if jid in reviews else rec.get("review") or {}).get("network_bonus")
+            if is_score(bonus) and bonus > 0:
+                named = [f"the review records a connection bonus (+{bonus:g}) with no name"]
         if not named:
             # No connection recorded for this job, but the posting's own teaser points to one (the connection list
             # wasn't captured, and nobody is tied to the job in connections.json): that holds the removal too.
@@ -74,9 +81,17 @@ def main():
         if rec:
             label = f"{company} - {title} ({jid})"
         # Only files inside the saved-PDF inbox are ever deleted; anything else in source_files is left alone.
-        pdfs, refused = [], []
+        # A file the ledger now ties to another job is that job's: LinkedIn names a PDF after the title and company,
+        # so a location twin or a repost saved over this job's file has the same name.
+        pdfs, refused, others = [], [], []
         for f in rec.get("source_files", []):
-            (pdfs if P.inside(data / f, P.job_pdfs) else refused).append(f)
+            owner = (ledger.get(f) or {}).get("job_id") if isinstance(ledger.get(f), dict) else None
+            if not P.inside(data / f, P.job_pdfs):
+                refused.append(f)
+            elif owner and owner != jid:
+                others.append(f"{f} (now job {owner})")
+            else:
+                pdfs.append(f)
         # The tombstone is written first, so an interrupted removal is still recognized and can be rerun.
         if not args.no_tombstone and not any(isinstance(t, dict) and t.get("job_id") == jid for t in tombs):
             tomb = {"job_id": jid, "removed": dt.date.today().isoformat(), "reason": args.reason}
@@ -114,6 +129,8 @@ def main():
             done.append("deleted job record")
         for f in refused:
             done.append(f"LEFT ALONE (outside {P.rel(P.job_pdfs)}): {f}")
+        for f in others:
+            done.append(f"LEFT ALONE (belongs to another job): {f}")
         print(f"{label}: " + (", ".join(done) or "nothing found"))
 
 

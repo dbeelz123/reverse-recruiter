@@ -95,14 +95,18 @@ def due_items(job, today, soon=0):
             to = ", ".join(ty.get("to") or []) or "the panel"
             out.append((day(ty["due"]), f"Send the round {iv['round']} thank-you to {to} (draft in the kit folder)"))
     # Timers run from the most recent dated event or interview on the job.
-    events = [(day(e.get("date")), e.get("stage")) for e in pl.get("events", [])]
-    events += [(day(iv.get("date")), "interview-done") for iv in ivs if iv.get("status") == "done"]
+    # Steps on the same day keep the order they were recorded in (as pipeline.last_event does): the position breaks
+    # the tie, not the stage's name, so "outreach, then applied" on one day runs the timer from applying. A finished
+    # interview on that day comes after the pipeline's steps.
+    events = [(day(e.get("date")), n, e.get("stage")) for n, e in enumerate(pl.get("events", []))]
+    events += [(day(iv.get("date")), len(events) + n, "interview-done")
+               for n, iv in enumerate(ivs) if iv.get("status") == "done"]
     events = [e for e in events if e[0]]  # undated or unreadable dates can't start a timer
     # A round still marked scheduled (upcoming, undated, or past and awaiting its debrief) means the ball isn't in
     # the employer's court yet, so no "no news" timer runs; the debrief reminder above covers a past round.
     upcoming = any(iv.get("status") == "scheduled" for iv in ivs)
     if events and not upcoming:
-        last_date, last_stage = max(events)
+        last_date, _, last_stage = max(events, key=lambda e: e[:2])
         # Suggest a nudge from a connection only when the job has a 1st-degree one, and name them.
         names = [c.get("name") for c in job.get("connections_1st") or [] if isinstance(c, dict) and c.get("name")]
         nudge = f" or ask {' or '.join(names)} for a nudge" if names else ""

@@ -10,7 +10,9 @@ This report compares those calls with what happened next, in three layers:
      from LinkedIn's match line, below strong, which a card doesn't show: modes.match_gated). The figure with the
      gate is what modes.py uses for the stability signal.
   2. Hedges: the share of cards called "possible".
-  3. Outcome of the cards User kept: tier after the full review (A/B/C/D), removed in review, or not yet reviewed.
+  3. Outcome of the cards User kept: tier after the full review (A/B/C/D), excluded in review (tier X or ?),
+     removed, or not yet reviewed. A job reviewed this round, before the report has copied the review into its
+     record, takes its tier from the review file.
 Then it lists every miss (a firm or lean call decided the other way), match-gated ones apart, with the agent's
 "why" and the user's reason: what Claude mines for better calls (guidance in triage_flow 3b; never criteria changes
 without asking).
@@ -23,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from modes import call_strength, likely_call, match_gated  # noqa: E402
-from paths import Paths, read_json, tombstones  # noqa: E402
+from paths import Paths, latest_reviews, read_json, tombstones  # noqa: E402
 
 GOOD = ("A", "B")
 
@@ -38,10 +40,20 @@ def label(x):
     return "possible" if s == "hedge" else f"{'likely' if s == 'firm' else 'lean'} {'keep' if d == 'keep' else 'DQ'}"
 
 
-def outcome(x, jobs, tombs):
+def outcome(x, jobs, tombs, reviews):
     jid = x.get("job_id")
     if jid in jobs:
-        return (jobs[jid].get("review") or {}).get("tier") or "not reviewed"
+        # The job record's copy carries the tier build_report.py computed (connection levels included), so it wins
+        # when it is there. This report runs before build_report.py in a round, though, and only the report copies
+        # a round's reviews into the records: a job with no copy yet, or with a review from a later round than its
+        # copy, takes the tier from the review files.
+        review = jobs[jid].get("review") if isinstance(jobs[jid].get("review"), dict) else None
+        if jid in reviews:
+            entry, rnd = reviews[jid]
+            copied = (review or {}).get("round")
+            if review is None or (isinstance(copied, int) and rnd > copied):
+                review = entry if isinstance(entry, dict) else None
+        return (review or {}).get("tier") or "not reviewed"
     if jid in tombs:
         return "removed"
     return "not reviewed"
@@ -60,6 +72,7 @@ def cards(P, rnd):
 def report(P, rnd):
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
     tombs = {t["job_id"]: t for t in tombstones(P.removed)}
+    reviews = latest_reviews(P)
     order = ["likely keep", "lean keep", "possible", "lean DQ", "likely DQ"]
     table = {k: collections.Counter() for k in order}
     misses, gated_misses, rounds = [], [], set()
@@ -81,12 +94,14 @@ def report(P, rnd):
         t["judged"] += 1
         t["kept"] += kept
         if kept:
-            o = outcome(x, jobs, tombs)
-            t["good" if o in GOOD else ("removed" if o == "removed" else ("C/D" if o in ("C", "D") else "open"))] += 1
+            o = outcome(x, jobs, tombs, reviews)
+            # Excluded in review (tier X, or ? for a posting that couldn't be read) is an outcome, not "not reviewed".
+            t["good" if o in GOOD else "removed" if o == "removed" else "C/D" if o in ("C", "D")
+              else "excluded" if o in ("X", "?") else "open"] += 1
         if direction != "hedge":
             t["agree"] += hit
             if not hit:
-                misses.append((r, k, x, outcome(x, jobs, tombs) if kept else ""))
+                misses.append((r, k, x, outcome(x, jobs, tombs, reviews) if kept else ""))
     total = collections.Counter()
     for t in table.values():
         total.update(t)
@@ -105,14 +120,14 @@ def report(P, rnd):
           f"which a card doesn't show.")
     print(f"- **Keeps that reached A/B:** {pct(total['good'], total['kept'])}\n")
     print("| Call | Cards | Decision agrees | Match-gated DQ | Other cards | User kept | Kept → A/B | → C/D | "
-          "→ removed | Not reviewed |")
-    print("|---|---|---|---|---|---|---|---|---|---|")
+          "→ excluded in review | → removed | Not reviewed |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
     for k in order:
         t = table[k]
         if t["cards"]:
             agree = "-" if k == "possible" else pct(t["agree_all"], t["cards"])
             print(f"| {k} | {t['cards']} | {agree} | {t['gated']} | {t['judged']} | {t['kept']} | {t['good']} | "
-                  f"{t['C/D']} | {t['removed']} | {t['open']} |")
+                  f"{t['C/D']} | {t['excluded']} | {t['removed']} | {t['open']} |")
     if gated_misses:
         print("\n## Keep calls stopped by the match gate\n")
         print("What made LinkedIn rate these below strong is often visible in the title or company: worth a look.\n")

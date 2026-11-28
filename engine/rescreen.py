@@ -4,11 +4,12 @@ Usage:  python engine/rescreen.py [--data my-data]
 
 Rules change between rounds, so jobs scored in earlier rounds can be out of date. This script is the
 mechanical half of the re-screen: for each current job it checks
-  - each dealbreaker's `title_regex` against the title,
-  - each rule's `rescreen_regex` (dealbreakers, negatives, qualifiers) against the full posting,
+  - each rule's `title_regex` (dealbreakers, negatives, qualifiers) against the title,
+  - each rule's `rescreen_regex` against the full posting and its "About the company" text,
   - the company blocklist against the company name,
   - each hybrid or on-site job's location against the current radius center and radius (OUTSIDE RADIUS, or
-    DISTANCE UNKNOWN when the place isn't in 5-criteria/places.json),
+    DISTANCE UNKNOWN when the place isn't in 5-criteria/places.json); a job with no workplace recorded is checked
+    too when its location names a city,
 and prints every hit with a short excerpt. It changes nothing.
 
 The judgment half is Claude's: read each flagged excerpt in context, decide whether the rule really
@@ -88,11 +89,13 @@ def main():
         if r.get("tier") == "X":
             continue
         checked += 1
-        text = j.get("posting_text") or ""
+        # The posting and the "About the company" text: rules about the employer (its industry, its customers) are
+        # often met only there.
+        text = "\n\n".join(t for t in (j.get("posting_text"), j.get("company_text")) if isinstance(t, str) and t)
         hits = []
         for kind, rule in rules:
             name = rule["value"][:60]
-            if kind == "DEALBREAKER" and rule.get("title_regex") and re.search(rule["title_regex"], j.get("title") or "", re.I):
+            if rule.get("title_regex") and re.search(rule["title_regex"], j.get("title") or "", re.I):
                 hits.append(f"  {kind} (title): {name}")
             if rule.get("rescreen_regex"):
                 ms = list(re.finditer(rule["rescreen_regex"], text, re.I))
@@ -103,13 +106,21 @@ def main():
         if hit:
             soft = " (case by case: is this role in the blocked area?)" if case_by_case(hit) else ""
             hits.append(f"  BLOCKLIST{soft}: {hit['value']} ({hit.get('reason', 'no reason recorded')})")
-        if center and j.get("workplace") in ("Hybrid", "On-site"):
-            loc = j.get("location") or ""
+        loc = j.get("location") or ""
+        # A record with no workplace (the page showed no chip) can still be hybrid or on-site: its location is
+        # checked unless it reads as remote or names no city ("United States").
+        unknown = (j.get("workplace") not in ("Remote", "Hybrid", "On-site") and "," in re.sub(r"\(.*?\)", "", loc)
+                   and not re.search(r"\bremote\b", loc, re.I))
+        if center and (j.get("workplace") in ("Hybrid", "On-site") or unknown):
             inside = within_radius(loc, center, radius, home_state)
             if inside is False:
                 d = distance(loc, center)
-                hits.append(f"  OUTSIDE RADIUS: {j['workplace']} in {loc}"
+                what = "workplace not recorded: is it hybrid or on-site?" if unknown else j["workplace"]
+                hits.append(f"  OUTSIDE RADIUS: {what} in {loc}"
                             + (f" (~{d} mi; radius {radius} mi)" if d is not None else f" (radius {radius} mi)"))
+            elif inside is None and unknown:
+                hits.append(f"  WORKPLACE UNKNOWN: workplace not recorded in {loc}: check whether it is hybrid or "
+                            f"on-site, and its distance against the {radius}-mile radius")
             elif inside is None:
                 hits.append(f"  DISTANCE UNKNOWN: {j['workplace']} in {loc}: check it against the {radius}-mile "
                             f"radius (add the city to places.json)")

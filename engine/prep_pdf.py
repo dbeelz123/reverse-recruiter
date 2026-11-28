@@ -279,7 +279,7 @@ def packets(kit, m):
 
     def read(src):
         if src not in cache:
-            cache[src] = (kit / src).read_text(encoding="utf-8")
+            cache[src] = (kit / src).read_text(encoding="utf-8-sig")
         return cache[src]
     for spec in m["packets"]:
         src = spec.get("source")
@@ -449,9 +449,9 @@ def cleaned_markdown(kit, m):
     rules = kit / cfg.get("rules", "anonymize-rules.txt")
     if not rules.exists():
         raise SystemExit(f"Rules file not found: {rules}")
-    md, unused = anonymize(md, rules.read_text(encoding="utf-8"))
+    md, unused = anonymize(md, rules.read_text(encoding="utf-8-sig"))
     if cfg.get("preamble"):
-        md = (kit / cfg["preamble"]).read_text(encoding="utf-8").rstrip() + "\n\n" + md
+        md = (kit / cfg["preamble"]).read_text(encoding="utf-8-sig").rstrip() + "\n\n" + md
     return md, unused
 
 
@@ -491,10 +491,10 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.cmd == "anonymize":
-        text, unused = anonymize(Path(args.inp).read_text(encoding="utf-8"),
-                                 Path(args.rules).read_text(encoding="utf-8"))
+        text, unused = anonymize(Path(args.inp).read_text(encoding="utf-8-sig"),
+                                 Path(args.rules).read_text(encoding="utf-8-sig"))
         if args.preamble:
-            text = Path(args.preamble).read_text(encoding="utf-8").rstrip() + "\n\n" + text
+            text = Path(args.preamble).read_text(encoding="utf-8-sig").rstrip() + "\n\n" + text
         Path(args.out).write_text(text, encoding="utf-8")
         print(f"rules that matched nothing: {len(unused)}")
         for u in unused:

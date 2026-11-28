@@ -83,8 +83,11 @@ def sections(posting, empty=None):
     out, kind, header, items, prev = [], None, None, [], ""
 
     def close():
-        if kind and items:
-            out.append((kind, header, [re.sub(r"\s+", " ", i).strip(" " + BULLET) for i in items]))
+        # A bullet or rule on a line of its own (PDF text often puts "•" on one line and its text on the next)
+        # leaves nothing once the bullet characters are stripped: not an item.
+        cleaned = [c for c in (re.sub(r"\s+", " ", i).strip(" " + BULLET) for i in items) if c]
+        if kind and cleaned:
+            out.append((kind, header, cleaned))
         elif kind and empty is not None:
             empty.append(header)
 
@@ -231,6 +234,23 @@ def draft(P, job, kit):
     return "\n".join(lines), count
 
 
+def fit_rows(text):
+    """[(row ID, rating or None, cells)] for a fit map's R and N rows. The rating is read from the Rating column
+    only (found in the table's header row; the third column when there is none): a requirement such as "Have 5+
+    years in payments", or a bold **Have** in the evidence, is not a rating."""
+    rows, col = [], 2
+    for line in text.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        heads = [c.strip("* ").lower() for c in cells]
+        if "rating" in heads:
+            col = heads.index("rating")
+        elif len(cells) >= 3 and re.match(r"^[RN]\d+$", cells[0]):
+            cell = cells[col] if col < len(cells) else ""
+            rating = next((r for r in RATINGS if re.search(rf"\*\*{r}\*\*|^{r}\b", cell)), None)
+            rows.append((cells[0], rating, cells))
+    return rows
+
+
 def check(P, job, kit):
     if not kit:
         sys.exit(f"No kit folder for {job['company']}: say 'prep {job['company']}' or create the folder first.")
@@ -241,11 +261,7 @@ def check(P, job, kit):
     if not fm.exists():
         problems.append("fit-map.md is missing")
     else:
-        for line in fm.read_text(encoding="utf-8").splitlines():
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) >= 3 and re.match(r"^[RN]\d+$", cells[0]):
-                rating = next((r for r in RATINGS if any(re.search(rf"\*\*{r}\*\*|^{r}\b", c) for c in cells)), None)
-                rows.append((cells[0], rating, cells))
+        rows = fit_rows(fm.read_text(encoding="utf-8-sig"))
         reqs = [r for r in rows if r[0].startswith("R")]
         nice = [r for r in rows if r[0].startswith("N")]
         unrated = [r[0] for r in rows if not r[1]]

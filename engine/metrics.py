@@ -326,12 +326,17 @@ def record(P, rnd):
         entry = {"round": rnd}
         m["rounds"].append(entry)
     searches = read_json(P.searches, {})
-    if prev_ids or late:  # exact: the difference from the rounds that kept their job IDs (none when late)
+    earlier = [r for r in m["rounds"] if r["round"] < rnd]
+    # An earlier round with a snapshot makes the count exact, even an empty snapshot (a round recorded before any
+    # job was saved); "prev_ids" alone can't tell that from "no snapshot".
+    have_snapshot = any(snapshot(r) is not None for r in earlier)
+    by_hand = entry.get("pdfs_new") is not None and entry.get("source") != "recorded by metrics.py"
+    if have_snapshot or late:  # exact: the difference from the rounds that kept their job IDs (none when late)
         pdfs_new = len(new_ids)
-    elif entry.get("pdfs_new") is not None:  # backfilled by hand for this round: keep it
-        pdfs_new = entry["pdfs_new"]
+        entry.pop("pdfs_new_estimated", None)
+    elif by_hand:  # backfilled by hand for this round: keep it. A count this script wrote itself is recounted, so
+        pdfs_new = entry["pdfs_new"]  # recording a round again (the first round included) picks up new saves.
     else:
-        earlier = [r for r in m["rounds"] if r["round"] < rnd]
         if earlier:  # earlier rounds were backfilled without job IDs: estimate rather than count every job as new
             pdfs_new = max(0, len(ids) - sum(r.get("pdfs_new") or 0 for r in earlier))
             entry["pdfs_new_estimated"] = True
