@@ -39,6 +39,7 @@ FOLLOW_OUTREACH = 5
 FOLLOW_INTERVIEW = 5
 TERMINAL = ("passed", "rejected", "withdrawn", "closed")
 DEBRIEF_KEYS = ("how", "asked", "landed", "missed", "signals", "next", "lessons", "thank_you_to")
+DEBRIEF_LISTS = ("asked", "landed", "missed", "lessons", "thank_you_to")  # always lists of text
 
 
 def load(p, default=None):
@@ -148,27 +149,50 @@ def schedule(P, job, a):
     iv = find_round(job, a.round, create=True)
     date = None if a.date == "unknown" else a.date
     iv.update({k: v for k, v in (("date", date), ("with", a.with_), ("format", a.format)) if v})
+    if a.date == "unknown":  # said outright (a postponed round): the old date goes, so `due` stops asking
+        iv["date"] = None
     iv["status"] = "scheduled"
     pl = job.setdefault("pipeline", {"events": []})
     if pl.get("status") not in ("interview", "offer"):
-        note = f"Round {a.round} scheduled for {a.date or 'a date to confirm'}"
+        note = f"Round {a.round} scheduled for {date or 'a date to confirm'}"
         if was in TERMINAL:
             note += f" (reopened; was {was})"
         pl.setdefault("events", []).append({"date": dt.date.today().isoformat(), "stage": "interview", "note": note})
         pl["status"] = "interview"
         pl.pop("next", None)
-    pl["stage"] = f"round {a.round} on {a.date}" if a.date else f"round {a.round}"
+    pl["stage"] = f"round {a.round} on {iv['date']}" if iv.get("date") else f"round {a.round}"
     pl["updated"] = dt.date.today().isoformat()
     save(P, job)
-    print(f"{short(job)}: round {a.round} scheduled ({a.date or 'date unknown'})")
+    print(f"{short(job)}: round {a.round} scheduled ({iv.get('date') or 'date unknown'})")
 
 
 def debrief(P, job, a):
-    iv = find_round(job, a.round, create=True)
-    data = read_json(Path(a.file))
+    # Everything is checked before the round is touched.
+    data = read_json(Path(a.file), expect=dict)
     unknown = set(data) - set(DEBRIEF_KEYS)
     if unknown:
         sys.exit(f"Unknown debrief keys: {', '.join(sorted(unknown))}. Use: {', '.join(DEBRIEF_KEYS)}")
+    for k in DEBRIEF_LISTS:
+        v = data.get(k)
+        if isinstance(v, str):  # one item written as text: a list of one (iterating it gave single letters)
+            data[k] = [v] if v.strip() else []
+        elif v is not None and not (isinstance(v, list) and all(isinstance(x, str) for x in v)):
+            sys.exit(f"{Path(a.file).name}: '{k}' must be a list of text items.")
+    # A round debriefed without having been scheduled is recorded here the way `schedule` would have: the
+    # application moves to the interview stage (unless it is already there, or closed out), so the queue, the
+    # funnel and the follow-up timers see the interview instead of "applied, no response".
+    planned = any(str(x.get("round")) == str(a.round) for x in job.get("interviews") or [])
+    iv = find_round(job, a.round, create=True)
+    if not planned:
+        pl = job.setdefault("pipeline", {"events": []})
+        if pl.get("status") not in ("interview", "offer") + tuple(TERMINAL):
+            pl.setdefault("events", []).append({"date": a.date or dt.date.today().isoformat(), "stage": "interview",
+                                                "note": f"Round {a.round} held (recorded at its debrief)"})
+            pl["status"] = "interview"
+            pl.pop("next", None)
+    if a.date and iv.get("date") and a.date != iv["date"]:
+        print(f"Round {a.round} was scheduled for {iv['date']}; recorded as held on {a.date}.")
+        iv["date"] = a.date
     db = iv.setdefault("debrief", {})
     for k, v in data.items():
         if isinstance(v, list):
@@ -186,7 +210,8 @@ def debrief(P, job, a):
         due = old.get("due") if day(old.get("due")) else (when + dt.timedelta(days=1)).isoformat()
         iv["thank_you"] = {"to": to, "due": due, "sent": old.get("sent")}
     pl = job.setdefault("pipeline", {"events": []})
-    pl["stage"] = f"round {a.round} done {iv['date']}" + (f"; next: {data['next']}" if data.get("next") else "")
+    pl["stage"] = (f"round {a.round} done" + (f" {iv['date']}" if iv.get("date") else "")
+                   + (f"; next: {data['next']}" if data.get("next") else ""))
     pl["updated"] = dt.date.today().isoformat()
     save(P, job)
     print(f"{short(job)}: round {a.round} debriefed ({len(db.get('asked') or [])} questions, "

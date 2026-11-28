@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, read_json, write_json, to_date  # noqa: E402
+from paths import Paths, iso_date, past_date, read_json, write_json, to_date  # noqa: E402
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
 OLD_DAYS = 30     # listings at least this old (estimated) are asked about even when a tracker capture shows them
@@ -118,7 +118,11 @@ def save(P, job):
 def set_check(P, job, result, date, source, note=None):
     prev = job.get("open_check") or {}
     old, new = to_date(prev.get("date")), to_date(date)
-    if old and new and old > new:
+    if new is None:  # e.g. a file named tracked-2026-11-31.txt: never stored over a readable check
+        return False
+    if old and old > dt.date.today():  # a stored date in the future is a typo, not a newer check
+        old = None
+    if old and old > new:
         return False  # never let an older paste overwrite a newer check (an unreadable stored date never blocks)
     job["open_check"] = {"date": date, "result": result, "source": source}
     if note:
@@ -284,7 +288,11 @@ def tracker_pdf(P, files, date):
 
 def tracker(P, path, date):
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
-    text = Path(path).read_text(encoding="utf-8")
+    try:
+        text = Path(path).read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        raise SystemExit(f"{Path(path).name} isn't UTF-8 text. Save the paste as UTF-8 (Notepad: Save as, "
+                         f"Encoding UTF-8) and rerun.")
     entries = parse_tracker(text)
     header = re.search(r"Saved · (\d+)", text)
     opened = closed = skipped = 0
@@ -364,11 +372,11 @@ def main():
     c = sub.add_parser("confirm")
     c.add_argument("job")
     c.add_argument("result", choices=["open", "closed"])
-    c.add_argument("--date", type=iso_date, default=dt.date.today().isoformat())
+    c.add_argument("--date", type=past_date, default=dt.date.today().isoformat())
     c.add_argument("--note")
     t = sub.add_parser("tracker")
     t.add_argument("paste", nargs="+", help="Job Tracker → Saved printed to PDF (files or their folder), or a .txt paste")
-    t.add_argument("--date", type=iso_date, help="the day the page was copied (default: a date in the file name, else the file's "
+    t.add_argument("--date", type=past_date, help="the day the page was copied (default: a date in the file name, else the file's "
                                   "modified date)")
     s = sub.add_parser("status")
     s.add_argument("--all", action="store_true", help="include applied jobs and C/D tiers")
@@ -377,15 +385,26 @@ def main():
     today = dt.date.today()
     if a.cmd == "tracker":
         files = tracker_files(a.paste)
-        named = re.search(r"\d{4}-\d{2}-\d{2}", files[0].name)  # tracked-2026-11-17.txt
-        date = a.date or (named.group(0) if named else
-                          dt.date.fromtimestamp(max(f.stat().st_mtime for f in files)).isoformat())
+        def capture_date(group):
+            """The day a capture was made: --date, else a date in the first file's name (tracked-2026-11-17.txt),
+            else the newest file time. A date in a name must be a real day and not in the future."""
+            named = re.search(r"\d{4}-\d{2}-\d{2}", group[0].name)
+            if a.date or not named:
+                return a.date or dt.date.fromtimestamp(max(f.stat().st_mtime for f in group)).isoformat()
+            d = to_date(named.group(0))
+            if d is None or d > today:
+                raise SystemExit(f"{group[0].name}: the date in the file name ({named.group(0)}) isn't a day up to "
+                                 f"today. Rename the file, or pass --date YYYY-MM-DD.")
+            return named.group(0)
         pdfs = [f for f in files if f.suffix.lower() == ".pdf"]
+        pastes = [f for f in files if f.suffix.lower() != ".pdf"]
+        # Checked before anything is marked. The PDFs are the pages of one capture; each paste is a capture of its
+        # own, with its own date.
+        dates = {f: capture_date([f]) for f in pastes}
         if pdfs:
-            tracker_pdf(P, pdfs, date)
-        for f in files:
-            if f.suffix.lower() != ".pdf":
-                tracker(P, f, date)
+            tracker_pdf(P, pdfs, capture_date(pdfs))
+        for f in sorted(pastes, key=lambda f: dates[f]):
+            tracker(P, f, dates[f])
         return
     if a.cmd == "status":
         status(P, today, a.all)
@@ -395,7 +414,10 @@ def main():
     job = jobs[resolve(P, jobs, kits(P), a.job)]
     if a.cmd == "gate":
         sys.exit(0 if gate(P, job, today) else 1)
-    set_check(P, job, a.result, a.date, HAND, a.note)
+    if not set_check(P, job, a.result, a.date, HAND, a.note):
+        kept = job.get("open_check") or {}
+        sys.exit(f"Not recorded: {job['company']} - {job['title']} already has a newer check ({kept.get('result')} "
+                 f"on {kept.get('date')}, {kept.get('source')}), and {a.date} is before it.")
     print(f"{job['company']} - {job['title']}: {a.result} on {a.date}")
     if a.result == "closed":
         print("  Closed: put it through the removal prompt (ask, then engine/remove_job.py) and record "

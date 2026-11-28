@@ -128,7 +128,7 @@ class WithData(helpers.SampleCase):
     def test_job_ids_must_be_a_list(self):
         from connections import load
         f = self.data / "5-criteria" / "connections.json"
-        for bad in ("4482029334", 42, ["42", "not-an-id"]):
+        for bad in ("4482029334", 42, ["42", "not an id"]):
             f.write_text(json.dumps({"people": {"pat-x": {"strength": "neutral", "job_ids": bad}}}), encoding="utf-8")
             with self.assertRaises(SystemExit) as cm:
                 load(Paths(self.data))

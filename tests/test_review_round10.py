@@ -102,7 +102,9 @@ class PrivacyImages(SampleCase):
         folder = self.tmp / "repo"
         folder.mkdir()
         (folder / "a.md").write_text("see C:/Us" + "ers/alice/notes\n", encoding="utf-8")  # split: not a hit here
-        (folder / "b.json").write_text('{"p": "C:\\\\Users\\\\alice\\\\notes"}\n', encoding="utf-8")
+        bs2 = chr(92) * 2  # built at runtime so this file doesn't trip the repo's own privacy scan
+        (folder / "b.json").write_text('{"p": "C:' + bs2 + 'Us' + 'ers' + bs2 + 'alice' + bs2 + 'notes"}\n',
+                                       encoding="utf-8")
         code, out = self.scan(folder)
         self.assertEqual(code, 1, out)
         self.assertIn("a.md", out)

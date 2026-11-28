@@ -19,6 +19,18 @@ import re
 import unicodedata
 from pathlib import Path
 
+import sys
+
+# Every script imports this module, so this is where console output is made safe: on Windows before Python 3.15 a
+# piped or redirected console is cp1252, and one "→" in a posting excerpt or an accented name stopped a script
+# mid-run (a re-screen half done, a removal batch half applied).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        if (_stream.encoding or "").lower().replace("-", "") != "utf8":
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):  # a replaced or closed stream (test runners, some hosts)
+        pass
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA = ROOT / "my-data"
 DATA_ENV = "REVERSE_RECRUITER_DATA"  # set once (e.g. in Claude Code settings) when the data lives elsewhere
@@ -52,6 +64,51 @@ def iso_date(s):
 
 
 YMD = re.compile(r"\d{4}-\d{2}-\d{2}", re.ASCII)
+
+
+def past_date(s):
+    """argparse type for the date something happened (an open check, an application step): iso_date, and not after
+    today. A future date is a typo (2026-12-25 for 11-25), and once stored it outranks every correct date after it."""
+    import argparse
+    import datetime
+    s = iso_date(s)
+    if s != "unknown" and datetime.date.fromisoformat(s) > datetime.date.today():
+        raise argparse.ArgumentTypeError(f"{s} is in the future; give the day it happened")
+    return s
+
+
+LEGAL_SUFFIXES = {"inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation", "co", "company", "plc",
+                  "gmbh", "group", "holdings", "technologies", "technology"}
+
+
+def company_key(name):
+    """One key per employer, for grouping several roles at a company: the whole name, without a note in parentheses
+    ("Acme (through a staffing firm)"), a leading "The", or trailing legal words ("Acme, Inc.", "Acme Group"). The
+    first word alone is not a key: "The Home Depot" and "The Trade Desk" are different companies."""
+    words = norm_name(str(name or "").split(" (")[0]).split()
+    if len(words) > 1 and words[0] == "the":
+        words = words[1:]
+    while len(words) > 1 and words[-1] in LEGAL_SUFFIXES:
+        words = words[:-1]
+    return " ".join(words)
+
+
+def read_run(path):
+    """A search-run file (6-system/search-runs/*.json), checked for the shape every reader relies on: an object;
+    'round', when present, a whole number; 'listings', when present, a list of objects; 'unrecorded_cards', when
+    present, a whole number. Anything else stops with the file named, instead of a traceback or, worse, a run that
+    silently drops out of the funnel."""
+    d = read_json(path, expect=dict)
+    whole = lambda v: isinstance(v, int) and not isinstance(v, bool)
+    if "round" in d and not whole(d["round"]):
+        raise DataFileError(f"Malformed {path}: 'round' must be a whole number, not {d['round']!r}.")
+    ls = d.get("listings")
+    if ls is not None and not (isinstance(ls, list) and all(isinstance(x, dict) for x in ls)):
+        raise DataFileError(f"Malformed {path}: 'listings' must be a list of objects.")
+    if d.get("unrecorded_cards") is not None and not whole(d["unrecorded_cards"]):
+        raise DataFileError(f"Malformed {path}: 'unrecorded_cards' must be a whole number, "
+                            f"not {d['unrecorded_cards']!r}.")
+    return d
 
 
 def to_date(s):

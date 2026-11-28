@@ -22,13 +22,22 @@ if [ -z "$terms" ]; then
     exit 1
 fi
 
-files=$(git diff --cached --name-only --diff-filter=ACMR)
+# The file must exist: a path that has gone missing would let the scan fall back to another list, or to none.
+if [ ! -f "$terms" ]; then
+    echo "pre-commit: the private-terms list is missing: $terms"
+    echo "  Fix the path: git config reverse-recruiter.privateTerms \"<path to private-terms.txt>\""
+    exit 1
+fi
+
+# T (type change) is included: a file replaced by a symbolic link is a change to what gets published.
+files=$(git diff --cached --name-only --diff-filter=ACMRT)
 [ -z "$files" ] && exit 0
 
-bad=$(printf '%s\n' "$files" | grep -E '(^|/)(my-data|private-data)/|private-terms\.txt$|\.private\.|CLAUDE\.local\.md$')
+bad=$(printf '%s\n' "$files" | grep -iE '(^|/)(my-data|private-data)/|private-terms\.txt$|\.private\.|CLAUDE\.local\.md$')
 # A data folder of any name is recognized by its layout; only the fictional sample-data/ may be committed.
+# Names are matched without regard to case: on Windows and macOS "My-Data/" is the same folder as "my-data/".
 bad="$bad
-$(printf '%s\n' "$files" | grep -E '(^|/)(1-inbox|2-reports|3-applications|4-profile|5-criteria|6-system|7-recommendations|8-mentor-advice|9-learning)/' | grep -vE '^sample-data/')"
+$(printf '%s\n' "$files" | grep -iE '(^|/)(1-inbox|2-reports|3-applications|4-profile|5-criteria|6-system|7-recommendations|8-mentor-advice|9-learning)/' | grep -vE '^sample-data/')"
 bad=$(printf '%s\n' "$bad" | grep -v '^$')
 if [ -n "$bad" ]; then
     echo "pre-commit: personal-data paths are staged:"
@@ -66,7 +75,7 @@ EOF
 # Deliberate exceptions (e.g. the author's name in LICENSE) come from the staged .privacy-allow only.
 [ -f "$tmp/.privacy-allow" ] || git show ":.privacy-allow" > "$tmp/.privacy-allow" 2>/dev/null || rm -f "$tmp/.privacy-allow"
 
-PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$tmp" --terms "$terms" --strict
+PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$tmp" --terms "$terms" --strict --no-skip
 status=$?
 if [ $status -ne 0 ]; then
     echo "pre-commit: privacy scan failed (paths above are inside a temporary copy of the staged files)."

@@ -49,6 +49,7 @@ Rendering prints HTML to PDF with headless Microsoft Edge or Chrome (--browser t
 written to a temporary folder outside the project.
 """
 import argparse
+import collections
 import html
 import json
 import os
@@ -79,7 +80,9 @@ def inline(s):
     def link(m):
         text, url = m.group(1), m.group(2)
         if url.startswith("http"):
-            return f'<a href="{html.escape(url)}">{text}</a>'
+            # The whole line was escaped above, so only the quote is left to escape here: escaping again turned
+            # every "&" of a query string into "&amp;amp;" and broke the link.
+            return f'<a href="{url.replace(chr(34), "&quot;")}">{text}</a>'
         return text  # relative project links don't work on a phone
     s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", link, s)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
@@ -302,6 +305,13 @@ def packets(kit, m):
         name = spec.get("name") or Path(src).stem
         out.append({"name": name, "title": spec.get("title", name), "label": spec.get("label", name), "md": md,
                     "toc": bool(spec.get("toc"))})
+    # A packet's name is its PDF's file name: two packets with one name would write the same file twice, each
+    # reported as done, and the first packet's PDF would be gone.
+    seen = collections.Counter(p["name"] for p in out)
+    twice = sorted(n for n, c in seen.items() if c > 1)
+    if twice:
+        raise SystemExit(f"The manifest has several packets named {', '.join(twice)}: give each its own \"name\" "
+                         f"(two sections of one source file both default to the file's name).")
     if out and m.get("reading_order") and not any(p["toc"] for p in out):
         out[0]["toc"] = True
     return out

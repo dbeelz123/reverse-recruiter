@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from modes import call_strength, likely_call, match_gated  # noqa: E402
-from paths import Paths, latest_reviews, read_json, tombstones  # noqa: E402
+from paths import Paths, latest_reviews, read_json, read_run, tombstones  # noqa: E402
 
 GOOD = ("A", "B")
 
@@ -61,10 +61,10 @@ def outcome(x, jobs, tombs, reviews):
 
 def cards(P, rnd):
     for f in sorted(P.search_runs.glob("*.json")):
-        d = load(f)
+        d = read_run(f)
         if rnd is not None and d.get("round") != rnd:
             continue
-        for x in d.get("listings", []):
+        for x in d.get("listings") or []:
             if x.get("likely") and x.get("decision"):
                 yield d.get("round"), f.stem, x
 

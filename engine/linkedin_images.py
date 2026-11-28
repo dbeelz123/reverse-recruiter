@@ -184,7 +184,12 @@ def main(argv=None):
     t = metrics.totals(P)
     if not t:
         raise SystemExit("No recorded rounds: run engine/metrics.py --round N first.")
-    rnd = a.round or t["round"]
+    # The images always show the totals up to the latest recorded round, so no other round can be asked for: an
+    # older number would only relabel today's totals as that round's.
+    if a.round is not None and a.round != t["round"]:
+        raise SystemExit(f"The images show the totals up to the latest recorded round ({t['round']}); "
+                         f"--round {a.round} isn't available. Leave --round out.")
+    rnd = t["round"]
     counts = grade_counts(P)
     if a.raw:
         shown, shown_g, kind = {k: t[k] for k in FUNNEL_KEYS}, counts, ""
@@ -227,8 +232,10 @@ def main(argv=None):
         for p in targets.values():
             shutil.move(str(staged / p.name), str(p))
     # Older rounds' images go to archive/.
+    # Only images of the same kind: a raw-count render must not archive the per-100 pair that is live on
+    # LinkedIn (linkedin-project.json points at those files), and the other way round.
     for old in out_dir.glob("job-search-*-round-*.png"):
-        if old not in targets.values():
+        if old not in targets.values() and ("-per100-round-" in old.name) == bool(kind):
             (out_dir / "archive").mkdir(exist_ok=True)
             shutil.move(str(old), str(out_dir / "archive" / old.name))
     print(f"Funnel{'' if a.raw else ' (per 100)'}: " + " / ".join(str(shown[k]) for k in FUNNEL_KEYS) +

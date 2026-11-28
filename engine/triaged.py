@@ -33,7 +33,8 @@ import re
 import sys
 from pathlib import Path
 
-from paths import DataFileError, Paths, blocked_by, blocklist, case_by_case, read_json, to_date, write_json, tombstones
+from paths import (DataFileError, Paths, blocked_by, blocklist, case_by_case, read_json, read_run, to_date, write_json,
+                   tombstones)
 
 P = Paths()
 ROOT = P.data.parent
@@ -246,9 +247,12 @@ def add_tombstones(entries, only_new=False):
 
 def seed():
     db = {"updated": None, "note": __doc__.split("\n\n")[0], "entries": []}
-    files = sorted(P.search_runs.glob("*-triage-*.json")) + sorted(P.search_runs.glob("*-run-*.json"))
-    for f in files:
-        a, u = merge(db["entries"], listing_entries(read_json(f), P.rel(f)))
+    # Every run file, oldest run first: the same files metrics.py and modes.py count, in the order `add` saw them,
+    # so "latest decision wins" means the latest run, not the last file name in the alphabet (2026-11-27 review).
+    runs = [(f, read_run(f)) for f in sorted(P.search_runs.glob("*.json"))]
+    runs.sort(key=lambda r: (str(r[1].get("date") or ""), r[0].name))
+    for f, run in runs:
+        a, u = merge(db["entries"], listing_entries(run, P.rel(f)))
         print(f"{f.name}: {a} added, {u} already present")
     removed = add_tombstones(db["entries"])
     dates = [d for d in (to_date(r.get("removed")) for r in removed) if d]  # malformed dates are skipped
@@ -294,6 +298,7 @@ def check(path):
     spec = read_json(P.spec, {}, expect=dict)
     blocks = blocklist(spec, P.spec)
     for c in cards:
+        c.pop("triaged", None)  # a mark from an earlier check of this file is recomputed, never carried over
         status = c.get("status") or []
         # Saved/Applied on LinkedIn: already in the user's saves (synced with the project) or applied -> no triage.
         # Opportunistic saves made during batches are linked at round start by match-saved.

@@ -197,6 +197,23 @@ class Hook(SampleCase):
                 self.assertIn("personal-data paths", result.stdout)
                 self.git("rm", "-q", "--cached", "-r", "career-data")
 
+    def test_data_folder_names_match_in_any_case(self):
+        # Whole-project review of 2026-11-27, finding 55: Windows and macOS file names ignore case.
+        for name in ("My-Data/x.txt", "Stuff/6-System/jobs/1.json"):
+            with self.subTest(name=name):
+                self.stage(name, "anything")
+                result = self.hook()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("personal-data paths", result.stdout)
+                self.git("rm", "-q", "--cached", "-r", name.split("/")[0])
+
+    def test_a_missing_terms_file_blocks(self):
+        self.git("config", "reverse-recruiter.privateTerms", str(self.tmp / "gone.txt"))
+        self.stage("notes.md", "clean")
+        result = self.hook()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing", result.stdout)
+
     def test_private_term_in_a_file_name_blocked(self):
         self.stage("kits/pinewick-product-manager/log.md", "clean")
         result = self.hook()

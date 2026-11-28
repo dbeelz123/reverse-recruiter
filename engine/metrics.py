@@ -41,7 +41,7 @@ import argparse
 import datetime as dt
 import json
 
-from paths import Paths, latest_reviews, read_json, write_json, tombstones
+from paths import DataFileError, Paths, latest_reviews, read_json, read_run, write_json, tombstones
 from triaged import key
 
 # Display names for the four stages (decided 2026-11-18; also used on the LinkedIn project images).
@@ -71,8 +71,8 @@ def untracked_saves(P):
     "recommendations", "saved_job_ids"). See the module docstring."""
     out = {}
     for f in sorted(P.search_runs.glob("*.json")):
-        d = read_json(f)
-        if isinstance(d, dict) and d.get("triage_type") in UNTRACKED:
+        d = read_run(f)
+        if d.get("triage_type") in UNTRACKED:
             out.update({i: d["triage_type"] for i in d.get("saved_job_ids") or [] if isinstance(i, str)})
     return out
 
@@ -176,7 +176,7 @@ def funnel_from_runs(P):
     in "phone" (their IDs in "phone_ids") instead of "direct" and "processed": the listings behind them are unknown."""
     runs = []
     for f in sorted(P.search_runs.glob("*.json")):
-        d = read_json(f)
+        d = read_run(f)
         if "round" in d:
             runs.append((d["round"], d.get("date", ""), f.name, d))
     runs.sort(key=lambda r: (r[0], r[1], r[2]))
@@ -294,7 +294,14 @@ def current_state(P):
 
 
 def load(P):
-    return read_json(P.metrics, {"rounds": []})
+    m = read_json(P.metrics, {"rounds": []}, expect=dict)
+    rounds = m.setdefault("rounds", [])
+    # Every reader indexes a round by its number: a hand-edited entry without one stops here, with the file named.
+    if not isinstance(rounds, list) or not all(isinstance(r, dict) and isinstance(r.get("round"), int)
+                                               and not isinstance(r.get("round"), bool) for r in rounds):
+        raise DataFileError(f"Malformed {P.metrics}: 'rounds' must be a list of objects, each with a whole-number "
+                            f"'round'.")
+    return m
 
 
 def done(m):
@@ -344,8 +351,15 @@ def record(P, rnd):
                   f"({len(ids)} jobs seen in all - {len(ids) - pdfs_new} counted in earlier rounds = {pdfs_new}).")
         else:  # the first round: every job is new
             pdfs_new = len(new_ids)
-    entry.update({"date": dt.date.today().isoformat(), "source": "recorded by metrics.py",
-                  "mode": (searches.get("mode") or {}).get("mode", "catch-up"),  # triage mode (docs/how-it-works.md -> Triage modes)
+    # The date and the triage mode are the round's own: set when it is first recorded and kept when it is recorded
+    # again (to refresh the counts after a removal, say). Restamping them moved the round into today's 14-day
+    # volume window in modes.py and overwrote the mode the round was run in.
+    again = entry.get("ranked_end") is not None
+    mode_now = searches.get("mode") if isinstance(searches.get("mode"), dict) else {}
+    entry.update({"date": entry["date"] if again and entry.get("date") else dt.date.today().isoformat(),
+                  "source": "recorded by metrics.py",
+                  # triage mode (docs/how-it-works.md -> Triage modes)
+                  "mode": entry["mode"] if again and entry.get("mode") else mode_now.get("mode", "catch-up"),
                   "pdfs_new": pdfs_new, "ranked_end": ranked, "job_ids": sorted(ids)})
     # File-time events (capture, export): replace earlier file-time events so re-recording doesn't double them.
     ev = [e for e in entry.get("events", []) if not (e.get("note") or "").startswith("file time:")]
@@ -486,6 +500,19 @@ STAGES = {"capture": "Capture search results", "triage": "Triage (your calls)", 
 BREAK_MIN = 30
 
 
+def clock(at):
+    """--at as a local date and time without a time zone ('2026-11-27T10:00:00'). Anything else stops here: a
+    value that can't be read was stored and then silently left out of the timing, and one with a UTC offset
+    couldn't be compared with the others."""
+    try:
+        t = dt.datetime.fromisoformat(at)
+    except (TypeError, ValueError):
+        raise SystemExit(f"--at must be a date and time such as 2026-11-27T10:00, not {at!r}")
+    if t.tzinfo is not None:
+        t = t.astimezone().replace(tzinfo=None)
+    return t.isoformat(timespec="seconds")
+
+
 def add_event(P, rnd, stage, note=None, at=None):
     if stage not in STAGES:
         raise SystemExit(f"Unknown stage {stage}: use one of {', '.join(STAGES)}")
@@ -495,7 +522,7 @@ def add_event(P, rnd, stage, note=None, at=None):
         entry = {"round": rnd, "ranked_end": None}
         m["rounds"].append(entry)
         m["rounds"].sort(key=lambda r: r["round"])
-    t = at or dt.datetime.now().isoformat(timespec="seconds")
+    t = clock(at) if at else dt.datetime.now().isoformat(timespec="seconds")
     entry.setdefault("events", []).append({"t": t, "stage": stage, **({"note": note} if note else {})})
     write_json(P.metrics, m, indent=1)
 
@@ -504,8 +531,8 @@ def file_events(P, rnd, new_ids):
     """Capture and export events from file save times (pasted search results; PDFs of this round's new jobs)."""
     ev = []
     for f in P.search_runs.glob("*.json"):
-        d = read_json(f)
-        if d.get("round") != rnd or not d.get("source"):
+        d = read_run(f)
+        if d.get("round") != rnd or not isinstance(d.get("source"), str) or not d["source"]:
             continue
         src = P.data / d["source"].split(" (")[0]
         if src.exists():
@@ -528,8 +555,11 @@ def stage_minutes(entry):
     times = {}
     for e in entry.get("events", []):
         try:  # a hand-edited or half-written event is skipped, never a crash
-            times.setdefault(e["stage"], []).append(dt.datetime.fromisoformat(e["t"]))
-        except (KeyError, TypeError, ValueError):
+            t = dt.datetime.fromisoformat(e["t"])
+            if t.tzinfo is not None:  # stored by hand with a UTC offset: compare as local time, like the rest
+                t = t.astimezone().replace(tzinfo=None)
+            times.setdefault(e["stage"], []).append(t)
+        except (KeyError, TypeError, ValueError, OSError, OverflowError):
             continue
     out = {}
     for s, ts in times.items():

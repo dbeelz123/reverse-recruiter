@@ -16,7 +16,10 @@ sys.path.insert(0, str(ENGINE))
 def run(script, *args, cwd=REPO):
     """Run an engine script (or scripts/ file) with -B; returns (exit code, combined output)."""
     path = script if Path(str(script)).is_absolute() else (REPO / script if "/" in str(script) else ENGINE / script)
-    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
+    # The caller's own settings must not reach the scripts under test: a private-terms list or a data folder set
+    # in the environment would change what they read (every test passes its own --data and --terms).
+    env = {k: v for k, v in os.environ.items() if k not in ("PRIVATE_TERMS", "REVERSE_RECRUITER_DATA")}
+    env.update(PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
     r = subprocess.run([sys.executable, "-B", str(path), *map(str, args)], cwd=cwd, capture_output=True,
                        text=True, encoding="utf-8", errors="replace", env=env)
     return r.returncode, r.stdout + r.stderr

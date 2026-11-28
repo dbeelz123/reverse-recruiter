@@ -58,10 +58,10 @@ class TrackerPdf(helpers.SampleCase):
         # 9100000010 left off the list: it dropped off LinkedIn's Saved list
         folder = self.data / "1-inbox" / "tracked-jobs"
         make_pdfs(folder, rows, header=len(rows))
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertIn(f"{len(rows)} saved jobs of Saved · {len(rows)}; marked 6 open, 1 closed", out)
         self.assertEqual(self.job("9100000002")["open_check"],
-                         {"date": "2030-01-15", "result": "open", "source": "tracker PDF", "note": "Posted 3d ago"})
+                         {"date": "2026-11-20", "result": "open", "source": "tracker PDF", "note": "Posted 3d ago"})
         self.assertEqual(self.job("9100000003")["open_check"]["result"], "closed")
         self.assertIn("saved but not in the project: Brand New Role · Newco", out)
         self.assertIn("https://www.linkedin.com/jobs/view/4000000001/", out)
@@ -77,7 +77,7 @@ class TrackerPdf(helpers.SampleCase):
                 (rows[1][0], "Senior Product Manager", "Twin Co", "No longer accepting applications")]
         folder = self.tmp / "pdfs"
         make_pdfs(folder, rows, header=None)
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertEqual(self.job(rows[0][0])["open_check"]["result"], "open")
         self.assertEqual(self.job(rows[1][0])["open_check"]["result"], "closed")
         self.assertIn("reverse check is skipped", out)  # no header: can't tell what's missing
@@ -85,7 +85,7 @@ class TrackerPdf(helpers.SampleCase):
     def test_incomplete_capture_skips_the_reverse_check(self):
         folder = self.tmp / "pdfs"
         make_pdfs(folder, self.rows(), header=40)
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertIn("but the header says 40", out)
         self.assertNotIn("no longer saved", out)
 
@@ -93,14 +93,14 @@ class TrackerPdf(helpers.SampleCase):
         rows = self.rows()
         folder = self.tmp / "pdfs"
         make_pdfs(folder, rows + rows[:3], header=len(rows))  # the last file repeats the first three cards
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertIn(f"{len(rows)} saved jobs of Saved · {len(rows)}", out)
 
     def test_older_capture_never_overwrites_a_newer_check(self):
         folder = self.tmp / "pdfs"
         make_pdfs(folder, self.rows(), header=None)
-        self.ok("staleness.py", "--data", self.data, "confirm", "9100000002", "closed", "--date", "2030-02-01")
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.ok("staleness.py", "--data", self.data, "confirm", "9100000002", "closed", "--date", "2026-11-25")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertEqual(self.job("9100000002")["open_check"]["result"], "closed")
         self.assertIn("1 kept a newer check", out)
 
@@ -115,7 +115,7 @@ class TrackerPdf(helpers.SampleCase):
             title_only_card(page, 80 + k * 60, jid, title, company, st)
         doc.save(folder / "Job tracker _ LinkedIn1.pdf")
         doc.close()
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertIn("marked 2 open, 1 closed", out)
         self.assertNotIn("no Posted/closed line", out)
         self.assertEqual(self.job(rows[1][0])["open_check"]["result"], "closed")  # not the next card's status
@@ -141,7 +141,7 @@ class TrackerPdf(helpers.SampleCase):
                           "uri": f"https://www.linkedin.com/jobs/view/{r_id}/"})
         doc.save(folder / "Job tracker _ LinkedIn1.pdf")
         doc.close()
-        self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertEqual(self.job(l_id)["open_check"]["result"], "open")
         self.assertEqual(self.job(r_id)["open_check"]["result"], "closed")
 
@@ -160,7 +160,7 @@ class TrackerPdf(helpers.SampleCase):
                           "uri": f"https://www.linkedin.com/jobs/view/{jid}/"})
         doc.save(folder / "Job tracker _ LinkedIn1.pdf")
         doc.close()
-        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        out = self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertNotIn("no Posted/closed line", out)
         self.assertEqual(self.job(jid)["open_check"]["result"], "open")
 
@@ -180,17 +180,17 @@ class TrackerPdf(helpers.SampleCase):
                         "No longer accepting applications")
         doc.save(folder / "Job tracker _ LinkedIn2.pdf")
         doc.close()
-        self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2030-01-15")
+        self.ok("staleness.py", "--data", self.data, "tracker", folder, "--date", "2026-11-20")
         self.assertEqual(self.job(jid)["open_check"]["result"], "open")
 
     def test_text_paste_still_works(self):
         j = self.job("9100000002")
-        paste = self.tmp / "tracked-2030-01-15.txt"
+        paste = self.tmp / "tracked-2026-11-20.txt"
         paste.write_text(f"Saved · 1\n\n{j['title']}\n{j['company']} · United States (Remote)\nPosted 2d ago\n",
                          encoding="utf-8")
         out = self.ok("staleness.py", "--data", self.data, "tracker", paste)
         self.assertIn("marked 1 open", out)
-        self.assertEqual(self.job("9100000002")["open_check"]["date"], "2030-01-15")
+        self.assertEqual(self.job("9100000002")["open_check"]["date"], "2026-11-20")
 
 
 if __name__ == "__main__":

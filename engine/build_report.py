@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import (Paths, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
+from paths import (Paths, company_key, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
                    write_json)
 from urllib.parse import quote
 
@@ -85,6 +85,23 @@ def check_review(path, jid, r):
         raise SystemExit(f"Malformed review for job {jid} in {path}:\n  " + "\n  ".join(problems))
 
 
+def lead_is_saved(title, company, saved):
+    """A lead that is really one of the saved jobs (LinkedIn sometimes re-labels the company): the same title and
+    company, or a lead title ending in the saved title with the saved company's first word in the lead as a whole
+    word. As a substring, a saved company called "Age of Supply" hid every lead with "Manager" in it."""
+    lead = (title + " " + company).lower()
+    for j in saved:
+        st, sc = (j.get("title") or "").lower(), (j.get("company") or "").lower()
+        if title.lower() == st and company.lower() == sc:
+            return True
+        words = [w for w in re.split(r"\W+", sc) if w]
+        first_word = next((w for w in words if w != "the"), "")
+        if (st and first_word and title.lower().endswith(st)
+                and re.search(rf"(?<![a-z0-9]){re.escape(first_word)}(?![a-z0-9])", lead)):
+            return True
+    return False
+
+
 def md_cell(s):
     return str(s).replace("|", "/").replace("\n", " ")
 
@@ -148,6 +165,17 @@ def main():
             r["round"] = from_round
             rec["review"] = r
             write_json(f, rec, indent=2)
+        elif "review" in rec:
+            # The review files are the source of truth: a job whose entry is gone from them (deleted for a
+            # re-review, or a later round's review when an earlier round is rebuilt) isn't ranked from the copy an
+            # earlier build left in its record. It goes under "Not reviewed yet".
+            del rec["review"]
+            write_json(f, rec, indent=2)
+        # Fields the report prints for every job, defaulted here (in memory only) so a record or review written
+        # without one builds a report instead of stopping halfway, after the records were already rewritten.
+        rec.setdefault("url", "")
+        if isinstance(rec.get("review"), dict):
+            rec["review"].setdefault("summary", "")
         jobs[rec["job_id"]] = rec
 
     # A review whose job record is gone (removed by hand, or a mistyped ID) is named rather than silently dropped.
@@ -323,8 +351,8 @@ def main():
     groups = collections.defaultdict(list)
     for j in reviewed:
         if j["review"]["tier"] not in ("X", "?"):
-            groups[re.split(r"\W+", (j.get("company") or "").lower())[0]].append(j)
-    multi = {k: v for k, v in groups.items() if len(v) >= 2}
+            groups[company_key(j.get("company"))].append(j)
+    multi = {k: v for k, v in groups.items() if k and len(v) >= 2}  # jobs with no company name aren't a group
     if multi:
         w("## Companies with several roles\n")
         w("Compared every round on current scores: the top 2 lead, the rest are held in reserve (kept and re-scored, "
@@ -394,15 +422,7 @@ def main():
                 seen[k]["lead"] = l
 
     def is_saved(title, company):
-        """A lead that is really one of the saved jobs (LinkedIn sometimes re-labels the company)."""
-        for j in jobs.values():
-            st, sc = (j.get("title") or "").lower(), (j.get("company") or "").lower()
-            if title.lower() == st and company.lower() == sc:
-                return True
-            first_word = re.split(r"\W+", sc)[0] if sc else ""
-            if st and first_word and title.lower().endswith(st) and first_word in (title + " " + company).lower():
-                return True
-        return False
+        return lead_is_saved(title, company, jobs.values())
 
     def find_link(title, company):
         # The printed page has no link to the lead itself, so offer a LinkedIn job search for it.
@@ -465,7 +485,7 @@ def main():
     for it in sorted(gaps["items"], key=lambda x: (x["category"] == "have", -(x["weight"] + x.get("dq_demand", 0)))):
         seen = ", ".join(it["jobs"] + [f"{j} (DQ)" for j in it.get("dq_jobs", [])])
         w(f"| {md_cell(it['skill'])} | {label.get(it['category'], it['category'])} | {it['weight']} | "
-          f"{it.get('dq_demand', 0)} | {md_cell(seen)} | {md_cell(it['action'])} |")
+          f"{it.get('dq_demand', 0)} | {md_cell(seen)} | {md_cell(it.get('action') or '')} |")
     w("")
 
     # Resume & LinkedIn update candidates: skills the user has that their documents don't show yet
@@ -475,7 +495,7 @@ def main():
         w("Skills you have that the resume or LinkedIn doesn't show yet. The optional end-of-round review "
           "turns these into tracked changes and paste-ready LinkedIn text.\n")
         for it in sorted(cands, key=lambda x: -(x["weight"] + x.get("dq_demand", 0))):
-            w(f"- **{it['skill']}** (weight {it['weight']}, DQ demand {it.get('dq_demand', 0)}): {it['action']}")
+            w(f"- **{it['skill']}** (weight {it['weight']}, DQ demand {it.get('dq_demand', 0)}): {it.get('action') or ''}")
         w("")
 
     # Training tracks: gaps grouped by the role type that asks for them
@@ -509,10 +529,11 @@ def main():
         w("")
 
     # Calibration questions
-    if calibration["questions"]:
+    questions = [q for q in (calibration.get("questions") or []) if isinstance(q, dict)]
+    if questions:
         w(f"## Calibration questions - round {args.round}\n")
-        for i, q in enumerate(calibration["questions"], 1):
-            w(f"{i}. **{q['topic']}:** {q['question']}")
+        for i, q in enumerate(questions, 1):
+            w(f"{i}. **{q.get('topic') or 'Question'}:** {q.get('question') or ''}")
         w("")
 
     path = P.reports / f"{review['date']}-{rnd}-report.md"

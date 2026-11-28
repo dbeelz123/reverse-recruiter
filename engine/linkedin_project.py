@@ -38,7 +38,7 @@ NUMBERS = re.compile(r"about \d+ in every 100 listings processed make the cut as
 
 
 def load(P):
-    return read_json(P.linkedin_project, {})
+    return read_json(P.linkedin_project, {}, expect=dict)
 
 
 def save(P, rec):

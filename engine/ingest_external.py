@@ -54,6 +54,17 @@ def read_text(path: Path) -> str:
     raise SystemExit(f"Unsupported file type {ext}: use .docx, .pdf, .txt or .md")
 
 
+def pay_mentions(text, pay, stored):
+    """Pay figures for the record: the --pay option first (kept from an earlier run when left out now), then
+    figures in the description that read as annual or hourly pay."""
+    def is_pay(s):  # as extract.looks_like_pay: "$150K", "$120,000", "$65/hr"; not "$3 billion" or "$50 stipend"
+        nums = [float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*(?:\.\d+)?", s)]
+        return bool(nums) and (bool(re.search(r"\d\s?[Kk]\b", s)) or max(nums) >= 20000 or "/hr" in s)
+    found = [m.strip(" .") for m in SALARY.findall(text) if is_pay(m)]
+    given = [pay] if pay else [s for s in (stored or []) if isinstance(s, str) and s not in found]
+    return list(dict.fromkeys(given + found))
+
+
 from pipeline import STAGES, TERMINAL, OTHER  # noqa: E402
 
 STATUSES = STAGES + OTHER + TERMINAL
@@ -104,14 +115,17 @@ def main():
         "url": "../" + quote(key),  # relative to 2-reports/, where the report links it
         "list": "saved",
         "external": True,
-        "source": a.source,
+        # An option left out on a re-run keeps the stored value (as workplace always did): re-ingesting to record
+        # a new status must not erase the location, source or employment type given the first time.
+        "source": a.source or rec.get("source"),
         "source_files": sorted(set(rec.get("source_files", [])) | {key}),
-        "title": a.title, "company": a.company, "location": a.location,
+        "title": a.title, "company": a.company, "location": a.location or rec.get("location"),
         "posted": None, "applicants": None,
         "workplace": a.workplace or rec.get("workplace"),
-        "employment_type": a.employment,
+        "employment_type": a.employment or rec.get("employment_type"),
         "network_teaser": [], "posting_text": text, "company_text": "", "company_meta": None,
-        "salary_mentions": SALARY.findall(text) or ([a.pay] if a.pay else []),
+        # --pay always counts; figures in the text count only when they read as pay ("$3 billion company" doesn't).
+        "salary_mentions": pay_mentions(text, a.pay, rec.get("salary_mentions")),
         "truncated": False, "leads": [], "main_file": key, "printed": None,
         "extracted_at": now,
     })

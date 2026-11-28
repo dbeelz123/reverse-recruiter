@@ -38,13 +38,20 @@ from paths import ROOT, Paths  # noqa: E402
 
 IGNORE = "privacy-scan: " + "ignore"  # split so this line itself is still scanned
 PATTERNS = {
-    "home-folder path": r"[A-Za-z]:(?:\\{1,2}|/)Users(?:\\{1,2}|/)[^\\/\s\"]+|/Users/[^/\s]+/|/home/[^/\s]+/",  # privacy-scan: ignore
-    "email address": r"\b[\w.+-]+@(?!example\.(?:com|org|net)\b)[\w-]+\.[\w.]+\b",  # privacy-scan: ignore
-    "LinkedIn profile link": r"linkedin\.com/in/[\w-]+",  # privacy-scan: ignore
+    # A Windows home folder in any case, with one or more backslashes (JSON inside JSON doubles them twice), a
+    # forward slash, or an administrative share name; then a macOS, Linux or Git Bash home folder, which needs no
+    # trailing slash but must not be the tail of a web address (a site's own "home" page path).
+    "home-folder path": r"(?i:[a-z][:$](?:\\+|/)users(?:\\+|/)[^\\/\s\"]+)|(?<![\w.-])/(?:[A-Za-z]/)?(?:Users|home)/[^/\s\"'`<>)]+",  # privacy-scan: ignore
+    # The example domains (.com, .org, .net) are for examples, but only as the whole domain: an address at a
+    # longer domain that merely starts with one is real.
+    "email address": r"\b[\w.+-]+@(?!example\.(?:com|org|net)(?![\w-]|\.[\w-]))[\w-]+\.[\w.]+\b",  # privacy-scan: ignore
+    "LinkedIn profile link": r"(?i:linkedin\.com/in/[\w-]+)",  # privacy-scan: ignore
 }
 TEXT = {".py", ".md", ".json", ".txt", ".html", ".svg", ".toml", ".cfg", ".yml", ".yaml", ".csv", ".tsv", ".xml",
         ".ini", ".sh", ".ps1", ".bat", ".gitignore", ".gitattributes", ""}
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp"}
+MIN_PHRASE = 3  # shortest phrase an allow-file line may allow
+IMAGE_OK = "image checked by eye"
 SKIP_DIRS = {"__pycache__", ".git"}  # archive/ folders are scanned too: old reports hold the same details
 
 
@@ -111,6 +118,12 @@ def allowed(f):
             line = line.split("#", 1)[0].strip()
             if "|" in line:
                 path, phrase = (x.strip() for x in line.split("|", 1))
+                # A phrase is removed from the file's lines before they are checked, so an empty or one-letter
+                # phrase would blank out every line and switch the scan off for that file: such a line is ignored.
+                if len(phrase) < MIN_PHRASE:
+                    print(f"{Path(f).name}: ignored the line for {path!r}: its phrase is shorter than "
+                          f"{MIN_PHRASE} characters")
+                    continue
                 out.setdefault(path.replace("\\", "/"), []).append(phrase)
     return out
 
@@ -123,11 +136,15 @@ def read_text(f):
     data = f.read_bytes()
     # UTF-16 text (with its byte-order mark) is decoded properly; read as UTF-8 its letters are split by NUL bytes
     # and no term would match.
-    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
-        try:
-            return data.decode("utf-16")
-        except UnicodeDecodeError:
-            return None
+    # UTF-32 first: its little-endian mark starts with UTF-16's, and read as UTF-16 the text is letters split by
+    # NULs, which no term matches.
+    for marks, codec in (((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff"), "utf-32"), ((b"\xff\xfe", b"\xfe\xff"), "utf-16")):
+        if data.startswith(marks):
+            try:
+                text = data.decode(codec)
+            except UnicodeDecodeError:
+                return None
+            return None if "\0" in text else text  # NULs left after decoding: not readable text (a hit)
     if b"\0" in data:  # NUL bytes without a BOM: not readable text, whatever the extension (a hit)
         return None
     if f.suffix.lower() in TEXT:
@@ -138,7 +155,7 @@ def read_text(f):
         return None
 
 
-def scan(paths, words, allow_file=None):
+def scan(paths, words, allow_file=None, skip=True):
     term_rxs = [(f"private term '{w}'", *term_rx(w)) for w in words]
     pattern_rxs = [(name, re.compile(p)) for name, p in PATTERNS.items()]
     hits = 0
@@ -146,12 +163,20 @@ def scan(paths, words, allow_file=None):
         allow = allowed(allow_file or (root / ".privacy-allow" if root.is_dir() else None))
         files = [root] if root.is_file() else sorted(p for p in root.rglob("*") if p.is_file())
         for f in files:
-            if SKIP_DIRS & set(f.parts):
-                continue
             rel = f.relative_to(root).as_posix() if root.is_dir() else f.name
-            if rel == ".privacy-allow":  # the exceptions list names what it allows
+            # Only folders inside the scanned folder are skipped, by name: a parent folder called .git, or a file
+            # called __pycache__, switches nothing off. The pre-commit hook skips nothing at all (skip=False).
+            if skip and SKIP_DIRS & set(rel.split("/")[:-1]):
                 continue
             shown = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
+            if rel == ".privacy-allow":
+                # The exceptions list names the terms it allows, so terms aren't checked in it; paths, email
+                # addresses and profile links have no reason to be there and are.
+                for n, line in enumerate((read_text(f) or "").splitlines(), 1):
+                    for name in line_hits(line, [], pattern_rxs):
+                        hits += 1
+                        print(f"{shown}:{n}: {name}: {line.strip()[:120]}")
+                continue
 
             def unallowed(s):
                 for phrase in allow.get(rel, []):
@@ -165,7 +190,9 @@ def scan(paths, words, allow_file=None):
             text = read_text(f)
             if text is None:  # not text: the scan can't read it, so it counts as a hit unless deliberately allowed
                 if f.suffix.lower() in IMAGES:
-                    if rel in allow:  # listed in .privacy-allow after a look by eye ("<path> | image checked by eye")
+                    # Listed in .privacy-allow after a look by eye, with that exact phrase: a line allowing some
+                    # other phrase in the file's name doesn't vouch for the picture.
+                    if IMAGE_OK in [p.lower() for p in allow.get(rel, [])]:
                         print(f"{shown}: image, allowed in .privacy-allow (checked by eye)")
                     else:
                         hits += 1
@@ -200,6 +227,8 @@ def main():
     ap.add_argument("--terms", help="private-terms list (kept outside the repo)")
     ap.add_argument("--strict", action="store_true", help="fail when no private-terms list is found")
     ap.add_argument("--allow", help="allow file of deliberate exceptions (default: <folder>/.privacy-allow)")
+    ap.add_argument("--no-skip", action="store_true",
+                    help="scan every file, including __pycache__ and .git folders (the pre-commit hook uses it)")
     a = ap.parse_args()
     P = Paths(a.data)
     f = terms_file(P, a.terms)
@@ -216,7 +245,7 @@ def main():
             sys.exit(2)
         print(f"Note: the private-terms list has no terms in it ({f}); only the generic patterns are checked.")
     targets = [Path(p).resolve() for p in a.paths] or [ROOT / "engine"]
-    hits = scan(targets, words, a.allow)
+    hits = scan(targets, words, a.allow, skip=not a.no_skip)
     print(f"{hits} hit{'' if hits == 1 else 's'} in {', '.join(t.name for t in targets)} "
           f"({len(words)} private terms + {len(PATTERNS)} patterns)")
     sys.exit(1 if hits else 0)

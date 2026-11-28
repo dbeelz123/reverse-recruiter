@@ -40,11 +40,30 @@ LEAD_END = ("See more jobs like this", "Job search smarter with Premium", "Looki
 JUNK_LINES = {"Message", "Connect", "Follow", "Show all", "Show more", "Saved", "Apply", "Easy Apply"}
 
 
+def find_job_id(raw):
+    """The job's ID from the page's own address in the print footer. A posting's text can link to other jobs
+    ("see also linkedin.com/jobs/view/..."), so the first job link in the text is used only when no footer line
+    carries one."""
+    for ln in raw.splitlines():
+        if PAGE_FOOTER.match(ln) or FOOTER_TAIL.search(ln):
+            m = JOB_URL.search(ln)
+            if m:
+                return m.group(1)
+    m = JOB_URL.search(raw)
+    return m.group(1) if m else None
+
+
+def strip_tab_count(title):
+    """'(3) Staff Product Manager' -> 'Staff Product Manager': the browser tab's unread-notification count is
+    printed in the page header in front of the title."""
+    return re.sub(r"^\(\d+\+?\)\s*", "", title)
+
+
 def page_lines(pdf: Path):
     """Text in reading order with LinkedIn's print header/footer lines removed."""
     with pymupdf.open(pdf) as doc:  # closed even when a page fails to read
         raw = "\n".join(p.get_text(sort=True) for p in doc)
-    job_id = (JOB_URL.search(raw) or [None, None])[1]
+    job_id = find_job_id(raw)
     m = PRINT_DATE.search(raw)
     printed = m.group(1) if m else None
     # The browser's print header carries "Title | Company | LinkedIn" on one line, even when the
@@ -54,7 +73,7 @@ def page_lines(pdf: Path):
         if PAGE_HEADER.match(ln):
             parts = [p.strip() for p in re.split(r"\s{2,}", ln.strip(), maxsplit=1)[-1].split(" | ")]
             if len(parts) >= 3 and parts[-1] == "LinkedIn":
-                title_company = (" | ".join(parts[:-2]), parts[-2])
+                title_company = (strip_tab_count(" | ".join(parts[:-2])), parts[-2])
             break
     lines = []
     for ln in raw.splitlines():
@@ -187,9 +206,13 @@ def parse_main(lines):
     if a is None:
         return None
     rec = parse_header(lines, a)
-    end = find(lines, "Set alert for similar jobs", "About the company", start=a)
+    # The description ends at LinkedIn's "Set alert for similar jobs" line. A posting can carry its own "About the
+    # company" heading, so that heading ends the description only when the alert line is missing, and the company
+    # section is the one after the description.
+    alert = find(lines, "Set alert for similar jobs", start=a)
+    end = alert if alert is not None else find(lines, "About the company", start=a)
     rec["posting_text"] = clean(lines[a + 1:end])
-    c = find(lines, "About the company", start=a)
+    c = find(lines, "About the company", start=end if end is not None else a)
     mj = find(lines, "More jobs", start=c or a)
     company = clean(lines[c + 1:mj]) if c is not None else ""
     rec["company_text"] = company
@@ -249,6 +272,13 @@ def main():
     jobs_dir.mkdir(parents=True, exist_ok=True)
     ledger_path = P.ledger
     ledger = read_json(ledger_path, {}, expect=dict)
+    # Everything the repost check at the end reads is read once here first, so a damaged job record or a broken
+    # setting stops the run before any PDF is marked as processed. Stopping after the ledger was written lost the
+    # run's summary for good: the next run had "nothing new" (2026-11-27 review).
+    for f in sorted(jobs_dir.glob("*.json")):
+        read_json(f, expect=dict)
+    tombstones(P.removed)
+    import triaged  # noqa: F401  (repost_check imports it; fail here, not after the ledger is written)
     now =dt.datetime.now().isoformat(timespec="seconds")
     summary = []
 

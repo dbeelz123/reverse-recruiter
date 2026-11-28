@@ -71,6 +71,19 @@ def main():
                  + "\n  ".join(held) + "\nAsk the user; on a yes, rerun with --confirm-connections.")
     for h in held:
         print(f"Removing with the user's confirmation; connection: {h}")
+    # Every review file is read once before anything changes (the removal loop rewrites them).
+    review_files = {rv: read_json(rv, expect=dict) for rv in sorted(P.reviews.glob("*.json"))}
+    # An ID the project has never held is a typo: stopping here keeps a tombstone for a job that doesn't exist out
+    # of removed.json, where it would later flag a real job with that ID as "previously removed". A job removed
+    # earlier (tombstone, nothing else left) is simply reported as done.
+    owned = {v.get("job_id") for v in ledger.values() if isinstance(v, dict)}
+    gone = {t.get("job_id") for t in tombs if isinstance(t, dict)}
+    unknown = [j for j in args.job_ids if not (P.jobs / f"{j}.json").exists() and j not in reviews
+               and j not in owned and j not in gone
+               and not any(j in (r.get("jobs") or {}) for r in review_files.values())]
+    if unknown:
+        sys.exit(f"No such job: {', '.join(unknown)} (no job record, review or ledger entry, and never removed "
+                 f"before). Nothing was changed; check the job ID.")
 
     for jid in args.job_ids:
         done = []
@@ -93,16 +106,33 @@ def main():
             else:
                 pdfs.append(f)
         # The tombstone is written first, so an interrupted removal is still recognized and can be rerun.
-        if not args.no_tombstone and not any(isinstance(t, dict) and t.get("job_id") == jid for t in tombs):
-            tomb = {"job_id": jid, "removed": dt.date.today().isoformat(), "reason": args.reason}
+        today = dt.date.today().isoformat()
+        prior = next((t for t in reversed(tombs) if isinstance(t, dict) and t.get("job_id") == jid), None)
+        if not args.no_tombstone and prior is None:
+            tomb = {"job_id": jid, "removed": today, "reason": args.reason}
             if company:
                 tomb.update(company=company, title=title)
             if pipeline:  # keep application history so engine/pipeline.py's outcome funnel still counts it
                 tomb["pipeline"] = pipeline
             tombs.append(tomb)
             write_json(tomb_p, tombs)
-        for rv in sorted(P.reviews.glob("*.json")):
-            r = read_json(rv)
+        elif (not args.no_tombstone and rec and (prior.get("reason") != args.reason or prior.get("removed") != today)):
+            # Removed before, saved again and now removed again: the tombstone takes this removal's date, reason
+            # and application history (one tombstone per job, so nothing counts it twice), and keeps the earlier
+            # removal in "earlier". A rerun of an interrupted removal (same day, same reason) changes nothing.
+            prior.setdefault("earlier", []).append({"removed": prior.get("removed"), "reason": prior.get("reason")})
+            prior.update(removed=today, reason=args.reason)
+            if company:
+                prior.update(company=company, title=title)
+            if pipeline:
+                prior["pipeline"] = pipeline
+            write_json(tomb_p, tombs)
+            done.append("tombstone updated (removed before)")
+        if not rec and prior is not None and jid not in owned and jid not in reviews:
+            print(f"{jid}: already removed ({prior.get('removed')}: {prior.get('reason')})")
+            continue
+        for rv in review_files:
+            r = read_json(rv, expect=dict)
             if jid in r.get("jobs", {}):
                 del r["jobs"][jid]
                 write_json(rv, r)

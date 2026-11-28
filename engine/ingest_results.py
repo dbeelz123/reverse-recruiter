@@ -25,14 +25,23 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import quote
 
+from locations import US_STATES
 from paths import read_json, write_json
 
 STATUS = ("Viewed", "Saved", "Applied", "Promoted", "Easy Apply", "Be an early applicant", "Actively reviewing applicants")
-LOC = re.compile(r"\((Remote|Hybrid|On-site)\)$|^[A-Z][\w .'-]+, [A-Z]{2}$|Metropolitan Area$|^United States$|, United States$")
+LOC = re.compile(r"\((Remote|Hybrid|On-site)\)$|Metropolitan Area$|^[A-Z][\w .'-]+ Area$|^United States$"
+                 r"|, United States$")
+CITY_STATE = re.compile(r"^[A-Z][\w .'-]+, ([A-Z]{2})$")
+STATES = set(US_STATES) | {"DC", "PR"}
+# Words that mark a line as a title, not a place. Whole words: "Lead" must not rule out "Leadville, CO".
+TITLE_WORDS = re.compile(r"\b(Product|Manager|Lead|Director|Owner)\b|Verified job")
 
 
 def is_loc(s):
-    return bool(LOC.search(s)) and not re.search(r"Product|Manager|Lead|Director|Owner|Verified job", s)
+    """A card's location line: '... (Remote)', 'City, ST' with a real state ('Chief of Staff, AI' is a title),
+    'San Francisco Bay Area', 'Greater Boston Area', 'United States'."""
+    m = CITY_STATE.match(s)
+    return bool(LOC.search(s) or (m and m.group(1) in STATES)) and not TITLE_WORDS.search(s)
 
 
 def clean_title(s):
@@ -97,6 +106,18 @@ def parse_paste(text):
     return cards
 
 
+def unparsed_cards(text, cards):
+    """Lines that look like a card's location but belong to no card: [(line number, text)]. A card is recognized by
+    its third line; when the first two don't fit (a title that reads as a place, a missing company line), the card
+    would otherwise vanish without a word."""
+    lines = [l.strip() for l in text.splitlines()]
+    used = set()
+    for c in cards:  # each card's own location line: the first line at or after its title that reads the same
+        if c.get("line"):
+            used.add(next((n for n in range(c["line"], len(lines) + 1) if lines[n - 1] == c["location"]), None))
+    return [(i, s) for i, s in enumerate(lines, 1) if s and is_loc(s) and i not in used]
+
+
 def from_rows(rows):
     cards = []
     for n, r in enumerate(rows, 1):
@@ -135,8 +156,13 @@ def main():
         sys.exit(1)
     src, out = Path(sys.argv[1]), Path(sys.argv[2])
     ext = src.suffix.lower()
+    missed = []
+    if not src.is_file():
+        sys.exit(f"No such file: {src}")
     if ext in (".txt", ".md"):
-        cards = parse_paste(src.read_text(encoding="utf-8"))
+        text = src.read_text(encoding="utf-8-sig")  # a byte-order mark would stick to the first title
+        cards = parse_paste(text)
+        missed = unparsed_cards(text, cards)
     elif ext == ".csv":
         with src.open(encoding="utf-8-sig", newline="") as f:
             reader = csv.DictReader(f)
@@ -157,6 +183,13 @@ def main():
     write_json(out, cards, indent=1)
     banner = next((c["n"] for c in cards if c["section"] == "after banner"), None)
     print(f"{len(cards)} cards -> {out}")
+    if missed:
+        print(f"CHECK: {len(missed)} location-like lines belong to no card (a listing may have been missed; look at "
+              f"the lines around each in {src.name}):")
+        for n, s in missed[:20]:
+            print(f"  line {n}: {s}")
+        if len(missed) > 20:
+            print(f"  ... and {len(missed) - 20} more")
     print("workplace:", dict(Counter(c["workplace"] for c in cards)))
     print("Saved:", sum("Saved" in c["status"] for c in cards), " Viewed:", sum("Viewed" in c["status"] for c in cards),
           " banner before card:", banner)

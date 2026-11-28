@@ -21,6 +21,8 @@ Signals, per round:
                   either way. engine/precision.py also shows agreement without them (match_gated).
   already decided share of a round's cards that were already decided (DQ'd before, Viewed, Saved, kept before).
   keep rate       keeps (and maybes) per 100 cards.
+  Both are shares of the cards recorded as rows in the run files. A run's unrecorded_cards (a backfilled count with
+  no rows) add to "Search cards processed" only: nothing is known about them, so they are in neither share.
 
 Catch-up -> Keep-up: ask when VOLUME (>= VOLUME_LISTINGS processed within VOLUME_DAYS, or the goal reached) and at
 least 2 of 4 STABILITY signals hold. In builder mode the verdict is reported, never asked.
@@ -40,7 +42,7 @@ import shutil
 from pathlib import Path
 
 import metrics
-from paths import Paths, read_json, write_json, to_date
+from paths import Paths, read_json, read_run, write_json, to_date
 
 VOLUME_LISTINGS, VOLUME_DAYS = 300, 14
 RULES_PER_100_MAX, RULES_ROUNDS = 1.0, 2       # fewer than 1 new rule per 100 listings, two rounds running
@@ -102,7 +104,9 @@ def match_gated(x):
 def rules_per_round(P):
     crit = collections.Counter()
     rnd = None
-    for line in P.changelog.read_text(encoding="utf-8").splitlines():
+    if not P.changelog.exists():  # written at the first calibration: a new data folder has none, so no rules yet
+        return crit
+    for line in P.changelog.read_text(encoding="utf-8-sig").splitlines():
         if line.startswith("## "):
             m = re.search(r"\[round (\d+)\]", line)
             rnd = int(m.group(1)) if m else None
@@ -117,7 +121,7 @@ def rules_per_round(P):
 def card_stats(P):
     per = collections.defaultdict(collections.Counter)
     for f in sorted(P.search_runs.glob("*.json")):
-        d = read_json(f)
+        d = read_run(f)
         if "round" not in d:
             continue
         c = per[int(d["round"])]
@@ -195,7 +199,7 @@ def signals_md(P):
     out = [f"Mode: **{md.get('mode')}**{' (builder: report only, never ask)' if md.get('builder') else ''}"
            + (f" · cadence {md['cadence']}" if md.get("mode") == "keep-up" and md.get("cadence") else ""), "",
            "| Round | Mode | Search cards processed | New criteria rules | Rules per 100 | Already decided | "
-           "Keeps per 100 cards | Agent calls (firm agree / hedged) |",
+           "Keeps per 100 recorded cards | Agent calls (firm agree / hedged) |",
            "|---|---|---|---|---|---|---|---|"]
     for r in rs:
         calls = (f"{r['agree']}/{r['firm']} ({100 * r['agree'] / r['firm']:.0f}%) / {r['hedge']} of {r['predicted']}"
@@ -267,7 +271,7 @@ def backlog(P):
     """Listings LinkedIn reported but not yet captured, from each active search's latest run (result_count - cards)."""
     latest = {}
     for f in sorted(P.search_runs.glob("*.json")):
-        d = read_json(f)
+        d = read_run(f)
         sid = (str(d.get("search") or "").split() or [""])[0]  # a run with no search (phone triage) has none
         if d.get("status") == "invalid" or not sid:
             continue
@@ -444,7 +448,7 @@ def tag(P):
     m = mode(P).get("mode", "catch-up")
     n = 0
     for f in sorted(P.search_runs.glob("*.json")):
-        d = read_json(f)
+        d = read_run(f)
         if "mode" not in d:
             write_json(f, with_mode(d, m), indent=1)
             n += 1

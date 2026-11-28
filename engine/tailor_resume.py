@@ -50,7 +50,7 @@ def main():
         edits = json.load(open(edits_file, encoding="utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
         sys.exit(f"Can't read {edits_file} ({e}).")
-    if not (isinstance(edits, list) and all(isinstance(e, list) and len(e) == 5 and all(isinstance(v, str) for v in e)
+    if not (isinstance(edits, list) and edits and all(isinstance(e, list) and len(e) == 5 and all(isinstance(v, str) for v in e)
                                             for e in edits)):
         sys.exit(f"{edits_file} must be a JSON list of edits, each [find, before, deleted, inserted, after] as text.")
     stamp = f'w:author="Claude" w:date="{dt.date.today().isoformat()}T00:00:00Z"'
@@ -61,9 +61,17 @@ def main():
         return ids[0]
 
     for find, before, deleted, inserted, after in edits:
-        m = next((mm for mm in RUN.finditer(x) if find in mm.group(2)), None)
-        if not m:
+        # Runs inside a tracked insertion are left out (an earlier edit's new text is not a place to edit), and a
+        # `find` that fits several runs is refused: taking the first one silently changed the wrong line (a date
+        # in the job history instead of the bullet that was meant).
+        hits = [mm for mm in RUN.finditer(x) if find in mm.group(2)
+                and x.rfind("<w:ins ", 0, mm.start()) <= x.rfind("</w:ins>", 0, mm.start())]
+        if not hits:
             sys.exit(f"Not found in any single run: {find!r}")
+        if len(hits) > 1:
+            sys.exit(f"{find!r} is in {len(hits)} runs; make 'find' longer so it fits only one:\n"
+                     + "\n".join(f"  {mm.group(2)!r}" for mm in hits[:6]))
+        m = hits[0]
         rpr, text = m.group(1) or "", m.group(2)
         if before == "*":
             before = text[:text.index(find)]

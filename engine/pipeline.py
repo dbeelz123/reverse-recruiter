@@ -25,7 +25,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, read_json, write_json, tombstones, to_date  # noqa: E402
+from paths import Paths, iso_date, past_date, read_json, write_json, tombstones, to_date  # noqa: E402
+from paths import company_key as paths_company_key  # noqa: E402
 
 STAGES = ["kit", "applied", "response", "interview", "offer"]
 TERMINAL = ["passed", "rejected", "withdrawn", "closed"]
@@ -93,7 +94,7 @@ def last_event(pl):
 
 
 def company_key(j):
-    return re.split(r"\W+", (j.get("company") or "").lower())[0]
+    return paths_company_key(j.get("company")) or f"(no company: {j.get('job_id')})"  # no name: a group of its own
 
 
 def resolve(P, jobs, kitmap, key):
@@ -182,10 +183,11 @@ def in_progress_next(P, j, kit):
 
 def next_step(j, kit, reserve, open_code="check"):
     pl = j.get("pipeline") or {}
-    if pl.get("next"):
-        return pl["next"]
-    if open_code == "closed":
+    if open_code == "closed":  # before a stored next step: nobody finishes an application to a closed posting
         return "Closed: removal prompt"
+    if pl.get("next"):
+        # A step recorded by hand still waits on the staleness gate when the posting isn't confirmed open.
+        return pl["next"] if open_code == "fresh" else f"Confirm the posting is open; then: {pl['next']}"
     company = (j.get("company") or "").split(" (")[0]
     names = [c["name"] for c in j.get("connections_1st", [])]
     messaged = any(e["stage"] == "outreach" for e in pl.get("events", []))
@@ -221,7 +223,17 @@ def build(P):
         g.sort(key=lambda j: -(j["review"].get("total") or 0))
         reserve |= {j["job_id"] for j in g[2:]}
 
+    # An application stays in view whatever happens to the job's score afterwards: a job re-tiered X or ?, or held
+    # for calibration, after the user applied is still in progress and still counts in the funnel.
+    applied_at = STAGES.index("applied")
+    ranked_ids = {j["job_id"] for j in ranked}
+    unranked = [j for j in jobs.values() if j.get("job_id") not in ranked_ids and isinstance(j.get("pipeline"), dict)
+                and (reached(j["pipeline"], False) >= applied_at or j["pipeline"].get("status") == "interviewing")]
     in_progress, queue, closed = [], [], []
+    for j in unranked:
+        j.setdefault("review", {})
+        if j["pipeline"].get("status") not in TERMINAL:
+            in_progress.append(j)
     for j in ranked:
         pl = j.get("pipeline") or {}
         status = pl.get("status")
@@ -237,7 +249,7 @@ def build(P):
 
     # Outcome funnel: current ranked jobs plus removed jobs that had got as far as an application.
     counts = collections.Counter()
-    pool = [(j.get("pipeline"), j["job_id"] in kitmap) for j in ranked]
+    pool = [(j.get("pipeline"), j["job_id"] in kitmap) for j in ranked + unranked]
     # The funnel is cumulative: a job counts in every stage up to the furthest it reached, so an application counts
     # as "Kit built" whether or not a kit folder exists (has_kit only matters for jobs not yet applied).
     pool += [(t["pipeline"], False) for t in tombs if reached(t.get("pipeline"), False) >= STAGES.index("applied")]
@@ -280,7 +292,7 @@ def build(P):
                    else f"{days} day{'' if days == 1 else 's'} ago")
             last = f"{le['stage']} {le['date']} ({ago})" if le else "-"
             stage = pl.get("status", "") + (f": {pl['stage']}" if pl.get("stage") else "")
-            w(f"| [{md(j['company'])}: {md(j['title'])}]({j['url']}) | {j['review'].get('total')} | {md(stage)} | "
+            w(f"| [{md(j['company'])}: {md(j['title'])}]({j.get('url') or ''}) | {j['review'].get('total')} | {md(stage)} | "
               f"{md(last)} | {md(in_progress_next(P, j, kitmap.get(j['job_id'])))} |")
     else:
         w("Nothing applied yet.")
@@ -307,7 +319,7 @@ def build(P):
         conn = ", ".join(c["name"] + (" (recommendation)" if c["name"] in rec_names else "")
                          for c in j.get("connections_1st", []))
         w(f"| {i} | {j['review']['tier']} | {j['review'].get('total')} | [{md(j['company'])}: {md(j['title'])}]"
-          f"({j['url']}) | {md(conn)} | {md(kit_cell)} | {md(open_cell)} | "
+          f"({j.get('url') or ''}) | {md(conn)} | {md(kit_cell)} | {md(open_cell)} | "
           f"{md(next_step(j, kit, j['job_id'] in reserve, code))} |")
     w("")
 
@@ -318,7 +330,7 @@ def build(P):
         for j in closed:
             pl = j["pipeline"]
             le = last_event(pl) or {}
-            w(f"| [{md(j['company'])}: {md(j['title'])}]({j['url']}) | {j['review'].get('total')} | "
+            w(f"| [{md(j['company'])}: {md(j['title'])}]({j.get('url') or ''}) | {j['review'].get('total')} | "
               f"{pl['status']} {le.get('date', '')} | {md(le.get('note', ''))} |")
         w("")
 
@@ -349,7 +361,7 @@ def main():
     r = sub.add_parser("record", parents=[common])
     r.add_argument("job")
     r.add_argument("stage")
-    r.add_argument("--date", type=iso_date, default=dt.date.today().isoformat(), help="YYYY-MM-DD; 'unknown' for no date")
+    r.add_argument("--date", type=past_date, default=dt.date.today().isoformat(), help="YYYY-MM-DD; 'unknown' for no date")
     r.add_argument("--note")
     r.add_argument("--next", help="next step to show instead of the derived one (a new stage clears the old one)")
     r.add_argument("--reopen", action="store_true",

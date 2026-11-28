@@ -89,13 +89,25 @@ def main():
     P = Paths(args.data)
     cfg = read_json(P.searches)
     spec = read_json(P.spec)
-    c = spec["work_arrangement"]["machine_rule"]["hybrid_onsite_center"]
-    st = home_state_of(c["name"])  # LinkedIn's location box wants the full state name: "Springfield, Illinois"
-    center = re.sub(rf",\s*{st}\b", ", " + US_STATES[st].title(), c["name"]) if st in US_STATES else c["name"]
+    rule = (spec.get("work_arrangement") or {}).get("machine_rule") or {}
+    c = rule.get("hybrid_onsite_center") or {}  # a remote-only user has no radius center
+    name = c.get("name") or ""
+    st = home_state_of(name)  # LinkedIn's location box wants the full state name: "Springfield, Illinois"
+    center = re.sub(rf",\s*{st}\b", ", " + US_STATES[st].title(), name) if st in US_STATES else name
     center_geo = c.get("linkedin_geo_id")
-    radius = spec["work_arrangement"]["machine_rule"].get("radius_miles", 50)
+    radius = rule.get("radius_miles", 50)
+    if not center and any(s.get("where") == "local" and s.get("status") != "retired" for s in cfg["searches"]):
+        raise SystemExit(f"{P.searches.name} has a local search, but {P.spec.name} has no "
+                         f"work_arrangement.machine_rule.hybrid_onsite_center to search around.")
     d = cfg["defaults"]
     md = cfg.get("mode") or {}
+    for where, value in (("mode.lookback", md.get("lookback")), ("defaults.posted_within", d.get("posted_within")),
+                         *((f"{s.get('id')}.posted_within", s.get("posted_within")) for s in cfg["searches"])):
+        ok = value is None or value in POSTED or (where == "mode.lookback" and (
+            value == "any" or re.fullmatch(r"\d+d", str(value))))
+        if not ok:
+            raise SystemExit(f"{P.searches.name}: {where} is {value!r}; use day, week or month"
+                             + (", any, or a number of days such as 10d" if where == "mode.lookback" else "") + ".")
     keep_up = md.get("mode") == "keep-up" and md.get("cadence")
     look = md.get("lookback") if not keep_up else None
     if keep_up or look:  # e.g. "Past 8 days (Keep-up, ...)" -> "in the past 8 days"; "Any time (...)" -> "any time"
@@ -110,7 +122,7 @@ def main():
            *([f"**Triage mode: Catch-up, lookback {look}.** Every link uses that window instead of the search's "
               "usual one.\n"] if look else []),
            "Built from your top-ranked saved jobs and your confirmed spec. Each link opens a LinkedIn job search "
-           f"with filters already set: remote US (or within {radius} miles of {center} for local), posted "
+           f"with filters already set: remote US{f' (or within {radius} miles of {center} for local)' if center else ''}, posted "
            f"{posted}, newest first, excluding {', '.join(x.strip(chr(34)) for x in d['exclude'])}.\n",
            "## Your LinkedIn searches: what to do with each\n",
            "| Search | Name | Status | Action on LinkedIn |\n|---|---|---|---|\n"
@@ -127,8 +139,12 @@ def main():
            "nearly every PM posting mentions sales and marketing teams. Role type is filtered by the scoring step instead.\n",
            "**What happens next:** jobs you find through these searches go into `1-inbox/job-pdfs/` like any other. "
            "Each search keeps a yield record (jobs found, scored high, saved) so weak searches can be tuned or retired.\n"]
-    for cluster, label in (("core", "Core (60% weight)"), ("platform", "Platform"), ("ai_stretch", "Stretch (40% weight)"), ("local", "Local")):
-        group = [s for s in cfg["searches"] if s["cluster"] == cluster and s.get("status") != "retired"]
+    named = (("core", "Core (60% weight)"), ("platform", "Platform"), ("ai_stretch", "Stretch (40% weight)"), ("local", "Local"))
+    # A search in any other cluster gets a section under the cluster's own name: it used to be listed in the status
+    # table above and then left out of the links without a word.
+    others = sorted({str(s.get("cluster")) for s in cfg["searches"]} - {k for k, _ in named})
+    for cluster, label in (*named, *((o, o.replace("_", " ").capitalize()) for o in others)):
+        group = [s for s in cfg["searches"] if str(s.get("cluster")) == cluster and s.get("status") != "retired"]
         if not group:
             continue
         out.append(f"## {label}\n")
@@ -143,6 +159,7 @@ def main():
             out.append("Keywords (to paste or edit by hand):\n")
             out.append(f"```\n{keywords(s, d['exclude'] + s.get('exclude_extra', []))}\n```\n")
     path = P.search_links
+    path.parent.mkdir(parents=True, exist_ok=True)  # the first run on a new data folder has no 2-reports/ yet
     path.write_text("\n".join(out), encoding="utf-8")
     print(f"Wrote {path} ({len(cfg['searches'])} searches)")
 

@@ -61,12 +61,13 @@ def load(P):
 
 
 def job_ids(P, key, value):
-    """A person's job_ids as strings. Must be a list of job IDs (digits): "42" or 42 alone would otherwise turn into
-    the wrong IDs (a string iterates as "4", "2")."""
+    """A person's job_ids as strings. Must be a list of job IDs: "42" or 42 alone would otherwise turn into the
+    wrong IDs (a string iterates as "4", "2")."""
     if value is None:
         return []
+    # Letters, digits, hyphens and underscores: LinkedIn IDs are digits, external jobs are "ext-<slug>".
     if not isinstance(value, list) or not all(isinstance(i, (str, int)) and not isinstance(i, bool)
-                                              and str(i).strip().isdigit() for i in value):
+                                              and re.fullmatch(r"[\w-]+", str(i).strip()) for i in value):
         raise SystemExit(f"{P.connections.name}: '{key}' \"job_ids\" must be a list of job IDs, "
                          f"e.g. [\"4482029334\"]; got {value!r}")
     return [str(i).strip() for i in value]
