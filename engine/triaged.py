@@ -16,7 +16,8 @@ Usage:
                                                 match no row are listed as "saved outside triage")
   python engine/triaged.py reposts              repost watch: writes 2-reports/repost-watch.md (listings that keep
                                                 coming back, companies that repost often, terms that changed)
-Every command also takes --data <folder> (default: my-data next to the engine).
+Every command also takes --data <folder>. Without it, the data folder is the one named by the
+REVERSE_RECRUITER_DATA environment variable, else my-data next to the engine.
 
 Matching is on normalized company + title (pasted or filmed cards rarely carry a job ID), or on
 job_id when both sides have one. A repost with the same title is caught; a changed title counts as new.
@@ -24,7 +25,9 @@ Each sighting keeps the card's salary, location and posted line, so check can te
 comes back with different terms (a salary or location not seen before): it is flagged for a fresh look, not skipped.
 Abbreviations used in triage files (PM, Sr, TPM) are expanded so they match the full titles on cards.
 An entry with title "*" covers the whole company: written for a listing whose DQ reason starts with "blocklist"
-(blocklisted companies, job-board aggregators included).
+(blocklisted companies, job-board aggregators included). It is a record, not a rule: the blocklist in spec.json
+decides. A card from such a company that no blocklist entry matches any more (the entry was removed, or the card
+shows a name the entry lacks) is flagged "blocklisted before" for the user, never skipped.
 """
 import collections
 import datetime
@@ -284,6 +287,9 @@ def add(path):
     print(f"{a} added, {u} updated -> {len(db['entries'])} entries")
 
 
+WAS_BLOCKED = "flag (blocklisted before)"
+
+
 def check(path):
     cards = read_json(Path(path))
     if not isinstance(cards, list) or not all(isinstance(c, dict) for c in cards):
@@ -317,7 +323,14 @@ def check(path):
             c["triaged"] = {"decision": None, "action": "blocklist (confirm)", "blocklist": bl["value"],
                             "reason": bl.get("reason", ""), "case_by_case": case_by_case(bl)}
             continue
-        hit = hit or by_key.get(key(c["company"], "*"))
+        # A whole-company entry is reached only when no blocklist entry matches the company now (a match was shown
+        # for confirmation just above). Skipping on it would keep a company blocked after the user took it off
+        # the blocklist, so the card is flagged instead, with what to do either way.
+        whole = None if hit else by_key.get(key(c["company"], "*"))
+        if whole:
+            c["triaged"] = {"decision": whole["decision"], "reason": whole["reason"],
+                            "seen": (sightings(whole) or [None])[-1], "action": WAS_BLOCKED}
+            continue
         # DQ'd before -> skip. Kept/maybe before but not saved -> flag it rather than skip.
         if hit:
             # Company-group cuts are not judgments on the job itself (rule changed 2026-11-17): flag, don't skip.
@@ -337,7 +350,14 @@ def check(path):
           f"{acts.count('skip (applied)')} skip (Applied), {acts.count('skip')} skip (DQ'd before), "
           f"{acts.count('flag (terms changed)')} flag (DQ'd before, terms changed), "
           f"{acts.count('blocklist (confirm)')} blocklisted (confirm), "
-          f"{acts.count('flag')} flag (kept before), {acts.count('new')} new; marked in {path}")
+          f"{acts.count('flag')} flag (kept before), "
+          + (f"{acts.count(WAS_BLOCKED)} flag (blocklisted before), " if WAS_BLOCKED in acts else "")
+          + f"{acts.count('new')} new; marked in {path}")
+    for c in cards:
+        if c["triaged"] and c["triaged"]["action"] == WAS_BLOCKED:
+            print(f"  blocklisted before, no blocklist entry matches now: {c['company']} - {c['title']} (DQ'd as: "
+                  f"{c['triaged']['reason']}). Still blocked: add this name as an alias on its entry in spec.json. "
+                  f"No longer blocked: triage the card as new.")
     for c in cards:
         if c["triaged"] and c["triaged"]["action"] == "blocklist (confirm)":
             soft = " [case by case: is this role in the blocked area?]" if c["triaged"]["case_by_case"] else ""

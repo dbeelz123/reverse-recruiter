@@ -32,7 +32,7 @@ class ResavedRemovedJob(SampleCase):
         from paths import Paths
         from extract import repost_check
         P = Paths(str(self.data))
-        out = repost_check(P, self.data, [self.JOB], [])
+        out = repost_check(P, [self.JOB], [])
         self.assertTrue(any("PREVIOUSLY REMOVED" in line and self.JOB in line and "hybrid too far" in line
                             for line in out), out)
         rec = read(self.data / f"6-system/jobs/{self.JOB}.json")
@@ -41,7 +41,7 @@ class ResavedRemovedJob(SampleCase):
     def test_a_job_never_removed_is_not_flagged(self):
         from paths import Paths
         from extract import repost_check
-        out = repost_check(Paths(str(self.data)), self.data, [self.JOB], [])
+        out = repost_check(Paths(str(self.data)), [self.JOB], [])
         self.assertFalse(any("PREVIOUSLY REMOVED" in line for line in out), out)
         self.assertNotIn("previously_removed", read(self.data / f"6-system/jobs/{self.JOB}.json"))
 

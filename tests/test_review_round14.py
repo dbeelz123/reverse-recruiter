@@ -194,7 +194,8 @@ class HelperEnvironment(Base):
         terms = self.tmp / "mine.txt"
         terms.write_text("Zanzibar\n", encoding="utf-8")
         with mock.patch.dict(os.environ, {"PRIVATE_TERMS": str(terms), "REVERSE_RECRUITER_DATA": str(self.tmp)}):
-            code, _ = run("privacy_scan.py", self.tmp / "empty", "--strict", "--data", self.tmp / "nowhere")
+            (self.tmp / "no-terms").mkdir()  # a data folder with no terms list in it
+            code, _ = run("privacy_scan.py", self.tmp / "empty", "--strict", "--data", self.tmp / "no-terms")
         self.assertEqual(code, 2)
 
 

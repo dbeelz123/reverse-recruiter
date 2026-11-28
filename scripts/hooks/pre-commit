@@ -30,7 +30,9 @@ if [ ! -f "$terms" ]; then
 fi
 
 # T (type change) is included: a file replaced by a symbolic link is a change to what gets published.
-files=$(git diff --cached --name-only --diff-filter=ACMRT)
+# core.quotePath=false: by default git prints a name with accented or other non-ASCII letters in quotes with
+# escapes, which is not the file's name, so such a file could never be copied for the scan (or committed).
+files=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMRT)
 [ -z "$files" ] && exit 0
 
 bad=$(printf '%s\n' "$files" | grep -iE '(^|/)(my-data|private-data)/|private-terms\.txt$|\.private\.|CLAUDE\.local\.md$')

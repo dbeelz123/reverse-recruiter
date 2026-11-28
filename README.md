@@ -165,7 +165,7 @@ reverse-recruiter/
 ├─ tests/               end-to-end, file-safety, robustness and privacy tests (unittest)
 └─ scripts/
     ├─ make_sample_data.py   rebuilds sample-data/ (all content invented)
-    └─ hooks/pre-commit      the privacy check on every commit
+    └─ hooks/                the privacy check on every commit (pre-commit) and merge (pre-merge-commit)
 ```
 
 ## Status and roadmap

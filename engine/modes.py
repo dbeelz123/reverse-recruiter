@@ -6,6 +6,15 @@ Usage:
   python engine/modes.py tag [--data my-data]       stamp the current mode on search-run files and metrics rounds
                                                     that don't have one yet (triaged.py add and metrics.py --round N
                                                     also stamp it, so this is for backfills)
+  python engine/modes.py due [--data my-data]       Keep-up: is a full round due, or a digest only?
+  python engine/modes.py progress [--data my-data]  Catch-up: progress toward the goal, backlog, pace
+  python engine/modes.py setup [--goal N] [--lookback week|month|any|<N>d|default] [--pace "..."] [--fuzzy "a; b"]
+                                                    record the Catch-up setup interview's answers
+  python engine/modes.py set [--mode catch-up|keep-up] [--cadence daily|twice-weekly|weekly|every-<N>-days]
+                             [--builder on|off] [--asked [--ask-again-days N]]
+                                                    switch mode, set the cadence or builder mode, or record that
+                                                    the user was asked about switching today
+  python engine/modes.py digest <run.json>          Keep-up check-in digest: writes 2-reports/digest-<date>.md
 
 The mode itself lives in 5-criteria/searches.json -> "mode" (mode, builder, goal, lookback, pace, cadence,
 last_asked). Process and thresholds: docs/how-it-works.md -> Triage modes (approved 2026-11-18).
@@ -350,6 +359,10 @@ def window_days(cadence):
 
 
 def set_mode(P, a):
+    if a.ask_again_days is not None and not a.asked:
+        # Alone it stored nothing and still printed the settings, which read as done.
+        raise SystemExit("--ask-again-days goes with --asked (it sets when to ask again, counted from today's ask). "
+                         "Nothing was changed.")
     md = mode(P)
     if a.mode:
         if a.mode != md.get("mode"):
@@ -365,7 +378,7 @@ def set_mode(P, a):
         md["builder"] = a.builder == "on"
     if a.asked:
         md["last_asked"] = dt.date.today().isoformat()
-        if a.ask_again_days:
+        if a.ask_again_days is not None:
             md["ask_again"] = (dt.date.today() + dt.timedelta(days=a.ask_again_days)).isoformat()
     save_mode(P, md)
     print(json.dumps(md, indent=1, ensure_ascii=False))

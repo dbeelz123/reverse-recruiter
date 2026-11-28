@@ -1,13 +1,14 @@
 """Application pipeline: record each job's progress, and build the apply queue and the outcome funnel.
 
 Usage:
-  python engine/pipeline.py record <job> <stage> [--date YYYY-MM-DD] [--note "..."] [--next "..."]
+  python engine/pipeline.py record <job> <stage> [--date YYYY-MM-DD] [--note "..."] [--next "..."] [--reopen]
   python engine/pipeline.py queue                        # writes 2-reports/apply-queue.md and prints a summary
 
 <job> is a job ID (1234567890, ext-...), a kit folder name, or a word that matches one company (e.g. "acme").
 Stages, in order: kit -> applied -> response -> interview -> offer. Also: outreach (a connection was messaged),
 hold (an application started and paused; give the reason in --note and what's left in --next),
 passed (the user decided not to apply), rejected, withdrawn, closed (the posting closed before they applied).
+A job with one of those last four is closed out: recording an active stage on it again needs --reopen.
 
 Where it lives: a "pipeline" block on the job record (6-system/jobs/<id>.json):
   {"status": <latest stage>, "updated": <date>, "stage": <optional detail, e.g. "round 4 on 2026-11-23">,
@@ -25,11 +26,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, past_date, read_json, write_json, tombstones, to_date  # noqa: E402
+from paths import TERMINAL, Paths, iso_date, past_date, read_json, write_json, tombstones, to_date  # noqa: E402
 from paths import company_key as paths_company_key  # noqa: E402
 
 STAGES = ["kit", "applied", "response", "interview", "offer"]
-TERMINAL = ["passed", "rejected", "withdrawn", "closed"]
 OTHER = ["outreach", "hold"]  # events that don't change the status (hold = started, paused; pair it with --next)
 FUNNEL = [("ranked", "Qualified targets"), ("kit", "Kit built"), ("applied", "Applied"),
           ("response", "Employer response"), ("interview", "Interview"), ("offer", "Offer")]
@@ -97,7 +97,7 @@ def company_key(j):
     return paths_company_key(j.get("company")) or f"(no company: {j.get('job_id')})"  # no name: a group of its own
 
 
-def resolve(P, jobs, kitmap, key):
+def resolve(jobs, kitmap, key):
     if key in jobs:
         return key
     for jid, k in kitmap.items():
@@ -115,9 +115,9 @@ def resolve(P, jobs, kitmap, key):
 
 def record(P, a):
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
-    jid = resolve(P, jobs, kits(P), a.job)
-    if a.stage not in STAGES + TERMINAL + OTHER:
-        sys.exit(f"Unknown stage '{a.stage}'. Use one of: {', '.join(STAGES + OTHER + TERMINAL)}")
+    jid = resolve(jobs, kits(P), a.job)
+    if a.stage not in STAGES + list(TERMINAL) + OTHER:
+        sys.exit(f"Unknown stage '{a.stage}'. Use one of: {', '.join(STAGES + OTHER + list(TERMINAL))}")
     rec = jobs[jid]
     was = (rec.get("pipeline") or {}).get("status")
     # A closed-out application is never revived quietly (as interviews.py schedule does): an active stage after
@@ -343,6 +343,7 @@ def build(P):
         w("")
 
     path = P.reports / "apply-queue.md"
+    path.parent.mkdir(parents=True, exist_ok=True)  # a new data folder has no 2-reports/ yet
     path.write_text("\n".join(out), encoding="utf-8")
     print(f"Wrote {path}: {len(in_progress)} in progress, {len(queue)} queued, {len(closed)} not applying")
     print("Funnel: " + " -> ".join(f"{label} {counts[k]}" for k, label in FUNNEL))

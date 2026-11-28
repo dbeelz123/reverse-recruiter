@@ -11,7 +11,6 @@ Only reads local files; never touches LinkedIn.
 """
 import argparse
 import datetime as dt
-import json
 import re
 from pathlib import Path
 
@@ -349,7 +348,7 @@ def main():
     # The repost check runs before the ledger is written: it is what flags a duplicate save, a possible repost and a
     # job removed earlier, and it only looks at this run's new jobs. With the ledger written first, a stop in
     # between left the PDFs marked as processed, and the next run had nothing new to check.
-    summary += repost_check(P, data, [s.split()[1] for s in summary if s.startswith("main ")],
+    summary += repost_check(P, [s.split()[1] for s in summary if s.startswith("main ")],
                             [P.rel(p) for p in P.job_pdfs.glob("*.pdf") if dup_original(p.name)])
     write_json(ledger_path, ledger, indent=2, ensure_ascii=True)
     print("\n".join(summary) if summary else "Nothing new to process.")
@@ -367,7 +366,7 @@ def dup_original(name):
     return None
 
 
-def repost_check(P, data, new_ids, dup_files):
+def repost_check(P, new_ids, dup_files):
     """Flag new jobs that may be a duplicate save or a repost of a job already seen.
 
     The user names a PDF '<LinkedIn default name>_possibleduplicate.pdf' (or the short '_possdup.pdf') when the save

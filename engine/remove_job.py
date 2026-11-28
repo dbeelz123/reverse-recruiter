@@ -1,9 +1,14 @@
 """Remove a job from the project entirely.
 
 Usage:  python engine/remove_job.py <job_id> [<job_id> ...] --reason "travel 50%" [--data my-data] [--no-tombstone]
+                                    [--confirm-connections]
 
-Deletes:  jobs/<id>.json, its entries in reviews/*.json and ledger.json, and any source PDFs still in
-          1-inbox/job-pdfs/ (or the retired rejected-jobs/, if present).
+A job with a 1st-degree connection is never removed automatically: the command stops and names the connection, and
+removes the job only when rerun with --confirm-connections after the user has said yes.
+
+Deletes:  jobs/<id>.json, its entries in reviews/*.json and ledger.json, and its source PDFs in
+          1-inbox/job-pdfs/. A source file anywhere else, or one that now belongs to another job, is left alone
+          and listed.
 Keeps:    a one-line tombstone in removed.json (job ID, company, title, date, reason) so a later re-save,
           a discovered duplicate or a search-results card (engine/triaged.py) is recognized instead of re-reviewed. Skip with --no-tombstone.
 Reports, spec evidence, skills-gap entries and calibration questions that mention the job are cleaned

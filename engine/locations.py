@@ -9,7 +9,7 @@ import json
 import math
 import re
 
-from paths import read_json
+from paths import DataFileError, is_score, read_json
 
 # (city, state) -> (lat, lon), filled by load_places() from the user's places.json.
 CITIES = {}
@@ -19,7 +19,17 @@ def load_places(P):
     """Load the user's gazetteer (5-criteria/places.json) into CITIES. Missing file: every city is 'unknown'."""
     CITIES.clear()
     if P.places.exists():
-        for c in read_json(P.places).get("cities", []):
+        cities = read_json(P.places, expect=dict).get("cities", [])
+        if not isinstance(cities, list):
+            raise DataFileError(f"Malformed {P.places}: 'cities' must be a list.")
+        for i, c in enumerate(cities):
+            # Each entry is checked, so a city typed without its latitude stops with the entry named instead of a
+            # KeyError partway through a report.
+            if not (isinstance(c, dict) and all(isinstance(c.get(k), str) and c[k].strip() for k in ("city", "state"))
+                    and all(is_score(c.get(k)) for k in ("lat", "lon"))):
+                raise DataFileError(f"Malformed {P.places}: cities[{i}] needs 'city' and 'state' as text and 'lat' "
+                                    f"and 'lon' as numbers, e.g. {{\"city\": \"Springfield\", \"state\": \"IL\", "
+                                    f"\"lat\": 39.8, \"lon\": -89.65}}.")
             CITIES[(c["city"].lower(), c["state"].upper())] = (c["lat"], c["lon"])
     return CITIES
 

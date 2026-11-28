@@ -54,7 +54,8 @@ class Scan(SampleCase):
         self.assertEqual(self.scan()[0], 1)                       # the exception doesn't spread to other files
 
     def test_strict_without_terms_refuses(self):
-        code, _ = run("privacy_scan.py", self.repo, "--strict", "--data", self.tmp / "nowhere")
+        (self.tmp / "no-terms").mkdir()  # a data folder with no terms list in it (a missing folder is refused)
+        code, _ = run("privacy_scan.py", self.repo, "--strict", "--data", self.tmp / "no-terms")
         self.assertEqual(code, 2)
 
     # Whole-project review of 2026-11-27 (commit ac6a523), findings 15-17.

@@ -67,7 +67,7 @@ def pay_mentions(text, pay, stored):
 
 from pipeline import STAGES, TERMINAL, OTHER  # noqa: E402
 
-STATUSES = STAGES + OTHER + TERMINAL
+STATUSES = STAGES + OTHER + list(TERMINAL)
 
 
 def normalize(argv):

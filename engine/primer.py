@@ -321,7 +321,7 @@ def main():
     P = Paths(a.data)
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
     kitmap = kits(P)
-    jid = resolve(P, jobs, kitmap, a.job)
+    jid = resolve(jobs, kitmap, a.job)
     if a.cmd == "draft":
         text, count = draft(P, jobs[jid], kitmap.get(jid))
         if a.out:

@@ -6,7 +6,7 @@ From an empty folder to your first ranked report. The process itself is in [how-
 
 - **Python 3.10+** and the one package the engine needs: `pip install -r requirements.txt` (`pymupdf`, for reading PDFs).
 - **[Claude Code](https://claude.com/claude-code)** for the judgment steps (a Claude subscription or an API key).
-- **Optional:** Microsoft Edge or Google Chrome, used headless only if you render the public funnel images.
+- **Optional:** Microsoft Edge or Google Chrome, used headless only if you render the public funnel images (`engine/linkedin_images.py`) or print interview-prep PDFs (`engine/prep_pdf.py`).
 
 ```bash
 git clone <this repo> reverse-recruiter
@@ -52,6 +52,8 @@ Create the layout (or copy `sample-data/` and replace its contents):
 <data>/6-system/
 <data>/7-recommendations/
 ```
+
+Folders you add beside these are yours; no script reads them. The pre-commit hook guards two such names as well, `8-mentor-advice/` and `9-learning/` (advice you were given, and study notes), so they can't be committed either.
 
 ## 4. Add your inputs
 

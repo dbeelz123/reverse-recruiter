@@ -30,6 +30,8 @@ All personal data lives in one folder, outside the engine (default `my-data/`, g
                       (<first-last>/received/recommendation.md, given/final.md); a connection with one scores
                       spec.json -> scoring.network.recommendation_points instead of the plain connection bonus
   private-terms.txt   (optional) terms the privacy scan must never find in shareable files
+  8-mentor-advice/, 9-learning/   (optional, yours) no script reads them; the pre-commit hook guards them
+                      like the folders above, as it does any folder laid out this way
 ```
 
 Each folder keeps only working files; superseded ones move to an `archive/` subfolder, which scripts ignore.
@@ -48,7 +50,7 @@ Each folder keeps only working files; superseded ones move to an `archive/` subf
 
 A round processes new saved jobs and re-ranks everything. In order:
 
-1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided (a listing DQ'd before comes back for a fresh look if its salary or location is new; a listing from a blocklisted company is shown with the blocklist entry and reason for you to confirm, never dropped silently). Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
+1. **Triage** (when working from search results): paste the results into `1-inbox/search-results/`, then `ingest_results.py` → cards, and `triaged.py check` skips what's already decided (a listing DQ'd before comes back for a fresh look if its salary or location is new; a listing from a blocklisted company is shown with the blocklist entry and reason for you to confirm, never dropped silently; a company blocked before that no blocklist entry matches now, because you took it off or the card shows another name, is flagged too). Claude shows batches with its own call on each card; you open each, decide keep or DQ, and save the keeps. The triage ends with a **save check** (`triaged.py keeps`).
 2. **Extract:** `extract.py` turns new PDFs into job records (only new or changed files). It also flags duplicate saves, possible reposts, and a job saved again after it was removed ("PREVIOUSLY REMOVED", with the earlier reason; Claude asks before reviewing it again). `triaged.py match-saved` links saves made outside the batches to the run.
 3. **Review** (Claude): every new posting read in full against `engine/prompts/review-rubric.md`: score, tier, positives, caveats, gaps, eligibility.
 4. **Calibration** (you and Claude): a few questions, only about what's new: conflicts between sources, uncertain signals, proposed disqualifiers. Approved answers become rules in `spec.json` and `changelog.md`.

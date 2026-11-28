@@ -77,11 +77,6 @@ def untracked_saves(P):
     return out
 
 
-def phone_saves(P):
-    """Job IDs of every save with unknown listings behind it: phone triage and recommendation saves."""
-    return set(untracked_saves(P))
-
-
 def untracked_label(phone, rec):
     """'phone triage', 'recommendation saves' or both, for a count of such saves of which `rec` are recommendations."""
     return ", ".join(UNTRACKED[k] for k, n in (("phone", phone - rec), ("recommendations", rec)) if n)

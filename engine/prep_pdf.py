@@ -116,6 +116,11 @@ def table(rows):
         for h, c in zip(head[1:], r[1:]):
             if c:
                 lines.append(f'<div class="card-row"><span class="lab">{inline(h)}</span> {inline(c)}</div>')
+        # A row with more cells than the header (usually a "|" typed inside a cell): the extra text is kept,
+        # unlabeled, rather than dropped from the page without a word.
+        for c in r[len(head):]:
+            if c:
+                lines.append(f'<div class="card-row">{inline(c)}</div>')
         out.append('<div class="card">' + "".join(lines) + "</div>")
     return "\n".join(out)
 
@@ -406,9 +411,9 @@ def print_pdf(browser, page, pdf, timeout=180):
         src = tmp / "page.html"
         src.write_text(page, encoding="utf-8")
         out = tmp / "out.pdf"
-        subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-pdf-header-footer", "--no-first-run",
-                        f"--user-data-dir={tmp / 'profile'}", f"--print-to-pdf={out}", src.as_uri()],
-                       capture_output=True, timeout=timeout)
+        done = subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-pdf-header-footer", "--no-first-run",
+                               f"--user-data-dir={tmp / 'profile'}", f"--print-to-pdf={out}", src.as_uri()],
+                              capture_output=True, timeout=timeout)
         # On Windows the Edge launcher can return before the headless process writes the file: wait for it.
         for _ in range(timeout * 2):
             if out.exists() and out.stat().st_size > 0:
@@ -416,7 +421,14 @@ def print_pdf(browser, page, pdf, timeout=180):
                 break
             time.sleep(0.5)
         if not out.exists() or out.stat().st_size == 0:
-            raise SystemExit(f"The browser did not write {pdf.name}")
+            # The exit code alone decides nothing (the launcher can hand over to another process and return
+            # early), but when no PDF appears it and the browser's last words say why.
+            why = ""
+            if done.returncode:
+                said = (done.stderr or b"").decode("utf-8", errors="replace").strip().splitlines()
+                why = f" (the browser stopped with exit code {done.returncode}" + (
+                    f": {said[-1].strip()[:200]}" if said else "") + ")"
+            raise SystemExit(f"The browser did not write {pdf.name}{why}")
         # Copy next to the destination first, then swap it in with one os.replace: if the copy fails, the
         # previous PDF is still there.
         part = pdf.with_name(pdf.name + ".part")
@@ -501,6 +513,14 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.cmd == "anonymize":
+        # The anonymized copy never replaces one of its own inputs: writing over the source would leave only the
+        # cleaned text, and the names it removed could not be put back.
+        target = Path(args.out).resolve()
+        for flag, given in (("--in", args.inp), ("--rules", args.rules), ("--preamble", args.preamble)):
+            if given and (Path(given).resolve() == target
+                          or (target.exists() and Path(given).exists() and os.path.samefile(given, target))):
+                raise SystemExit(f"--out is the same file as {flag} ({given}); the anonymized copy would replace "
+                                 f"it. Give --out another file name.")
         text, unused = anonymize(Path(args.inp).read_text(encoding="utf-8-sig"),
                                  Path(args.rules).read_text(encoding="utf-8-sig"))
         if args.preamble:

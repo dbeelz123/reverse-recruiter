@@ -1,7 +1,8 @@
 """Staleness check: is a posting still open before anyone spends time on it?
 
 Usage:
-  python engine/staleness.py gate <job>                  # before kit work or applying: FRESH (exit 0) or CHECK FIRST (exit 1)
+  python engine/staleness.py gate <job>                  # before kit work or applying: FRESH (exit 0) or CHECK FIRST (exit 1);
+                                                         # exit 2 when <job> matches no job, or several
   python engine/staleness.py confirm <job> open|closed [--date YYYY-MM-DD] [--note "..."]
   python engine/staleness.py tracker <folder | file.pdf ... | paste.txt> [--date YYYY-MM-DD]
                                                          # mark every job the Job Tracker lists; with PDFs, by job ID
@@ -30,7 +31,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, past_date, read_json, write_json, to_date  # noqa: E402
+from paths import TERMINAL, Paths, iso_date, past_date, read_json, write_json, to_date  # noqa: E402
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
 OLD_DAYS = 30     # listings at least this old (estimated) are asked about even when a tracker capture shows them
@@ -39,7 +40,6 @@ HAND = "confirmed by hand"  # source of an open check recorded by `confirm`
 UNITS = {"h": 0, "hour": 0, "min": 0, "minute": 0, "d": 1, "day": 1, "w": 7, "wk": 7, "week": 7,
          "mo": 30, "month": 30, "y": 365, "yr": 365, "year": 365}
 CLOSED = r"no longer accepting|not accepting applications|job (is )?closed|this job has expired"
-TERMINAL = ("passed", "rejected", "withdrawn", "closed")
 
 
 def load(p, default=None):
@@ -328,7 +328,7 @@ def tracker(P, path, date):
 
 # ---- commands -----------------------------------------------------------------------------------------------------
 
-def gate(P, job, today):
+def gate(job, today):
     code, text = verdict(job, today)
     name = f"{job.get('company')} - {job.get('title')}"
     if code == "fresh":
@@ -411,9 +411,17 @@ def main():
         return
     from pipeline import kits, resolve
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
-    job = jobs[resolve(P, jobs, kits(P), a.job)]
+    try:
+        job = jobs[resolve(jobs, kits(P), a.job)]
+    except SystemExit as e:
+        if a.cmd != "gate":
+            raise
+        # Exit 2, not 1: to whoever runs the gate, 1 means CHECK FIRST for a job that was found. A name that
+        # matches no job (or several) must not read as that.
+        print(e, file=sys.stderr)
+        sys.exit(2)
     if a.cmd == "gate":
-        sys.exit(0 if gate(P, job, today) else 1)
+        sys.exit(0 if gate(job, today) else 1)
     if not set_check(P, job, a.result, a.date, HAND, a.note):
         kept = job.get("open_check") or {}
         sys.exit(f"Not recorded: {job['company']} - {job['title']} already has a newer check ({kept.get('result')} "

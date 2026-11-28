@@ -9,15 +9,16 @@ Writes  "review" block into each job record, and 2-reports/<date>-round-NN-repor
 import argparse
 import collections
 import json
+import math
 import re
 from pathlib import Path
 
-from paths import (Paths, company_key, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
-                   write_json)
-from urllib.parse import quote
+from paths import (YMD, Paths, company_key, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
+                   read_json, review_score_problems, to_date, write_json)
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ingest_results import find_link  # noqa: E402
 from locations import distance, home_state_of, load_places, within_radius  # noqa: E402
 
 TIER_NAMES = {"A": "A - strong fit", "B": "B - good fit", "C": "C - possible", "D": "D - weak",
@@ -85,6 +86,14 @@ def check_review(path, jid, r):
         raise SystemExit(f"Malformed review for job {jid} in {path}:\n  " + "\n  ".join(problems))
 
 
+def whole_score(x):
+    """A score as the whole number the report prints, a half point always rounding up (64.5 -> 65, 79.5 -> 80).
+    Python's round() goes to the even number instead, which made 64.5 a 64 and 65.5 a 66. The tier is then set from
+    this printed number, on purpose: the rubric's bands are whole numbers (A from 80, B from 65, C from 50), and a
+    job shown as 80 in band B would contradict the page it is printed on."""
+    return math.floor(x + 0.5)
+
+
 def lead_is_saved(title, company, saved):
     """A lead that is really one of the saved jobs (LinkedIn sometimes re-labels the company): the same title and
     company, or a lead title ending in the saved title with the saved company's first word in the lead as a whole
@@ -119,6 +128,11 @@ def main():
     if not isinstance(review, dict) or not review.get("date"):
         raise SystemExit(f"No usable review file for round {args.round}: expected {P.reviews / f'{rnd}.json'} "
                          f"with a 'date' and a 'jobs' map. Write the round's reviews first.")
+    # The date becomes part of the report's file name, so it must be a real day written YYYY-MM-DD: anything else
+    # ("2026/11/14", "../x") would name a file in another folder, or stop after the records were rewritten.
+    if not (isinstance(review["date"], str) and YMD.fullmatch(review["date"]) and to_date(review["date"])):
+        raise SystemExit(f"The 'date' in {P.reviews / f'{rnd}.json'} must be a day written YYYY-MM-DD, not "
+                         f"{review['date']!r}. Fix it and rerun; nothing was changed.")
     # Every round's review file is merged (latest round wins per job), so a re-screen edit to an
     # earlier round's entry reaches the job records and this report.
     all_reviews = latest_reviews(P, upto=args.round, check=check_review)
@@ -145,6 +159,7 @@ def main():
     # Every record is read and checked before the first one is rewritten: a damaged record further down the list
     # must stop the report before any review copy has changed, not after half of them have.
     records = [(f, read_job(f)) for f in sorted(P.jobs.glob("*.json"))]
+    conflicts = []
     for f, rec in records:
         r, from_round = all_reviews.get(rec["job_id"], (None, None))
         if r:
@@ -161,9 +176,18 @@ def main():
             rm = recommendations.matches(rec, recs)
             if rm:
                 r["recommendation"] = [{"name": n, "direction": d} for n, d in rm]
-            r["total"] = None if r["fit"] is None else round(r["fit"] + r.get("network_bonus", 0) + adj)
+            r["total"] = None if r["fit"] is None else whole_score(r["fit"] + r.get("network_bonus", 0) + adj)
             if r["tier"] not in ("X", "?") and r["total"] is not None:
                 r["tier"] = "A" if r["total"] >= 80 else "B" if r["total"] >= 65 else "C" if r["total"] >= 50 else "D"
+            if r.get("dealbreakers") and r["tier"] != "X" and not r.get("held"):
+                # The rubric makes any dealbreaker tier X. A review that lists one and still carries a grade is a
+                # slip in the review file: it is named, never changed here. (A job held for calibration has a rule
+                # suspended on purpose, and sits in its own section.)
+                listed = r["dealbreakers"] if isinstance(r["dealbreakers"], list) else [r["dealbreakers"]]
+                conflicts.append(f"WARNING: {rec.get('company') or '?'} - {rec.get('title') or '?'} "
+                                 f"({rec['job_id']}) lists a dealbreaker but is ranked in tier {r['tier']}: "
+                                 f"{' / '.join(str(d) for d in listed)}. If the dealbreaker stands, set its tier to "
+                                 f"X in the review file (round {from_round}).")
             r["round"] = from_round
             rec["review"] = r
             write_json(f, rec, indent=2)
@@ -184,6 +208,8 @@ def main():
     for jid in sorted(set(all_reviews) - set(jobs)):
         print(f"WARNING: review for job {jid} (round {all_reviews[jid][1]}) has no job record in "
               f"{P.rel(P.jobs)}; it's left out of the report. Remove the entry, or check the job ID.")
+    for line in conflicts:
+        print(line)
 
     reviewed = [j for j in jobs.values() if "review" in j]
     reviewed.sort(key=lambda j: (TIER_ORDER.index(j["review"]["tier"]), -(j["review"]["total"] or 0)))
@@ -426,9 +452,8 @@ def main():
     def is_saved(title, company):
         return lead_is_saved(title, company, jobs.values())
 
-    def find_link(title, company):
-        # The printed page has no link to the lead itself, so offer a LinkedIn job search for it.
-        return "https://www.linkedin.com/jobs/search/?keywords=" + quote(f"{title} {company}")
+    # The printed page has no link to the lead itself, so each lead gets a LinkedIn job search for it: the same
+    # directed search the triage cards use (ingest_results.find_link: title and company as exact phrases).
 
     def shown_with(v, limit=4):
         items = sorted(v["with"])

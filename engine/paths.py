@@ -12,6 +12,8 @@ REVERSE_RECRUITER_DATA environment variable, else <project>/my-data.
   5-criteria/                spec.json, changelog.md, searches.json (your rules), places.json (your city table)
   6-system/                  machine data: jobs/, reviews/, calibration/, search-runs/, *.json
   7-recommendations/         one folder per person: LinkedIn recommendations given and received (recommendations.py)
+Folders you add beside these are yours: no script reads them. The pre-commit hook treats two such names,
+8-mentor-advice/ and 9-learning/, as personal data too, like every folder above.
 """
 import json
 import os
@@ -46,6 +48,9 @@ PROFILE = "4-profile"
 CRITERIA = "5-criteria"
 SYSTEM = "6-system"
 RECOMMENDATIONS = "7-recommendations"
+
+# Application statuses that close a job out (pipeline.py records them; staleness.py and interviews.py read them).
+TERMINAL = ("passed", "rejected", "withdrawn", "closed")
 
 
 def iso_date(s):
@@ -310,7 +315,17 @@ def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii) + ("\n" if newline else ""),
                    encoding="utf-8")
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except OSError as e:
+        # The target can't be replaced (on Windows: open in another program, or mid-sync). The file is as it was;
+        # the temporary copy is cleared away so nothing stray is left, and the command stops with the file named.
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise DataFileError(f"Could not write {path}: {e.strerror or e}. Nothing in it was changed. Close whatever "
+                            f"has the file open (an editor, a sync in progress) and rerun.")
 
 
 class DataFileError(SystemExit):
@@ -345,6 +360,11 @@ class Paths:
         env = os.environ.get(DATA_ENV, "").strip()
         if not data and env and not Path(env).is_dir():  # a typo here must not quietly fall back to my-data/
             raise DataFileError(f"{DATA_ENV} points to {env}, which isn't a folder. Fix the setting or pass --data.")
+        if data and not Path(data).is_dir():
+            # A typo in --data must not read as an empty project, or be created as a new one by the first script
+            # that writes (extract.py, sweep.py): the data folder is always made by the user (docs/setup.md).
+            raise DataFileError(f"--data {data} isn't a folder. Check the path; to start a new data folder, create "
+                                f"it first (docs/setup.md).")
         d = Path(data) if data else Path(env) if env else DEFAULT_DATA
         self.data = d
         # inbox

@@ -1,7 +1,9 @@
 """Interview loop and follow-up timers: what happened in each interview, what's owed afterwards, what to learn.
 
 Usage:
-  python engine/interviews.py schedule <job> --round R --date YYYY-MM-DD [--with "..."] [--format "..."]
+  python engine/interviews.py schedule <job> --round R --date YYYY-MM-DD [--with "..."] [--format "..."] [--reopen]
+                                      # --reopen: the job is marked passed, rejected, withdrawn or closed, or the
+                                      # round was already debriefed
   python engine/interviews.py debrief <job> --round R --file debrief.json      # after the interview
   python engine/interviews.py sent <job> --round R [--date YYYY-MM-DD]          # thank-you note(s) sent
   python engine/interviews.py due [--soon N]                                    # everything owed now (or within N days)
@@ -32,12 +34,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import Paths, iso_date, read_json, write_json, tombstones  # noqa: E402
+from paths import TERMINAL, Paths, iso_date, read_json, write_json, tombstones  # noqa: E402
 
 FOLLOW_APPLIED = 7
 FOLLOW_OUTREACH = 5
 FOLLOW_INTERVIEW = 5
-TERMINAL = ("passed", "rejected", "withdrawn", "closed")
 DEBRIEF_KEYS = ("how", "asked", "landed", "missed", "signals", "next", "lessons", "thank_you_to")
 DEBRIEF_LISTS = ("asked", "landed", "missed", "lessons", "thank_you_to")  # always lists of text
 
@@ -293,7 +294,7 @@ def main():
         return lessons(P)
     from pipeline import kits, resolve  # imported here: pipeline.py imports this module for the apply queue
     jobs = {f.stem: load(f) for f in P.jobs.glob("*.json")}
-    job = jobs[resolve(P, jobs, kits(P), a.job)]
+    job = jobs[resolve(jobs, kits(P), a.job)]
     {"schedule": schedule, "debrief": debrief, "sent": sent}[a.cmd](P, job, a)
 
 

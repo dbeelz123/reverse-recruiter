@@ -2,8 +2,9 @@
 
 Usage:  python engine/linkedin_images.py [--round N] [--data my-data]
 
-Writes  4-profile/linkedin/project-images/job-search-funnel-round-NN.png
-        4-profile/linkedin/project-images/job-search-grade-bands-round-NN.png
+Writes  4-profile/linkedin/project-images/job-search-funnel-per100-round-NN.png
+        4-profile/linkedin/project-images/job-search-grade-bands-per100-round-NN.png
+        (with --raw: the same names without "per100-")
 Earlier rounds' images in that folder move to its archive/ (folder hygiene).
 
 Numbers come from engine/metrics.py (funnel totals, labels) and the current job records' review tiers, so run it
@@ -20,7 +21,8 @@ Layout settled with the user on 2026-11-18:
   "grades_override" in linkedin-project.json); otherwise the funnel's targets are split by the real grade mix.
 - Content is inset from the image edges because LinkedIn's media viewer crops the sides of the preview (2026-11-19).
 Rendering uses headless Microsoft Edge (or Chrome) to screenshot an HTML page; the page is written to a temp folder
-outside the project.
+outside the project. The browser is looked for in the same places as for the prep PDFs (prep_pdf.py): the usual
+Windows and macOS install folders, then the PATH.
 
 Per 100 (decided 2026-11-18): the public images show the funnel scaled to 100 job listings processed, with a
 "Per 100 job listings processed" subtitle and no round text, because raw volume read to an outside reviewer as a dire
@@ -36,12 +38,11 @@ import time
 from pathlib import Path
 
 import metrics
+import prep_pdf
 from paths import Paths, read_json, round_number
 
 W, H, SCALE = 1088, 707, 3
-BROWSERS = [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe"]
+BROWSERS = prep_pdf.BROWSERS  # one list for both scripts: Windows and macOS install folders
 TIERS = [("A", "strong fit", "#0C447C", "#fff"), ("B", "good fit", "#378ADD", "#fff"),
          ("C", "possible", "#85B7EB", "#0C447C"), ("D", "weak", "#B5D4F4", "#0C447C")]
 # LinkedIn's media viewer crops a few percent off the sides of the preview, so the card sits well inside the image
@@ -64,14 +65,29 @@ def per100(t, counts):
     """Scale the funnel to 100 listings processed, and split its qualified targets (about 9 per 100) into the grade
     bands with largest-remainder rounding, so the bands add up to the funnel's last number. The grade image continues
     the funnel's story: of the targets per 100 listings, how many fall in each band."""
-    top = t["processed"] or 1
+    top = t["processed"]
+    if not top:  # nothing processed yet: there is nothing to scale
+        return {k: 0 for k in FUNNEL_KEYS}, {g: 0 for g in counts}
     f = {k: round(100 * t[k] / top) for k in FUNNEL_KEYS}
-    n = sum(counts.values()) or 1
+    n = sum(counts.values())
+    if not n:  # no job holds a grade: nothing to split (the remainder step would hand every band a job)
+        return f, {g: 0 for g in counts}
     raw = {g: f["ranked"] * c / n for g, c in counts.items()}
     g = {k: int(v) for k, v in raw.items()}
     for k in sorted(raw, key=lambda k: raw[k] - int(raw[k]), reverse=True)[: f["ranked"] - sum(g.values())]:
         g[k] += 1
     return f, g
+
+
+def find_browser():
+    """The first installed browser from BROWSERS, else one on the PATH (prep_pdf.BROWSER_NAMES), else None."""
+    for b in BROWSERS:
+        if Path(b).exists():
+            return b
+    for name in prep_pdf.BROWSER_NAMES:
+        if shutil.which(name):
+            return shutil.which(name)
+    return None
 
 
 def parse_grades(s):
@@ -196,6 +212,9 @@ def main(argv=None):
         f_sub, g_sub = "", f"{sum(counts.values())} jobs under consideration after round {rnd}"
     else:
         shown, shown_g = per100(t, counts)
+        if not a.grades and sum(shown_g.values()) != shown["ranked"]:
+            print(f"WARNING: no current job holds a grade (A-D), so the grade image shows no bands while the funnel "
+                  f"shows {shown['ranked']} qualified targets per 100. Build the report first (build_report.py).")
         if a.grades:  # the user's chosen split for the marketing image, recorded where it comes from
             shown_g = parse_grades(a.grades)
             note = grades_note(shown_g, shown["ranked"])
@@ -204,7 +223,7 @@ def main(argv=None):
         kind = "per100-"
         f_sub = "Per 100 job listings processed"
         g_sub = f"{sum(shown_g.values())} qualified targets per 100 job listings processed"
-    browser = next((b for b in BROWSERS if Path(b).exists()), None)
+    browser = find_browser()
     if not browser:
         raise SystemExit("No Edge or Chrome found to render the images.")
     out_dir = P.linkedin_dir / "project-images"

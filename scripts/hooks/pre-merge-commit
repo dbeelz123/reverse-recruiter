@@ -1,0 +1,5 @@
+#!/bin/sh
+# git runs this hook, not pre-commit, when a merge makes its own commit (a merge without conflicts). The check is
+# the same one: everything the merge brings in is staged, so pre-commit scans it like any other commit.
+# A cherry-pick, a rebase or a revert runs neither hook: run `python -B engine/privacy_scan.py .` before pushing those.
+exec sh "$(dirname "$0")/pre-commit"
