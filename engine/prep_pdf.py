@@ -473,7 +473,11 @@ def cleaned_markdown(kit, m):
         raise SystemExit(f"Rules file not found: {rules}")
     md, unused = anonymize(md, rules.read_text(encoding="utf-8-sig"))
     if cfg.get("preamble"):
-        md = (kit / cfg["preamble"]).read_text(encoding="utf-8-sig").rstrip() + "\n\n" + md
+        pre = kit / cfg["preamble"]
+        if not pre.is_file():  # checked like the rules file: a name in the manifest that isn't in the kit
+            raise SystemExit(f"Preamble file not found: {pre} (named as \"preamble\" in the manifest's \"cleaned\" "
+                             f"section). Add the file to the kit, or take the line out.")
+        md = pre.read_text(encoding="utf-8-sig").rstrip() + "\n\n" + md
     return md, unused
 
 
@@ -516,6 +520,9 @@ def main(argv=None):
         # The anonymized copy never replaces one of its own inputs: writing over the source would leave only the
         # cleaned text, and the names it removed could not be put back.
         target = Path(args.out).resolve()
+        for flag, given in (("--in", args.inp), ("--rules", args.rules), ("--preamble", args.preamble)):
+            if given and not Path(given).is_file():  # every input is checked before anything is read or written
+                raise SystemExit(f"{flag}: no such file: {given}")
         for flag, given in (("--in", args.inp), ("--rules", args.rules), ("--preamble", args.preamble)):
             if given and (Path(given).resolve() == target
                           or (target.exists() and Path(given).exists() and os.path.samefile(given, target))):

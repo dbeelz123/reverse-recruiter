@@ -42,8 +42,9 @@ IGNORE = "privacy-scan: " + "ignore"  # split so this line itself is still scann
 PATTERNS = {
     # A Windows home folder in any case, with one or more backslashes (JSON inside JSON doubles them twice), a
     # forward slash, or an administrative share name; then a macOS, Linux or Git Bash home folder, which needs no
-    # trailing slash but must not be the tail of a web address (a site's own "home" page path).
-    "home-folder path": r"(?i:[a-z][:$](?:\\+|/)users(?:\\+|/)[^\\/\s\"]+)|(?<![\w.-])/(?:[A-Za-z]/)?(?:Users|home)/[^/\s\"'`<>)]+",  # privacy-scan: ignore
+    # trailing slash but must not be the tail of a web address (a site's own "home" page path); last, the Linux
+    # administrator's home folder, which names no user but is still a path on someone's machine.
+    "home-folder path": r"(?i:[a-z][:$](?:\\+|/)users(?:\\+|/)[^\\/\s\"]+)|(?<![\w.-])/(?:[A-Za-z]/)?(?:Users|home)/[^/\s\"'`<>)]+|(?<![\w.<>/-])/root/[^/\s\"'`<>)]+",  # privacy-scan: ignore
     # The example domains (.com, .org, .net) are for examples, but only as the whole domain: an address at a
     # longer domain that merely starts with one is real.
     "email address": r"\b[\w.+-]+@(?!example\.(?:com|org|net)(?![\w-]|\.[\w-]))[\w-]+\.[\w.]+\b",  # privacy-scan: ignore

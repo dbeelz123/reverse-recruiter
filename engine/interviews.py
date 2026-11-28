@@ -15,7 +15,9 @@ Where it lives: an "interviews" list on the job record (6-system/jobs/<id>.json)
   {"round", "date" (None if unknown), "with", "format", "status": scheduled|done|cancelled,
    "debrief": {"how", "asked": [...], "landed": [...], "missed": [...], "signals", "next", "lessons": [...],
                "thank_you_to": [...]},
-   "thank_you": {"to": [...], "due", "sent"}}
+   "thank_you": {"to": [...], "due", "sent"},
+   "earlier": [{"date", "with", "format", "debrief", "thank_you"}]}   only for a round held again (schedule
+   --reopen on a debriefed round): each earlier sitting, kept apart so the new one starts clean
 The debrief file is a JSON object with any of the debrief keys; Claude writes it in the session scratchpad from
 the candidate's answers (engine/prompts/interview-loop.md) and this script merges it. The kit's log.md stays the human record.
 
@@ -148,6 +150,16 @@ def schedule(P, job, a):
         sys.exit(f"{short(job)}: round {a.round} already took place ({held.get('date') or 'date unknown'}) and was "
                  f"debriefed. For a new round, use the next round number; to redo this one, rerun with --reopen.")
     iv = find_round(job, a.round, create=True)
+    kept = ""
+    if held:
+        # The round is held again (--reopen). What was recorded for the first sitting is the user's own account of
+        # an interview that took place, so it is kept, apart, under "earlier"; left on the round it would mix into
+        # the new sitting's debrief, and its sent thank-you would pass for the new one's.
+        first = {k: iv.pop(k) for k in ("date", "with", "format", "debrief", "thank_you") if k in iv}
+        iv.setdefault("earlier", []).append(first)
+        iv["date"] = None
+        kept = (f"; the sitting of {first.get('date') or 'an unknown date'} and its debrief are kept under "
+                f"\"earlier\" on the round")
     date = None if a.date == "unknown" else a.date
     iv.update({k: v for k, v in (("date", date), ("with", a.with_), ("format", a.format)) if v})
     if a.date == "unknown":  # said outright (a postponed round): the old date goes, so `due` stops asking
@@ -164,7 +176,7 @@ def schedule(P, job, a):
     pl["stage"] = f"round {a.round} on {iv['date']}" if iv.get("date") else f"round {a.round}"
     pl["updated"] = dt.date.today().isoformat()
     save(P, job)
-    print(f"{short(job)}: round {a.round} scheduled ({iv.get('date') or 'date unknown'})")
+    print(f"{short(job)}: round {a.round} scheduled ({iv.get('date') or 'date unknown'}){kept}")
 
 
 def debrief(P, job, a):
@@ -238,7 +250,13 @@ def due(P, today, soon):
 
 def lessons(P):
     jobs = [load(f) for f in sorted(P.jobs.glob("*.json"))] + [t for t in tombstones(P.removed) if t.get("interviews")]
-    rounds = [(j, iv) for j in jobs for iv in j.get("interviews") or [] if iv.get("debrief")]
+    # A round held more than once (schedule --reopen) keeps each earlier sitting under "earlier": those debriefs
+    # count here like any other, in the order the sittings took place.
+    rounds = []
+    for j in jobs:
+        for iv in j.get("interviews") or []:
+            sittings = [dict(e, round=iv.get("round")) for e in iv.get("earlier") or [] if isinstance(e, dict)]
+            rounds += [(j, s) for s in sittings + [iv] if s.get("debrief")]
     if not rounds:
         print("No debriefs yet.")
         return
