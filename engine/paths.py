@@ -204,6 +204,46 @@ def blocklist(spec, path):
     return entries
 
 
+RULE_STATUSES = ("proposed", "confirmed", "rejected", "superseded", "retired")
+
+
+def rule_statuses(spec):
+    """The statuses a rule may carry: the standard ones, plus any the user's own status_legend in spec.json names."""
+    legend = spec.get("status_legend")
+    return set(RULE_STATUSES) | ({k for k in legend if isinstance(k, str)} if isinstance(legend, dict) else set())
+
+
+def spec_rules(spec, path, section):
+    """One section of spec.json's rules (dealbreakers, negatives, qualifiers, company_blocklist), each entry checked
+    to be an object with a known 'status'. A mistyped status ("confimed") or a missing one stops the command and
+    names the rule: a script that screens only confirmed rules would otherwise leave that rule out without a word,
+    and a job it should flag would pass."""
+    entries = spec.get(section, [])
+    if not isinstance(entries, list):
+        raise DataFileError(f"Malformed {path}: {section} must be a list.")
+    known = rule_statuses(spec)
+    for i, r in enumerate(entries):
+        if not isinstance(r, dict):
+            raise DataFileError(f"Malformed {path}: {section}[{i}] is not an object ({str(r)[:60]!r}).")
+        if not (isinstance(r.get("status"), str) and r["status"] in known):
+            raise DataFileError(f"Malformed {path}: {section}[{i}] ({str(r.get('value', '?'))[:60]!r}) has the status "
+                                f"{r.get('status')!r}. Use one of: {', '.join(sorted(known))} (a rule counts in "
+                                f"screening only when it is \"confirmed\").")
+    return entries
+
+
+def radius_miles(spec, path):
+    """The radius for hybrid and on-site jobs (work_arrangement.machine_rule.radius_miles, 50 when not set), checked
+    to be a number from 0 up. A negative radius put every city outside it, the center included, and text stopped
+    with a traceback."""
+    rule = (spec.get("work_arrangement") or {}).get("machine_rule") or {}
+    r = rule.get("radius_miles", 50) if isinstance(rule, dict) else None
+    if not (is_score(r) and r >= 0):
+        raise DataFileError(f"Malformed {path}: work_arrangement.machine_rule.radius_miles must be a number of "
+                            f"miles from 0 up, not {r!r}.")
+    return r
+
+
 def norm_name(s):
     """Company name for blocklist matching: accents dropped ('TUSAŞ' -> 'tusas'), '&' read as 'and', case and
     punctuation ignored ('MOOG, Inc.' -> 'moog inc')."""
@@ -327,19 +367,21 @@ def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):
     name leaves at most one stray file after a crash."""
     path = Path(path)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii) + ("\n" if newline else ""),
-                   encoding="utf-8")
+    text = json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii) + ("\n" if newline else "")  # before any file
     try:
+        tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, path)
     except OSError as e:
-        # The target can't be replaced (on Windows: open in another program, or mid-sync). The file is as it was;
-        # the temporary copy is cleared away so nothing stray is left, and the command stops with the file named.
+        # Writing the temporary copy failed (the disk is full, the folder can't be written to), or the target can't
+        # be replaced (on Windows: open in another program, or mid-sync). Either way the file is as it was; the
+        # temporary copy, whole or partial, is cleared away, and the command stops with the file named.
         try:
             tmp.unlink()
         except OSError:
             pass
-        raise DataFileError(f"Could not write {path}: {e.strerror or e}. Nothing in it was changed. Close whatever "
-                            f"has the file open (an editor, a sync in progress) and rerun.")
+        raise DataFileError(f"Could not write {path}: {e.strerror or e}. Nothing in it was changed. Check that the "
+                            f"disk has room and the folder can be written to, close whatever has the file open (an "
+                            f"editor, a sync in progress), and rerun.")
 
 
 class DataFileError(SystemExit):

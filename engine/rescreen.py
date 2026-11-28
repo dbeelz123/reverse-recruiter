@@ -22,7 +22,8 @@ import re
 from pathlib import Path
 
 from locations import distance, home_state_of, load_places, within_radius
-from paths import Paths, blocked_by, blocklist, case_by_case, read_job, read_json, review_score_problems
+from paths import (Paths, blocked_by, blocklist, case_by_case, radius_miles, read_job, read_json, review_score_problems,
+                   spec_rules)
 
 
 def excerpt(text, m, width=90):
@@ -36,11 +37,15 @@ def main():
     ap.add_argument("--data", default=None)
     args = ap.parse_args()
     P = Paths(args.data)
-    spec = read_json(P.spec)
-    rules = ([("DEALBREAKER", r) for r in spec.get("dealbreakers", []) if r.get("status") == "confirmed"]
-             + [("NEGATIVE", r) for r in spec.get("negatives", []) if r.get("status") == "confirmed"]
-             + [("QUALIFIER", r) for r in spec.get("qualifiers", []) if r.get("status") == "confirmed"])
-    blocked = [b for b in blocklist(spec, P.spec) if b.get("status") == "confirmed"]
+    spec = read_json(P.spec, expect=dict)
+    # Only confirmed rules are screened, so every rule's status is checked first (paths.spec_rules): a mistyped
+    # status must stop the run, not drop the rule from it.
+    rules = [(kind, r) for kind, section in (("DEALBREAKER", "dealbreakers"), ("NEGATIVE", "negatives"),
+                                             ("QUALIFIER", "qualifiers"))
+             for r in spec_rules(spec, P.spec, section) if r["status"] == "confirmed"]
+    blocklist(spec, P.spec)
+    blocked = [b for b in spec_rules(spec, P.spec, "company_blocklist") if b["status"] == "confirmed"]
+    radius = radius_miles(spec, P.spec)
     # Check every rule's patterns once, up front, so a typo in spec.json names the rule instead of crashing midway.
     bad = []
     for kind, rule in rules:
@@ -79,7 +84,6 @@ def main():
     c = rule.get("hybrid_onsite_center")
     center = (c["lat"], c["lon"]) if c else None
     home_state = home_state_of(c.get("name")) if c else None
-    radius = rule.get("radius_miles", 50)
     load_places(P)
 
     print(f"Re-screen against spec v{spec.get('version')}\n")

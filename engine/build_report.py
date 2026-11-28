@@ -13,7 +13,7 @@ import math
 import re
 from pathlib import Path
 
-from paths import (YMD, Paths, company_key, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
+from paths import (YMD, Paths, company_key, radius_miles, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
                    read_json, review_score_problems, to_date, write_json)
 
 import sys
@@ -152,7 +152,7 @@ def main():
     c = rule.get("hybrid_onsite_center")
     center = (c["lat"], c["lon"]) if c else None
     home_state = home_state_of(c.get("name")) if c else None
-    radius = rule.get("radius_miles", 50)
+    radius = radius_miles(spec, P.spec)  # checked here, before any job record is rewritten
     load_places(P)
 
     jobs = {}

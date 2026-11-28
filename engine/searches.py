@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 from locations import US_STATES, home_state_of
-from paths import Paths, read_json
+from paths import Paths, radius_miles, read_json
 from urllib.parse import urlencode
 
 POSTED = {"day": "r86400", "week": "r604800", "month": "r2592000"}
@@ -95,7 +95,7 @@ def main():
     st = home_state_of(name)  # LinkedIn's location box wants the full state name: "Springfield, Illinois"
     center = re.sub(rf",\s*{st}\b", ", " + US_STATES[st].title(), name) if st in US_STATES else name
     center_geo = c.get("linkedin_geo_id")
-    radius = rule.get("radius_miles", 50)
+    radius = radius_miles(spec, P.spec)
     if not center and any(s.get("where") == "local" and s.get("status") != "retired" for s in cfg["searches"]):
         raise SystemExit(f"{P.searches.name} has a local search, but {P.spec.name} has no "
                          f"work_arrangement.machine_rule.hybrid_onsite_center to search around.")
