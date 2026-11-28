@@ -128,16 +128,24 @@ def record(P, a):
     pl.setdefault("events", [])
     # A step recorded late (dated before a stage already recorded) joins the history but leaves the status alone,
     # so the job doesn't read as going backwards (e.g. a response dated before an interview recorded earlier).
+    # The same holds for two steps on one day recorded out of order (interview, then applied, both that day). A step
+    # dated after the current one is taken at the user's word, even an earlier stage (a response after an interview).
     new_date = to_date(a.date)
-    later = [e for e in pl["events"] if e.get("stage") not in OTHER and to_date(e.get("date"))
-             and new_date and to_date(e["date"]) > new_date]
+
+    def after(e):
+        d = to_date(e.get("date"))
+        if not (d and new_date) or e.get("stage") in OTHER:
+            return False
+        return d > new_date or (d == new_date and a.stage in STAGES and e.get("stage") in STAGES
+                                and STAGES.index(e["stage"]) > STAGES.index(a.stage))
+    later = [e for e in pl["events"] if after(e)]
     ev = {"date": a.date, "stage": a.stage}
     if a.note:
         ev["note"] = a.note
     pl["events"].append(ev)
     if a.stage not in OTHER and later:
-        latest = max(later, key=lambda e: to_date(e["date"]))
-        print(f"Recorded as history: {a.stage} on {a.date} is earlier than {latest['stage']} on {latest['date']}, "
+        latest = max(later, key=lambda e: (to_date(e["date"]), STAGES.index(e["stage"]) if e["stage"] in STAGES else 99))
+        print(f"Recorded as history: {a.stage} on {a.date} comes before {latest['stage']} on {latest['date']}, "
               f"so the status stays '{pl.get('status')}'.")
     elif a.stage not in OTHER:
         pl["status"] = a.stage

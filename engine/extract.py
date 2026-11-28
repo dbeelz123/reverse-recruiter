@@ -243,8 +243,8 @@ def main():
     jobs_dir = P.jobs
     jobs_dir.mkdir(parents=True, exist_ok=True)
     ledger_path = P.ledger
-    ledger = read_json(ledger_path, {})
-    now = dt.datetime.now().isoformat(timespec="seconds")
+    ledger = read_json(ledger_path, {}, expect=dict)
+    now =dt.datetime.now().isoformat(timespec="seconds")
     summary = []
 
     for folder, list_name in ((P.job_pdfs, "saved"),):
@@ -269,7 +269,7 @@ def main():
                 continue
             is_people = any(l.strip().startswith("Connections who work at") for l in lines)
             out = jobs_dir / f"{job_id}.json"
-            rec = read_json(out, {})
+            rec = read_json(out, {}, expect=dict)  # a record that isn't an object stops here, with the file named
             rec.setdefault("job_id", job_id)
             rec["url"] = f"https://www.linkedin.com/jobs/view/{job_id}/"
             rec["list"] = list_name

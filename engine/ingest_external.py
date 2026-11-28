@@ -80,8 +80,10 @@ def main():
     ap.add_argument("--pay", default=None)
     ap.add_argument("--data", default=None)
     a = ap.parse_args(normalize(sys.argv[1:]))
-    if not a.id.startswith("ext-"):
-        raise SystemExit("External job IDs start with 'ext-' so they never collide with LinkedIn job IDs.")
+    # The ID becomes a file name (6-system/jobs/<id>.json), so it can't carry a path: no separators or dots.
+    if not re.fullmatch(r"ext-[A-Za-z0-9_-]+", a.id):
+        raise SystemExit("External job IDs start with 'ext-' (so they never collide with LinkedIn job IDs), followed "
+                         f"by letters, digits, hyphens or underscores, e.g. ext-acme-clinical-ai-pm; got {a.id!r}.")
     P = Paths(a.data)
     src = Path(a.file).resolve()
     if not src.is_file():
@@ -93,7 +95,9 @@ def main():
     key = P.rel(src)
     text = read_text(src)
     out = P.jobs / f"{a.id}.json"
-    rec = read_json(out, {})
+    # Both are checked before anything is written, so a damaged file stops the ingest with the file named.
+    rec = read_json(out, {}, expect=dict)
+    ledger = read_json(P.ledger, {}, expect=dict)
     now = dt.datetime.now().isoformat(timespec="seconds")
     rec.update({
         "job_id": a.id,
@@ -123,7 +127,6 @@ def main():
     if before:
         print(f"PREVIOUSLY REMOVED: {a.id} was removed {before.get('removed')}: {before.get('reason')}. "
               f"Ask the user before reviewing it again.")
-    ledger = read_json(P.ledger, {})
     st = src.stat()
     ledger[key] = {"job_id": a.id, "kind": "external", "sig": {"size": st.st_size, "mtime": int(st.st_mtime)},
                    "processed_at": now}

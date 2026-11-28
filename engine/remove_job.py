@@ -52,6 +52,11 @@ def main():
     for jid in args.job_ids:
         rec = read_json(P.jobs / f"{jid}.json", {}, expect=dict)
         named = [n for n, _ in connections.people_at(dict(rec, job_id=jid), recs, people)]
+        if not named:
+            # No connection recorded for this job, but the posting's own teaser points to one (the connection list
+            # wasn't captured, and nobody is tied to the job in connections.json): that holds the removal too.
+            named = [f"the posting's teaser says '{t}' (no connection recorded for this job)"
+                     for t in connections.teaser_hints(rec)]
         if named:
             held.append(f"{rec.get('company') or jid} - {rec.get('title') or ''} ({jid}): {', '.join(named)}")
     if held and not args.confirm_connections:

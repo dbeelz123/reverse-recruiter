@@ -28,7 +28,7 @@ files=$(git diff --cached --name-only --diff-filter=ACMR)
 bad=$(printf '%s\n' "$files" | grep -E '(^|/)(my-data|private-data)/|private-terms\.txt$|\.private\.|CLAUDE\.local\.md$')
 # A data folder of any name is recognized by its layout; only the fictional sample-data/ may be committed.
 bad="$bad
-$(printf '%s\n' "$files" | grep -E '(^|/)(1-inbox|2-reports|3-applications|4-profile|5-criteria|6-system)/' | grep -vE '^sample-data/')"
+$(printf '%s\n' "$files" | grep -E '(^|/)(1-inbox|2-reports|3-applications|4-profile|5-criteria|6-system|7-recommendations|8-mentor-advice|9-learning)/' | grep -vE '^sample-data/')"
 bad=$(printf '%s\n' "$bad" | grep -v '^$')
 if [ -n "$bad" ]; then
     echo "pre-commit: personal-data paths are staged:"

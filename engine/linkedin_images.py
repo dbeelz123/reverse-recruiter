@@ -206,19 +206,26 @@ def main(argv=None):
     out_dir.mkdir(parents=True, exist_ok=True)
     targets = {"funnel": out_dir / f"job-search-funnel-{kind}round-{rnd:02d}.png",
                "grades": out_dir / f"job-search-grade-bands-{kind}round-{rnd:02d}.png"}
-    # A re-render of the same round (e.g. a layout change) must not overwrite the images that are live on LinkedIn:
-    # the existing files move to archive/ with their date first (2026-11-19).
-    for p in targets.values():
-        if p.exists():
-            (out_dir / "archive").mkdir(exist_ok=True)
-            stamp = time.strftime("%Y-%m-%d-%H%M%S", time.localtime(p.stat().st_mtime))  # unique per render
-            shutil.move(str(p), str(out_dir / "archive" / f"{p.stem}-{stamp}{p.suffix}"))
     # Outside the project (folder hygiene). The headless browser can still hold a profile file when the block ends,
     # so a cleanup error must not undo a finished render.
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         tmp = Path(td)
-        render(browser, funnel_html(shown, f_sub), targets["funnel"], tmp)
-        render(browser, grades_html(shown_g, g_sub), targets["grades"], tmp)
+        # Both images are rendered before anything in the folder changes: the two go live together, so a failed
+        # second render must leave the previous pair in place, not one new image beside an archived old pair.
+        staged = tmp / "staged"
+        staged.mkdir()
+        html = {"funnel": funnel_html(shown, f_sub), "grades": grades_html(shown_g, g_sub)}
+        for k, p in targets.items():
+            render(browser, html[k], staged / p.name, tmp)
+        # A re-render of the same round (e.g. a layout change) must not overwrite the images that are live on
+        # LinkedIn: the existing files move to archive/ with their date first (2026-11-19).
+        for p in targets.values():
+            if p.exists():
+                (out_dir / "archive").mkdir(exist_ok=True)
+                stamp = time.strftime("%Y-%m-%d-%H%M%S", time.localtime(p.stat().st_mtime))  # unique per render
+                shutil.move(str(p), str(out_dir / "archive" / f"{p.stem}-{stamp}{p.suffix}"))
+        for p in targets.values():
+            shutil.move(str(staged / p.name), str(p))
     # Older rounds' images go to archive/.
     for old in out_dir.glob("job-search-*-round-*.png"):
         if old not in targets.values():

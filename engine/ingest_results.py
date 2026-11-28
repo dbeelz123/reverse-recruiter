@@ -100,6 +100,9 @@ def parse_paste(text):
 def from_rows(rows):
     cards = []
     for n, r in enumerate(rows, 1):
+        if None in r:  # csv.DictReader files a row's extra fields under None: an unquoted comma shifted the columns
+            sys.exit(f"row {n}: more fields than the header row has columns (extra: {r[None]!r}); put quotes around "
+                     f"any value that contains a comma and rerun")
         r = {k.strip().lower(): (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
         bad = [k for k in ("title", "company", "location", "salary", "posted", "section")
                if r.get(k) is not None and not isinstance(r[k], str)]

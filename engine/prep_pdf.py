@@ -264,6 +264,10 @@ def load_manifest(kit, manifest=None):
         m = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise SystemExit(f"{path.name} isn't valid JSON: {e}")
+    if not isinstance(m, dict):
+        raise SystemExit(f"{path.name} must be a JSON object (see the docstring of engine/prep_pdf.py for its format)")
+    # Deliberate (code reviews, 2026-11-25 and 2026-11-27): 'source' and 'out' are not confined to the kit folder.
+    # The manifest is the user's own file, and pointing it at shared material elsewhere in the data folder is a use.
     if not isinstance(m.get("packets"), list) or not m["packets"]:
         raise SystemExit(f"{path.name} needs a non-empty 'packets' list")
     return m

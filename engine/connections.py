@@ -22,6 +22,7 @@ example a referral recorded by hand).
 Usage:  python engine/connections.py [--data DATA]      every connection on a current job, with its level and points
 """
 import argparse
+import re
 
 import recommendations
 from paths import Paths, read_json
@@ -90,6 +91,16 @@ def people_at(job, recs, people):
         if jid and jid in e["job_ids"]:
             add(e["name"], s)
     return found
+
+
+def teaser_hints(job):
+    """The lines of the posting's "People you can reach out to" teaser that point to a 1st-degree connection:
+    "<first name> and others in your network", or a person marked "• 1st". Alumni lines and 2nd/3rd-degree people
+    don't count. A hint is not a named connection (the teaser gives a first name at most), so it never scores; it
+    only keeps a job from being removed without the user's word (remove_job.py)."""
+    teaser = job.get("network_teaser")
+    return [t.strip() for t in (teaser if isinstance(teaser, list) else [])
+            if isinstance(t, str) and re.search(r"\bin your network\b|•\s*1st\b", t, re.I)]
 
 
 def network_points(spec, review_bonus, job, recs, people):

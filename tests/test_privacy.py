@@ -106,6 +106,17 @@ class Hook(SampleCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("personal-data paths", result.stdout)
 
+    def test_every_layout_folder_is_recognized(self):
+        # Fourth whole-project review (2026-11-27): the guard stopped at 6-system.
+        for folder in ("7-recommendations/jane-doe/received/recommendation.md", "8-mentor-advice/index.md",
+                       "9-learning/topic/primer.md"):
+            with self.subTest(folder=folder):
+                self.stage(f"career-data/{folder}", "nothing the text scan would catch")
+                result = self.hook()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("personal-data paths", result.stdout)
+                self.git("rm", "-q", "--cached", "-r", "career-data")
+
     def test_sample_data_layout_allowed(self):
         self.stage("sample-data/6-system/jobs/1.json", "{}")
         self.assertEqual(self.hook().returncode, 0)

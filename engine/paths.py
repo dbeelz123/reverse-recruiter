@@ -217,7 +217,10 @@ def review_score_problems(r):
 
 def write_json(path, obj, indent=2, ensure_ascii=False, newline=False):
     """Write JSON atomically: a temporary file in the same folder, then os.replace, so a crash mid-write never
-    leaves a half-written record. Every script writes its JSON through this."""
+    leaves a half-written record. Every script writes its JSON through this.
+    Deliberate (code reviews, 2026-11-25 and 2026-11-27): the temporary name is fixed (<name>.tmp), and a link planted
+    at that name inside the user's own data folder is not guarded against; the folder is the user's, and a fixed
+    name leaves at most one stray file after a crash."""
     path = Path(path)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii) + ("\n" if newline else ""),
