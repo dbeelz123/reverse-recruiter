@@ -106,6 +106,16 @@ def company_key(name):
     return " ".join(words)
 
 
+def read_job(path):
+    """A job record (6-system/jobs/<id>.json), checked for what every reader relies on: an object with a text
+    'job_id'. Anything else stops with the file named, instead of a traceback halfway through a run."""
+    j = read_json(path, expect=dict)
+    if not (isinstance(j.get("job_id"), str) and j["job_id"].strip()):
+        raise DataFileError(f"Malformed job record {path}: it needs a 'job_id' as text (the file is named after "
+                            f"it). Fix it by hand, or delete the file and run extract.py again.")
+    return j
+
+
 def read_run(path):
     """A search-run file (6-system/search-runs/*.json), checked for the shape every reader relies on: an object;
     'round', when present, a whole number; 'listings', when present, a list of objects; 'saved_job_ids', when

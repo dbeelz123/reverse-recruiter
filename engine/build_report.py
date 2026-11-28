@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import (Paths, company_key, round_number, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
+from paths import (Paths, company_key, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
                    write_json)
 from urllib.parse import quote
 
@@ -142,8 +142,10 @@ def main():
     load_places(P)
 
     jobs = {}
-    for f in sorted(P.jobs.glob("*.json")):
-        rec = load(f)
+    # Every record is read and checked before the first one is rewritten: a damaged record further down the list
+    # must stop the report before any review copy has changed, not after half of them have.
+    records = [(f, read_job(f)) for f in sorted(P.jobs.glob("*.json"))]
+    for f, rec in records:
         r, from_round = all_reviews.get(rec["job_id"], (None, None))
         if r:
             r = dict(r)

@@ -34,8 +34,8 @@ FAMILIES = [
     ("product strategy", r"product strateg"),
     ("solutions owner", r"solutions owner"),
     ("transformation manager", r"transformation manager"),
-    ("ai engineer", r"ai engineer"),
-    ("ai strategist", r"ai strategist"),
+    ("ai engineer", r"\bai engineer"),
+    ("ai strategist", r"\bai strategist"),
     ("agent builder", r"agent builder"),
 ]
 # One-word company names that are also everyday words: in an OR list they match almost every posting, so they get a

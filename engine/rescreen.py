@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 from locations import distance, home_state_of, load_places, within_radius
-from paths import Paths, blocked_by, blocklist, case_by_case, read_json, review_score_problems
+from paths import Paths, blocked_by, blocklist, case_by_case, read_job, read_json, review_score_problems
 
 
 def excerpt(text, m, width=90):
@@ -85,7 +85,7 @@ def main():
     print(f"Re-screen against spec v{spec.get('version')}\n")
     checked = 0
     for f in sorted(P.jobs.glob("*.json")):
-        j = read_json(f)
+        j = read_job(f)
         r = reviews.get(j["job_id"]) or j.get("review")
         if not r:
             print(f"NOT REVIEWED: {j['company']} - {j['title']} ({j['job_id']})\n")
