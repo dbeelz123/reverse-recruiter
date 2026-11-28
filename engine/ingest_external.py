@@ -48,7 +48,12 @@ def read_text(path: Path) -> str:
         return "\n".join(out)
     if ext == ".pdf":
         import pymupdf
-        return "\n".join(p.get_text(sort=True) for p in pymupdf.open(path)).strip()
+        try:
+            with pymupdf.open(path) as doc:
+                return "\n".join(p.get_text(sort=True) for p in doc).strip()
+        except Exception as e:  # pymupdf raises its own error types for a damaged or empty file
+            sys.exit(f"Can't read {path} as a PDF ({str(e)[:120]}). Save it again as a PDF with selectable text, or "
+                     f"save the description as .txt, and rerun.")
     if ext in (".txt", ".md"):
         return path.read_text(encoding="utf-8").strip()
     raise SystemExit(f"Unsupported file type {ext}: use .docx, .pdf, .txt or .md")
@@ -102,9 +107,15 @@ def main():
     if not P.inside(src):
         raise SystemExit(f"{src} is outside the data folder ({P.data}). Put the description in the job's kit folder "
                          f"(3-applications/<company-role>/) first, so the report can link to it.")
-    P.jobs.mkdir(parents=True, exist_ok=True)
     key = P.rel(src)
     text = read_text(src)
+    if not text.strip():
+        # A scanned or image-only PDF, or an empty file: a record with no posting text would be reviewed as if the
+        # posting said nothing, so nothing is recorded.
+        raise SystemExit(f"No text could be read from {src} (a scanned or image-only PDF has none, and an empty file "
+                         f"has nothing to read). Save the description as a PDF with selectable text, a .docx or a "
+                         f".txt, and rerun. Nothing was recorded.")
+    P.jobs.mkdir(parents=True, exist_ok=True)
     out = P.jobs / f"{a.id}.json"
     # Both are checked before anything is written, so a damaged file stops the ingest with the file named.
     rec = read_json(out, {}, expect=dict)

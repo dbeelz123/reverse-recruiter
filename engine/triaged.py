@@ -39,10 +39,8 @@ from pathlib import Path
 from paths import (DataFileError, Paths, blocked_by, blocklist, case_by_case, match_key, read_json, read_run, to_date,
                    write_json, tombstones)
 
-P = Paths()
-ROOT = P.data.parent
-DATA = P.data
-OUT = P.triaged
+# The data folder in use, set by use_data() below: from --data, else the environment setting, else my-data.
+P = ROOT = DATA = OUT = None
 
 ABBR = [
     (r"\bsr\b\.?", "senior"),
@@ -613,11 +611,22 @@ def reposts():
           f"{len(paid)} with changed pay, {len(comps)} companies; history {history} days -> {P.rel(out)}")
 
 
-def use_data(folder):
-    """Point the module at another data folder (--data); the defaults above serve imports like metrics.py's."""
+def use_data(folder=None):
+    """Point the module at a data folder: --data's, or with no folder given the default one (the environment
+    setting, else my-data)."""
     global P, ROOT, DATA, OUT
     P = Paths(folder)
     ROOT, DATA, OUT = P.data.parent, P.data, P.triaged
+
+
+# The default folder serves scripts that import this module (metrics.py and others use key()). A setting that names
+# a folder which isn't there is not reported here: this runs on import, before any command line is read, and an
+# explicit --data must win over the setting. main() reports it when no --data is given, as does every script through
+# its own Paths().
+try:
+    use_data()
+except DataFileError:
+    pass
 
 
 COMMANDS = {"seed": (seed, None), "reposts": (reposts, None), "add": (add, "<run.json>"),
@@ -637,6 +646,8 @@ def main(argv):
             sys.exit("--data needs a folder after it.")
         use_data(argv[i + 1])
         del argv[i:i + 2]
+    elif P is None:
+        use_data()  # the environment setting was refused on import: report it now, with no --data to use instead
     names = ", ".join(COMMANDS)
     if not argv:
         sys.exit(f"No command given. Use one of: {names} (python engine/triaged.py --help for details).")
