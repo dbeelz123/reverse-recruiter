@@ -10,6 +10,7 @@ class RemoveJob(SampleCase):
         precious = self.tmp / "precious.txt"
         precious.write_text("keep me", encoding="utf-8")
         inbox = self.data / "1-inbox/job-pdfs"
+        inbox.mkdir(parents=True, exist_ok=True)  # git keeps no empty folders, so a fresh clone has none
         (inbox / "real.pdf").write_text("pdf", encoding="utf-8")
         rec_p = self.data / "6-system/jobs/9100000006.json"
         rec = json.loads(rec_p.read_text(encoding="utf-8"))

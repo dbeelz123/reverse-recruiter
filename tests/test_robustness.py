@@ -101,6 +101,7 @@ class Inputs(SampleCase):
 
     def test_unreadable_pdf_is_skipped_not_fatal(self):
         bad = self.data / "1-inbox/job-pdfs/broken.pdf"
+        bad.parent.mkdir(parents=True, exist_ok=True)  # git keeps no empty folders, so a fresh clone has none
         bad.write_bytes(b"not really a pdf")
         out = self.ok("extract.py", "--data", self.data)
         self.assertIn("SKIP (unreadable PDF", out)

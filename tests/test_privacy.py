@@ -57,6 +57,86 @@ class Scan(SampleCase):
         code, _ = run("privacy_scan.py", self.repo, "--strict", "--data", self.tmp / "nowhere")
         self.assertEqual(code, 2)
 
+    # Whole-project review of 2026-11-27 (commit ac6a523), findings 15-17.
+
+    def test_terms_in_encoded_and_joined_forms_are_caught(self):
+        bs = chr(92)
+        forms = {
+            "search link": "https://jobs.example.com/search/?keywords=%22Pinewick%22",
+            "json newline": '{"t": "About us' + bs + 'nPinewick is hiring"}',
+            "json tab": '{"t": "Company' + bs + 'tPinewick"}',
+            "json unicode escape": '{"t": "Jord' + bs + 'u0061n Avery"}',
+            "percent space": "Jordan%20Avery",
+            "plus space": "q=Jordan+Avery",
+            "underscore file": "Jordan_Avery_Resume.pdf",
+            "underscore after": "Pinewick_Resume.pdf",
+            "digits after": "Pinewick2026",
+            "slug": "7-recommendations/jordan-avery/received",
+            "run together": "user jordanavery signed in",
+            "two spaces": "Jordan  Avery",
+            "non-breaking space": "Jordan" + chr(0xa0) + "Avery",
+            "html entity": "Jordan&nbsp;Avery",
+            "wrapped over two lines": "recommended by Jordan\nAvery last year",
+            "accent added": "Jord" + chr(0xe1) + "n Avery",
+        }
+        for name, text in forms.items():
+            with self.subTest(form=name):
+                (self.repo / "a.md").write_text(text, encoding="utf-8")
+                code, out = self.scan()
+                self.assertEqual(code, 1, out)
+                self.assertIn("private term", out)
+
+    def test_a_term_inside_a_longer_word_is_not_a_hit(self):
+        (self.repo / "a.md").write_text("Pinewicker spinewick Jordanian Avery, Jordan and Avery", encoding="utf-8")
+        code, out = self.scan()
+        self.assertEqual(code, 0, out)
+
+    def test_an_accented_term_matches_plain_and_escaped_text(self):
+        self.terms.write_text("Jos" + chr(0xe9) + " Avery\n", encoding="utf-8")
+        for text in ("by Jose Avery", '{"n": "Jos' + chr(92) + 'u00e9 Avery"}', "by Jos" + chr(0xe9) + " Avery"):
+            with self.subTest(text=text):
+                (self.repo / "a.md").write_text(text, encoding="utf-8")
+                self.assertEqual(self.scan()[0], 1)
+
+    def test_encoded_profile_links_are_caught(self):
+        (self.repo / "a.md").write_text("next=linkedin.com" + "%2Fin%2F" + "someone", encoding="utf-8")
+        self.assertEqual(self.scan()[0], 1)
+
+    def test_a_terms_file_with_a_byte_order_mark_keeps_its_first_term(self):
+        self.terms.write_text(TERMS, encoding="utf-8-sig")
+        (self.repo / "a.md").write_text("by Jordan Avery", encoding="utf-8")
+        code, out = self.scan()
+        self.assertEqual(code, 1, out)
+
+    def test_an_allow_file_with_a_byte_order_mark_keeps_its_first_line(self):
+        (self.repo / ".privacy-allow").write_text("LICENSE | Jordan Avery\n", encoding="utf-8-sig")
+        (self.repo / "LICENSE").write_text("Copyright Jordan Avery", encoding="utf-8")
+        self.assertEqual(self.scan()[0], 0)
+
+    def test_strict_refuses_a_list_with_no_terms(self):
+        self.terms.write_text("# nothing yet\n\n", encoding="utf-8")
+        (self.repo / "a.md").write_text("nothing personal", encoding="utf-8")
+        code, out = self.scan("--strict")
+        self.assertEqual(code, 2, out)
+        self.assertEqual(self.scan()[0], 0)  # without --strict an empty list is only a note
+
+    def test_file_and_folder_names_are_checked(self):
+        for rel in ("notes/Jordan Avery.md", "kits/pinewick-product-manager/log.md", "Jordan_Avery_Resume.txt"):
+            with self.subTest(rel=rel):
+                f = self.repo / rel
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text("clean", encoding="utf-8")
+                code, out = self.scan()
+                self.assertEqual(code, 1, out)
+                self.assertIn("file name", out)
+                f.unlink()
+
+    def test_an_allowed_phrase_in_a_file_name_is_not_a_hit(self):
+        (self.repo / ".privacy-allow").write_text("docs/pinewick-case.md | Pinewick\n", encoding="utf-8")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs/pinewick-case.md").write_text("About Pinewick", encoding="utf-8")
+        self.assertEqual(self.scan()[0], 0)
+
 
 @unittest.skipUnless(shutil.which("git") and shutil.which("sh"), "needs git and sh")
 class Hook(SampleCase):
@@ -116,6 +196,12 @@ class Hook(SampleCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("personal-data paths", result.stdout)
                 self.git("rm", "-q", "--cached", "-r", "career-data")
+
+    def test_private_term_in_a_file_name_blocked(self):
+        self.stage("kits/pinewick-product-manager/log.md", "clean")
+        result = self.hook()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("file name", result.stdout)
 
     def test_sample_data_layout_allowed(self):
         self.stage("sample-data/6-system/jobs/1.json", "{}")

@@ -7,7 +7,11 @@ What it looks for:
   - every term in a private-terms list (one per line, case-insensitive; # starts a comment): the user's name,
     home town, employers, contacts, accounts. The list never goes in the repo. It is found, in order, at:
     --terms FILE, the PRIVATE_TERMS environment variable, or <data>/private-terms.txt. --strict fails when
-    no list is found (the pre-commit hook uses it).
+    no list is found or the list is empty (the pre-commit hook uses it).
+    A term is found with or without accents, with its words joined by anything but letters and digits (First Last,
+    first-last, First_Last, firstlast), wrapped over a line break, and behind JSON escapes, URL encoding and HTML
+    entities (%22Name%22 in a search link, \\nName in a job record). It is not found inside a longer word.
+  - the same terms and patterns in every file's own path: file and folder names are public too.
   - patterns that leak whatever the list misses: Windows home-folder paths (with backslashes, forward slashes or
     JSON-escaped backslashes), macOS or Linux home-folder paths, email addresses, LinkedIn profile links.
   - files it can't read: an image counts as a hit until it has been checked by eye and listed in the allow file
@@ -21,10 +25,13 @@ overrides it (the pre-commit hook passes the staged copy).
 Run it on the engine after every change meant for the public repo, and on the whole repo before every push.
 """
 import argparse
+import html
 import os
 import re
 import sys
+import unicodedata
 from pathlib import Path
+from urllib.parse import unquote_plus
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from paths import ROOT, Paths  # noqa: E402
@@ -52,18 +59,55 @@ def terms(f):
     if not f:
         return []
     out = []
-    for line in f.read_text(encoding="utf-8").splitlines():
+    # utf-8-sig: a byte-order mark (Windows PowerShell and some editors write one) would otherwise stick to the
+    # first term, which then never matches.
+    for line in f.read_text(encoding="utf-8-sig").splitlines():
         t = line.split("#", 1)[0].strip()
         if t:
             out.append(t)
     return out
 
 
+def plain(s):
+    """Text with accents dropped ('José' -> 'Jose'), so a term matches with or without them."""
+    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+
+
+ESCAPES = re.compile(r"\\u([0-9a-fA-F]{4})|\\[nrt]")
+
+
+def decoded(s):
+    """A line as a reader or a browser would see it: JSON escapes (\\n, \\t, \\uXXXX), URL encoding (%22, %20, +)
+    and HTML entities (&nbsp;) resolved, and look-alike characters (non-breaking space) made plain. Files the engine
+    writes hold terms in these forms: a search link carries the company as %22Name%22, and a job record's text
+    carries a line break as \\n right before the next word."""
+    s = ESCAPES.sub(lambda m: chr(int(m.group(1), 16)) if m.group(1) else " ", s)
+    s = html.unescape(unquote_plus(s))
+    return unicodedata.normalize("NFKC", s)
+
+
+def term_rx(term):
+    """A private term as a pattern: its words in order with anything but letters and digits between them (spaces,
+    '-', '_', nothing at all), so 'First Last' also matches first-last, First_Last and firstlast. The term must not
+    sit inside a longer word, but digits and underscores may touch it (Name_Resume.pdf, name2026)."""
+    words = re.findall(r"[^\W_]+", plain(term))
+    body = r"[\W_]*".join(map(re.escape, words)) if words else re.escape(term)
+    return re.compile(rf"(?<![^\W\d_]){body}(?![^\W\d_])", re.I), len(words) > 1
+
+
+def line_hits(line, term_rxs, pattern_rxs):
+    """Names of everything found in one line (or one file path), checked as written and decoded."""
+    forms = {line, decoded(line)}
+    plains = {plain(x) for x in forms}
+    found = [name for name, r, _ in term_rxs if any(r.search(x) for x in plains)]
+    return found + [name for name, r in pattern_rxs if any(r.search(x) for x in forms)]
+
+
 def allowed(f):
     """{relative path: [phrases]} from an allow file ('<path> | <phrase>' per line; # comments)."""
     out = {}
     if f and Path(f).is_file():
-        for line in Path(f).read_text(encoding="utf-8").splitlines():
+        for line in Path(f).read_text(encoding="utf-8-sig").splitlines():
             line = line.split("#", 1)[0].strip()
             if "|" in line:
                 path, phrase = (x.strip() for x in line.split("|", 1))
@@ -95,8 +139,8 @@ def read_text(f):
 
 
 def scan(paths, words, allow_file=None):
-    rx = [(f"private term '{w}'", re.compile(rf"(?<![\w]){re.escape(w)}(?![\w])", re.I)) for w in words]
-    rx += [(name, re.compile(p)) for name, p in PATTERNS.items()]
+    term_rxs = [(f"private term '{w}'", *term_rx(w)) for w in words]
+    pattern_rxs = [(name, re.compile(p)) for name, p in PATTERNS.items()]
     hits = 0
     for root in paths:
         allow = allowed(allow_file or (root / ".privacy-allow" if root.is_dir() else None))
@@ -108,6 +152,16 @@ def scan(paths, words, allow_file=None):
             if rel == ".privacy-allow":  # the exceptions list names what it allows
                 continue
             shown = f.relative_to(ROOT) if f.is_relative_to(ROOT) else f
+
+            def unallowed(s):
+                for phrase in allow.get(rel, []):
+                    s = re.sub(re.escape(phrase), " ", s, flags=re.I)
+                return s
+            # The file's own path is public too (kit folders and recommendation folders are named after employers
+            # and people), so it is checked like a line of text.
+            for name in line_hits(unallowed(rel), term_rxs, pattern_rxs):
+                hits += 1
+                print(f"{shown}: file name: {name}")
             text = read_text(f)
             if text is None:  # not text: the scan can't read it, so it counts as a hit unless deliberately allowed
                 if f.suffix.lower() in IMAGES:
@@ -125,12 +179,17 @@ def scan(paths, words, allow_file=None):
             for n, line in enumerate(text.splitlines(), 1):
                 if IGNORE in line and f.name == "privacy_scan.py":  # only the scanner's own pattern lines
                     continue
-                for phrase in allow.get(rel, []):
-                    line = re.sub(re.escape(phrase), " ", line, flags=re.I)
-                for name, r in rx:
-                    if r.search(line):
+                line = unallowed(line)
+                for name in line_hits(line, term_rxs, pattern_rxs):
+                    hits += 1
+                    print(f"{shown}:{n}: {name}: {line.strip()[:120]}")
+            # A term of several words wrapped over a line break ("First" ending one line, "Last" starting the next).
+            whole = plain(unallowed(text))
+            for name, r, several in term_rxs:
+                for m in (r.finditer(whole) if several else ()):
+                    if "\n" in m.group(0):
                         hits += 1
-                        print(f"{shown}:{n}: {name}: {line.strip()[:120]}")
+                        print(f"{shown}:{whole.count(chr(10), 0, m.start()) + 1}: {name} (across a line break)")
     return hits
 
 
@@ -151,6 +210,11 @@ def main():
                   "refusing to pass. Point to the list and try again.")
             sys.exit(2)
         print("Note: no private-terms list found; only the generic patterns are checked.")
+    elif not words:  # an empty list (or one saved in a way that lost its lines) would pass everything
+        if a.strict:
+            print(f"The private-terms list has no terms in it ({f}): refusing to pass. Add your terms, one per line.")
+            sys.exit(2)
+        print(f"Note: the private-terms list has no terms in it ({f}); only the generic patterns are checked.")
     targets = [Path(p).resolve() for p in a.paths] or [ROOT / "engine"]
     hits = scan(targets, words, a.allow)
     print(f"{hits} hit{'' if hits == 1 else 's'} in {', '.join(t.name for t in targets)} "
