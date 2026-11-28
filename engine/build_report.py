@@ -13,7 +13,7 @@ import math
 import re
 from pathlib import Path
 
-from paths import (YMD, Paths, company_key, radius_miles, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
+from paths import (PLAIN_BONUS, YMD, Paths, company_key, plain_bonus, radius_miles, read_job, round_number, blocked_by, blocklist, case_by_case, latest_reviews,
                    read_json, review_score_problems, to_date, write_json)
 
 import sys
@@ -71,13 +71,13 @@ def load(p: Path, default=None):
     return read_json(p, default)
 
 
-def check_review(path, jid, r):
+def check_review(path, jid, r, plain=PLAIN_BONUS):
     """Stop with the file, job and field when a review entry is malformed, instead of a KeyError mid-report."""
     problems = []
     if not isinstance(r, dict):
         problems.append("the entry isn't an object")
     else:
-        problems += review_score_problems(r)
+        problems += review_score_problems(r, plain)
         if r.get("tier") not in TIER_ORDER:
             problems.append(f"'tier' must be one of {', '.join(TIER_ORDER)}")
         if not isinstance(r.get("summary", ""), str):
@@ -135,8 +135,9 @@ def main():
                          f"{review['date']!r}. Fix it and rerun; nothing was changed.")
     # Every round's review file is merged (latest round wins per job), so a re-screen edit to an
     # earlier round's entry reaches the job records and this report.
-    all_reviews = latest_reviews(P, upto=args.round, check=check_review)
     spec = read_json(P.spec, {}, expect=dict)
+    plain = plain_bonus(spec)
+    all_reviews = latest_reviews(P, upto=args.round, check=lambda f, jid, r: check_review(f, jid, r, plain))
     import recommendations
     recs = recommendations.load(P)  # connections with a LinkedIn recommendation either way score higher
     import connections

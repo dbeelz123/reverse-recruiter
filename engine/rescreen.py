@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 from locations import distance, home_state_of, load_places, within_radius
-from paths import (Paths, blocked_by, blocklist, case_by_case, radius_miles, read_job, read_json, review_score_problems,
+from paths import (Paths, blocked_by, blocklist, case_by_case, plain_bonus, radius_miles, read_job, read_json, review_score_problems,
                    spec_rules)
 
 
@@ -71,7 +71,8 @@ def main():
         if not isinstance(jobs, dict):
             raise SystemExit(f"Malformed review file {rf}: 'jobs' must be an object keyed by job ID.")
         for jid, rv in jobs.items():
-            problems = review_score_problems(rv) if isinstance(rv, dict) else ["the entry isn't an object"]
+            problems = (review_score_problems(rv, plain_bonus(spec)) if isinstance(rv, dict)
+                        else ["the entry isn't an object"])
             if problems:
                 raise SystemExit(f"Malformed review for job {jid} in {rf}:\n  " + "\n  ".join(problems))
             adj = rv.get("adjustments", [])

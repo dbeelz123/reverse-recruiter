@@ -9,7 +9,8 @@ Usage:
 The description and the images go together: the description quotes qualified targets per 100 job listings processed;
 the images show the per-100 funnel and grade bands. `update` always does both, so they never
 disagree. Records live in 6-system/linkedin-project.json: "live" is what's on LinkedIn now, "ready" is an update
-waiting for the user to upload, and "history" keeps every earlier live set.
+waiting for the user to upload, and "history" keeps every earlier live set. "updating" is there only while `update`
+runs: if it is still there afterwards, the update stopped part way (`check` says so; run `update` again).
 
 When to ask (decided 2026-11-18): the user decides. Claude runs `check` at the end of every round (after metrics and the
 report) and asks only when the public numbers would change noticeably.
@@ -22,6 +23,7 @@ by ASK_STAGE_MOVE or more.
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -35,6 +37,9 @@ from paths import Paths, read_json, write_json  # noqa: E402
 ASK_STAGE_MOVE = 2  # ask when any per-100 funnel stage moved by 2 or more (or qualified targets changed at all)
 # The sentence in the description that carries the number (section 7 of linkedin-profile.md).
 NUMBERS = re.compile(r"about \d+ in every 100 listings processed make the cut as qualified targets")
+
+
+replace_file = os.replace  # the description's final swap: one step, so the file is the old text or the new, never half
 
 
 def load(P):
@@ -72,6 +77,8 @@ def show(n):
 def check(P):
     rec, now = load(P), current(P)
     live = rec.get("live")
+    if interrupted(rec):
+        print(interrupted(rec))
     print(f"Now (round {now['round']}): per 100 {show(now)} (real {now['processed']} / {now['decided']} / "
           f"{now['pdfs']} / {now['ranked']})")
     if now.get("phone_pdfs"):
@@ -116,8 +123,30 @@ def update(P):
     if override.get("grades"):  # the user's chosen split for the public grade image (see linkedin_images.py)
         args += ["--grades", ",".join(f"{g}={n}" for g, n in override["grades"].items())]
         print(f"Grade image uses the recorded override: {override['grades']} ({override.get('reason', 'no reason')})")
+    # The update touches three things that must agree (the two images, the description, this record) and no file
+    # system can change them in one step. So it is marked as running before the first of them changes, and the mark
+    # comes off only with the finished record: a failure part way (the disk fills, the description is locked, the
+    # browser is missing) never reads as a finished update. `check` reports the mark, `live` refuses while it is
+    # there, and running `update` again finishes the job. An earlier update still waiting for upload stops holding
+    # here too: its images are about to be replaced.
+    rec.pop("ready", None)
+    rec["updating"] = {"started": dt.date.today().isoformat(), "round": now["round"]}
+    save(P, rec)  # a failure here stops before anything else has changed
     imgs = linkedin_images.main(args)
-    ref.write_text(NUMBERS.sub(sentence(now), text, count=1), encoding="utf-8")
+    tmp = ref.with_name(ref.name + ".tmp")
+    try:
+        tmp.write_text(NUMBERS.sub(sentence(now), text, count=1), encoding="utf-8")
+        replace_file(tmp, ref)
+    except OSError as e:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise SystemExit(f"Update interrupted: the images were rendered, but {P.rel(ref)} could not be written "
+                         f"({e.strerror or e}), so the images and the description don't match yet. Nothing is marked "
+                         f"ready. Fix the cause (close the file, free some disk space) and run "
+                         f"`linkedin_project.py update` again.")
+    del rec["updating"]
     rec["ready"] = dict(now, prepared=dt.date.today().isoformat(), images=imgs["files"], per100=imgs["per100"],
                         shown={"funnel": imgs["funnel"], "grades": imgs["grades"]})
     save(P, rec)
@@ -126,8 +155,20 @@ def update(P):
           "then run `linkedin_project.py live`.")
 
 
+def interrupted(rec):
+    """The line to show when an update was started and never finished, else None."""
+    u = rec.get("updating")
+    if not u:
+        return None
+    started = u.get("started", "an unknown date") if isinstance(u, dict) else "an unknown date"
+    return (f"INTERRUPTED UPDATE: an update started {started} did not finish, so the images, the description and "
+            f"this record may not match. Run `linkedin_project.py update` again before anything is uploaded.")
+
+
 def live(P):
     rec = load(P)
+    if interrupted(rec):
+        raise SystemExit(interrupted(rec))
     if not rec.get("ready"):
         raise SystemExit("No prepared update to mark live; run `update` first.")
     if rec.get("live"):

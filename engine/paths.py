@@ -339,10 +339,23 @@ def is_score(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
-def review_score_problems(r):
+PLAIN_BONUS = 8  # what a review records for a 1st-degree connection (review-rubric.md, rule 5)
+
+
+def plain_bonus(spec):
+    """The plain connection bonus a review may record: 8, or the spec's own figure (scoring.network.plus_points, else
+    .points) when it sets one."""
+    net = (spec.get("scoring") or {}).get("network") if isinstance(spec, dict) else None
+    net = net if isinstance(net, dict) else {}
+    own = net.get("plus_points", net.get("points"))
+    return own if is_score(own) and own > 0 else PLAIN_BONUS
+
+
+def review_score_problems(r, plain=PLAIN_BONUS):
     """What's wrong with a review entry's numbers (empty when nothing is): 'fit' is a number from 0 to 100, or null
-    only for tier X (excluded) or ? (incomplete) (review-rubric.md); 'network_bonus' and each adjustment's 'points'
-    are numbers.
+    only for tier X (excluded) or ? (incomplete) (review-rubric.md); 'network_bonus' is 0 or the plain connection
+    bonus (8, or `plain`, the spec's own figure: the report sets the final points from the connection's level, so
+    any other number in a review is a slip that would move the score); each adjustment's 'points' is a number.
     Shared by build_report.py and rescreen.py."""
     problems = []
     fit = r.get("fit", "missing")
@@ -350,8 +363,12 @@ def review_score_problems(r):
         problems.append(f"'fit' must be a number from 0 to 100 (or null for an excluded job), not {fit!r}")
     if fit is None and r.get("tier") not in ("X", "?"):
         problems.append(f"a null 'fit' goes only with tier X (excluded) or ? (incomplete), not tier {r.get('tier')!r}")
-    if not is_score(r.get("network_bonus", 0)):
-        problems.append(f"'network_bonus' must be a number, not {r.get('network_bonus')!r}")
+    bonus = r.get("network_bonus", 0)
+    if not (is_score(bonus) and bonus in {0, PLAIN_BONUS, plain}):
+        allowed = " or ".join(f"{v:g}" for v in sorted({0, PLAIN_BONUS, plain}))
+        problems.append(f"'network_bonus' must be {allowed} (0: no 1st-degree connection; otherwise the plain "
+                        f"connection bonus, which the report turns into the points for the connection's level), "
+                        f"not {bonus!r}")
     adj = r.get("adjustments", [])
     if not isinstance(adj, list) or not all(isinstance(a, dict) and is_score(a.get("points"))
                                             and isinstance(a.get("reason"), str) and a["reason"].strip() for a in adj):
