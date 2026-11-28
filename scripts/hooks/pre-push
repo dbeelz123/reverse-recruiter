@@ -1,0 +1,87 @@
+#!/bin/sh
+# Pre-push privacy check: every commit about to leave the machine is checked, however it was made.
+#
+# pre-commit and commit-msg run when a commit is made by hand. git runs neither for a cherry-pick, a rebase or a
+# revert, and `--no-verify` skips both, so this hook checks again at the one point everything passes: the push.
+# For each commit the remote doesn't have yet, it checks what that commit adds or changes (the same path rules and
+# scan as pre-commit, with that commit's own .privacy-allow) and its message (as commit-msg does). A file added in
+# one commit and removed in the next is still caught: the push publishes both commits.
+#
+# git passes the remote's name and address as $1 and $2, and one line per ref on standard input:
+#   <local ref> <local commit> <remote ref> <remote commit>
+
+hook=pre-push
+. "$(dirname "$0")/lib.sh"
+need_terms
+
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+n=0
+
+while read -r lref lsha rref rsha; do
+    [ -z "$lsha" ] && continue
+    [ "$lsha" = "$zero" ] && continue  # deleting a remote ref publishes nothing
+    # The commits this push adds: everything up to the local commit that the remote doesn't have. For a new ref, or
+    # a remote commit this clone has never fetched, that is everything no remote-tracking ref of this remote holds.
+    if [ "$rsha" != "$zero" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null; then
+        commits=$(git rev-list "$rsha..$lsha") || { echo "pre-push: could not list the commits to check; push blocked."; exit 1; }
+    else
+        commits=$(git rev-list "$lsha" --not --remotes="$1") || { echo "pre-push: could not list the commits to check; push blocked."; exit 1; }
+    fi
+    for c in $commits; do
+        short=$(git rev-parse --short "$c")
+        n=$((n + 1))
+        # What the commit adds or changes. --root: the first commit of a history too. -m: a merge is compared with
+        # each parent, so what it brings in from either side is listed.
+        files=$(git -c core.quotePath=false diff-tree --root -m --no-commit-id --name-only -r --diff-filter=ACMRT "$c" | sort -u) \
+            || { echo "pre-push: could not list the files of commit $short; push blocked."; exit 1; }
+        dir="$tmp/$c"
+        mkdir -p "$dir/files" || exit 1
+        if [ -n "$files" ]; then
+            bad=$(printf '%s\n' "$files" | personal_paths | grep -v '^$')
+            if [ -n "$bad" ]; then
+                echo "pre-push: commit $short holds personal-data paths:"
+                printf '  %s\n' $bad
+                echo "Push blocked. The commit is still only on this machine: rewrite it before pushing."
+                exit 1
+            fi
+            docs=$(printf '%s\n' "$files" | document_paths)
+            if [ -n "$docs" ]; then
+                echo "pre-push: commit $short holds document files the privacy scan can't read inside:"
+                printf '  %s\n' $docs
+                echo "Push blocked. The commit is still only on this machine: rewrite it before pushing."
+                exit 1
+            fi
+            while IFS= read -r f; do
+                if ! mkdir -p "$dir/files/$(dirname "$f")" || ! git show "$c:$f" > "$dir/files/$f"; then
+                    echo "pre-push: could not copy $f from commit $short for the privacy scan; push blocked."
+                    exit 1
+                fi
+            done <<EOF
+$files
+EOF
+            # Deliberate exceptions come from the commit's own .privacy-allow.
+            [ -f "$dir/files/.privacy-allow" ] || git show "$c:.privacy-allow" > "$dir/files/.privacy-allow" 2>/dev/null || rm -f "$dir/files/.privacy-allow"
+            if ! out=$(PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$dir/files" --terms "$terms" --strict --no-skip < /dev/null 2>&1); then
+                printf '%s\n' "$out"
+                echo "pre-push: commit $short failed the privacy scan (paths above are inside a temporary copy of its files)."
+                echo "Push blocked. The commit is still only on this machine: rewrite it before pushing."
+                exit 1
+            fi
+        fi
+        if ! git log -1 --format=%B "$c" > "$dir/commit-message.txt"; then
+            echo "pre-push: could not read the message of commit $short; push blocked."
+            exit 1
+        fi
+        if ! out=$(PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$dir/commit-message.txt" --terms "$terms" --strict --no-skip --message < /dev/null 2>&1); then
+            printf '%s\n' "$out"
+            echo "pre-push: the message of commit $short failed the privacy scan."
+            echo "Push blocked. The commit is still only on this machine: reword it before pushing."
+            exit 1
+        fi
+        rm -rf "$dir"
+    done
+done
+echo "pre-push: $n commit(s) checked, nothing personal found."
+exit 0

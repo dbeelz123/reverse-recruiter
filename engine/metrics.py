@@ -20,6 +20,8 @@ Stages (each job counted once, by normalized company + title, across every searc
   3. PDF saved                 new job PDFs extracted this round (6-system/jobs + removed.json tombstones, by job ID);
                                "from triage" vs "direct" (alerts, other saves) is shown when known.
   4. Ranked                    jobs on the ranked list at the end of the round (current jobs not marked X or ?).
+                               The totals are as of the last recorded round's end, the phone and recommendation
+                               saves taken off included ("phone_ranked_end", "rec_ranked_end" on the round).
 
 Phone triage (added 2026-11-26): saves made straight from LinkedIn alerts on a phone, judged on LinkedIn's match
 signal alone, with no result cards captured. A run file with "triage_type": "phone" lists them in "saved_job_ids".
@@ -364,6 +366,16 @@ def record(P, rnd):
     entry["events"] = sorted(ev + (file_events(P, rnd, new_ids) if prev_ids else []), key=lambda e: e["t"])
     m["rounds"].sort(key=lambda r: r["round"])
     write_json(P.metrics, m, indent=1)
+    # How many of the ranked jobs are phone-triage or recommendation saves, counted now, with ranked_end: totals()
+    # takes them off the round's count, and both numbers must be from the same moment. (Taken off today's list
+    # instead, a removal after the round moved the public per-100 numbers although nothing had been recorded.)
+    # Counted after the write above: which saves belong to which round is read from the snapshots just stored.
+    per = funnel_from_runs(P)
+    upto = [r["round"] for r in m["rounds"] if r["round"] <= rnd]
+    on_list = ranked_ids(P)
+    for field, ids_key in (("phone_ranked_end", "phone_ids"), ("rec_ranked_end", "rec_ids")):
+        entry[field] = len(set().union(*[set(per.get(n, {}).get(ids_key, [])) for n in upto]) & on_list)
+    write_json(P.metrics, m, indent=1)
     return m
 
 
@@ -397,38 +409,39 @@ def table(P):
     if rows:
         t = totals(P)
         pct = lambda a, b: f"{100 * a / b:.0f}%" if b else "–"
+        be = "are" if t["ranked_when"] == "now" else "were"
         if t["phone_pdfs"]:
             lab = untracked_label(t["phone_pdfs"], t["rec_pdfs"]).replace(", ", " and ")
             out.append(f"| **Total, known funnel** (leaves out {lab}) | **{t['processed']}** | **{t['decided']}** "
-                       f"| **{t['pdfs']}** | **{t['ranked']}** (now) |")
+                       f"| **{t['pdfs']}** | **{t['ranked']}** {t['ranked_label']} |")
             if t["phone_pdfs"] - t["rec_pdfs"]:
                 out.append(f"| Phone triage (listings unknown) | unknown | unknown | {t['phone_pdfs'] - t['rec_pdfs']} "
-                           f"| {t['phone_ranked'] - t['rec_ranked']} (now) |")
+                           f"| {t['phone_ranked'] - t['rec_ranked']} {t['ranked_label']} |")
             if t["rec_pdfs"]:
                 out.append(f"| Recommendation saves (listings unknown) | unknown | unknown | {t['rec_pdfs']} "
-                           f"| {t['rec_ranked']} (now) |")
+                           f"| {t['rec_ranked']} {t['ranked_label']} |")
         else:
             out.append(f"| **Total** | **{t['processed']}** | **{t['decided']}** | **{t['pdfs']}** "
-                       f"| **{t['ranked']}** (now) |")
+                       f"| **{t['ranked']}** {t['ranked_label']} |")
         out.append("")
         out.append(f"Conversion so far: {pct(t['decided'], t['processed'])} of job listings processed reached a "
                    f"LinkedIn baseline match (your triage call); the agent's deep-fit review covered "
                    f"{pct(t['pdfs'], t['decided'])} as many jobs as that stage (it also takes alert and direct saves); "
-                   f"{pct(t['ranked'], t['pdfs'])} of deep-fit reviews are qualified targets now. Out of "
-                   f"{t['processed']} job listings, {t['ranked']} are qualified targets "
+                   f"{pct(t['ranked'], t['pdfs'])} of deep-fit reviews {be} qualified targets {t['ranked_when']}. Out of "
+                   f"{t['processed']} job listings, {t['ranked']} {be} qualified targets "
                    f"({pct(t['ranked'], t['processed'])}).")
         if t["phone_pdfs"] - t["rec_pdfs"]:
             out.append("")
             out.append(f"Phone triage: {t['phone_pdfs'] - t['rec_pdfs']} saves made on a phone from LinkedIn alerts, "
                        f"judged on LinkedIn's match signal alone; how many listings were seen behind them is unknown. "
                        f"They are left out of the known funnel and the per-100 numbers; "
-                       f"{t['phone_ranked'] - t['rec_ranked']} of them are qualified targets now.")
+                       f"{t['phone_ranked'] - t['rec_ranked']} of them {be} qualified targets {t['ranked_when']}.")
         if t["rec_pdfs"]:
             out.append("")
             out.append(f"Recommendation saves: {t['rec_pdfs']} saves from LinkedIn's job recommendations, judged on "
                        f"LinkedIn's match signal alone; how many recommendations were seen behind them is unknown. They "
-                       f"are left out of the known funnel and the per-100 numbers; {t['rec_ranked']} of them are "
-                       f"qualified targets now.")
+                       f"are left out of the known funnel and the per-100 numbers; {t['rec_ranked']} of them {be} "
+                       f"qualified targets {t['ranked_when']}.")
     return "\n".join(out)
 
 
@@ -440,17 +453,28 @@ def totals(P):
         return None
     # The known funnel: phone-triage saves (unknown listings behind them) are left out of every stage, qualified
     # targets included, and reported apart. Qualified targets are the last recorded round's, less the phone saves
-    # on the ranked list today.
+    # that were on the ranked list when it was recorded.
     phone = set().union(*[set(per.get(r["round"], {}).get("phone_ids", [])) for r in rs])
     rec = set().union(*[set(per.get(r["round"], {}).get("rec_ids", [])) for r in rs])
-    phone_ranked = len(phone & ranked_ids(P)) if phone else 0
-    rec_ranked = len(rec & ranked_ids(P)) if rec else 0
+    last = rs[-1]
+    whole = lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 0
+    if whole(last.get("phone_ranked_end")) and whole(last.get("rec_ranked_end")):
+        # Recorded with the round: every qualified-targets number below is as of that round's end.
+        phone_ranked, rec_ranked = last["phone_ranked_end"], last["rec_ranked_end"]
+        when, label = f"at the end of round {last['round']}", f"(end of round {last['round']})"
+    else:
+        # A round recorded before these counts were kept: the phone saves on the ranked list today are all there
+        # is to take off, as before. Recording the round again, or the next round, makes it one moment.
+        phone_ranked = len(phone & ranked_ids(P)) if phone else 0
+        rec_ranked = len(rec & ranked_ids(P)) if rec else 0
+        when, label = "now", "(now)"
     return {"processed": sum(per.get(r["round"], {}).get("processed", 0) for r in rs),
             "decided": sum(per.get(r["round"], {}).get("decided", 0) for r in rs),
             "pdfs": sum(r.get("pdfs_new", 0) for r in rs) - len(phone),
             "ranked": rs[-1]["ranked_end"] - phone_ranked, "round": rs[-1]["round"],
             "phone_pdfs": len(phone), "phone_ranked": phone_ranked, "phone_ids": sorted(phone),
-            "rec_pdfs": len(rec), "rec_ranked": rec_ranked}  # rec: the recommendation-save share of phone
+            "rec_pdfs": len(rec), "rec_ranked": rec_ranked,  # rec: the recommendation-save share of phone
+            "ranked_when": when, "ranked_label": label}
 
 
 def funnel_svg(P, path):

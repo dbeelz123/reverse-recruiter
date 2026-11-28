@@ -36,8 +36,8 @@ import re
 import sys
 from pathlib import Path
 
-from paths import (DataFileError, Paths, blocked_by, blocklist, case_by_case, read_json, read_run, to_date, write_json,
-                   tombstones)
+from paths import (DataFileError, Paths, blocked_by, blocklist, case_by_case, match_key, read_json, read_run, to_date,
+                   write_json, tombstones)
 
 P = Paths()
 ROOT = P.data.parent
@@ -81,15 +81,9 @@ def norm_title(t):
 
 
 def norm_company(c):
-    # Deliberate (code reviews, 2026-11-25): suffixes such as Inc, LLC, Group and Technologies are dropped because
-    # LinkedIn shows one employer under several of them ("Acme" on a card, "Acme Technologies" on the posting). Two
-    # different employers that collide this way are rare, and a collision only skips a card whose title also
-    # matches and whose terms haven't changed (changed_terms flags those for a fresh look).
-    c = c.lower().replace("&", " and ")
-    c = re.sub(r"\s+-\s+[a-z]{1,4}$", " ", c)  # ATS tag on the Job Tracker name, e.g. "Acme - GH" (2026-11-17)
-    c = re.sub(r"\b(inc|llc|ltd|corp|corporation|co|group|technologies|technology)\b\.?", " ", c)
-    c = re.sub(r"[^a-z0-9]+", " ", c)
-    return " ".join(c.split())
+    # The one company rule every matcher shares (paths.match_key, where the reasoning is): this used to be a rule
+    # of its own, with its own list of legal words and no handling of accents or a leading "The".
+    return match_key(c)
 
 
 def key(company, title):
@@ -356,8 +350,9 @@ def check(path):
     for c in cards:
         if c["triaged"] and c["triaged"]["action"] == WAS_BLOCKED:
             print(f"  blocklisted before, no blocklist entry matches now: {c['company']} - {c['title']} (DQ'd as: "
-                  f"{c['triaged']['reason']}). Still blocked: add this name as an alias on its entry in spec.json. "
-                  f"No longer blocked: triage the card as new.")
+                  f"{c['triaged']['reason']}). Still out as a company: add it to company_blocklist in spec.json (or "
+                  f"as an alias on its entry). Out under another rule, or no longer out: judge the card by the "
+                  f"rules as they stand.")
     for c in cards:
         if c["triaged"] and c["triaged"]["action"] == "blocklist (confirm)":
             soft = " [case by case: is this role in the blocked area?]" if c["triaged"]["case_by_case"] else ""

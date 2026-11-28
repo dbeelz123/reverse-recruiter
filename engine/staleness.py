@@ -31,7 +31,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import TERMINAL, Paths, iso_date, past_date, read_json, write_json, to_date  # noqa: E402
+from paths import (TERMINAL, Paths, iso_date, match_key, norm_name, past_date, read_json, write_json,  # noqa: E402
+                   to_date)
 
 FRESH_DAYS = 3    # an open check younger than this lets kit work and applying go ahead
 OLD_DAYS = 30     # listings at least this old (estimated) are asked about even when a tracker capture shows them
@@ -134,8 +135,13 @@ def set_check(P, job, result, date, source, note=None):
 # ---- Job Tracker paste --------------------------------------------------------------------------------------------
 
 def norm(s):
-    s = re.sub(r"\b(inc|llc|ltd|corp|corporation|co)\b\.?", "", (s or "").lower().replace("&", " and "))
-    return re.sub(r"[^a-z0-9]", "", s)
+    """A title, for comparing: letters and digits only, accents and case aside."""
+    return norm_name(s).replace(" ", "")
+
+
+def norm_co(s):
+    """A company, for comparing: the shared company rule (paths.match_key), without spaces."""
+    return match_key(s).replace(" ", "")
 
 
 def parse_tracker(text):
@@ -162,8 +168,8 @@ def parse_tracker(text):
 
 
 def match_job(jobs, title, company):
-    cands = [j for j in jobs.values() if norm(company) and (norm(company) in norm(j.get("company"))
-                                                             or norm(j.get("company")) in norm(company))]
+    cands = [j for j in jobs.values() if norm_co(company) and norm_co(j.get("company"))
+             and (norm_co(company) in norm_co(j.get("company")) or norm_co(j.get("company")) in norm_co(company))]
     exact = [j for j in cands if norm(j.get("title")) == norm(title)]
     if len(exact) == 1:
         return exact[0]

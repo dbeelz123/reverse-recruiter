@@ -14,20 +14,14 @@
 #   - a staged file can't be copied for the scan;
 #   - no private-terms list is configured (the scan runs with --strict).
 # Deliberate exceptions live in .privacy-allow ("<path> | <phrase>"): review any change to that file carefully.
+#
+# The other hooks in this folder close the gaps this one leaves: pre-merge-commit (a merge runs that hook instead of
+# this one), commit-msg (the message is published too) and pre-push (a cherry-pick, rebase or revert runs no commit
+# hook at all, and --no-verify skips them, so every commit is checked again before it leaves the machine).
 
-terms=$(git config --get reverse-recruiter.privateTerms)
-if [ -z "$terms" ]; then
-    echo "pre-commit: set your private-terms list first:"
-    echo "  git config reverse-recruiter.privateTerms \"<path to private-terms.txt>\""
-    exit 1
-fi
-
-# The file must exist: a path that has gone missing would let the scan fall back to another list, or to none.
-if [ ! -f "$terms" ]; then
-    echo "pre-commit: the private-terms list is missing: $terms"
-    echo "  Fix the path: git config reverse-recruiter.privateTerms \"<path to private-terms.txt>\""
-    exit 1
-fi
+hook=pre-commit
+. "$(dirname "$0")/lib.sh"
+need_terms
 
 # T (type change) is included: a file replaced by a symbolic link is a change to what gets published.
 # core.quotePath=false: by default git prints a name with accented or other non-ASCII letters in quotes with
@@ -35,29 +29,18 @@ fi
 files=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMRT)
 [ -z "$files" ] && exit 0
 
-bad=$(printf '%s\n' "$files" | grep -iE '(^|/)(my-data|private-data)/|private-terms\.txt$|\.private\.|CLAUDE\.local\.md$')
-# A data folder of any name is recognized by its layout; only the fictional sample-data/ may be committed.
-# Names are matched without regard to case: on Windows and macOS "My-Data/" is the same folder as "my-data/".
-bad="$bad
-$(printf '%s\n' "$files" | grep -iE '(^|/)(1-inbox|2-reports|3-applications|4-profile|5-criteria|6-system|7-recommendations|8-mentor-advice|9-learning)/' | grep -vE '^sample-data/')"
-bad=$(printf '%s\n' "$bad" | grep -v '^$')
+bad=$(printf '%s\n' "$files" | personal_paths | grep -v '^$')
 if [ -n "$bad" ]; then
     echo "pre-commit: personal-data paths are staged:"
     printf '  %s\n' $bad
     exit 1
 fi
 
-# Document formats the text scan can't read (resumes, saved postings, exports) never go in the repo.
-docs=$(printf '%s\n' "$files" | grep -iE '\.(pdf|docx?|rtf|odt|xlsx?|pptx?|msg|eml)$')
+docs=$(printf '%s\n' "$files" | document_paths)
 if [ -n "$docs" ]; then
     echo "pre-commit: document files are staged; the privacy scan can't read inside them:"
     printf '  %s\n' $docs
     echo "Keep resumes, saved postings and exports in your data folder, outside the repo."
-    exit 1
-fi
-
-if [ ! -f engine/privacy_scan.py ]; then
-    echo "pre-commit: engine/privacy_scan.py is missing; can't check this commit."
     exit 1
 fi
 

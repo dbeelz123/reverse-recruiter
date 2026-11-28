@@ -23,6 +23,8 @@ paths relative to the folder being scanned. The phrase is removed from that file
 other term in the same line is still caught. Default: .privacy-allow in the folder being scanned; --allow FILE
 overrides it (the pre-commit hook passes the staged copy).
 Run it on the engine after every change meant for the public repo, and on the whole repo before every push.
+--message scans commit messages (scripts/hooks/commit-msg, pre-push): a co-author trailer's no-reply address is the
+one address allowed, and the diff that `git commit -v` adds below its scissors line is left out.
 """
 import argparse
 import html
@@ -155,7 +157,19 @@ def read_text(f):
         return None
 
 
-def scan(paths, words, allow_file=None, skip=True):
+SCISSORS = re.compile(r"(?m)^# -+ >8 -+\s*$")  # git commit -v: everything below is the diff, not the message
+# A trailer that names who else worked on the commit ("Co-Authored-By: Name <address>") carries an address by
+# design. Only a no-reply address is let through, and only there: the name beside it is still checked.
+TRAILER_ADDRESS = re.compile(r"(?im)^(\s*[a-z-]+-by:[^<>\n]*)<(?=[^<>\s]*noreply)[^<>\s@]+@[^<>\s@]+>[ \t\r]*$")
+
+
+def message_text(text):
+    """A commit message as it will be published: without the diff `git commit -v` shows below the scissors line,
+    and without the no-reply address of a co-author trailer."""
+    return TRAILER_ADDRESS.sub(r"\1", SCISSORS.split(text)[0])
+
+
+def scan(paths, words, allow_file=None, skip=True, message=False):
     term_rxs = [(f"private term '{w}'", *term_rx(w)) for w in words]
     pattern_rxs = [(name, re.compile(p)) for name, p in PATTERNS.items()]
     hits = 0
@@ -188,6 +202,8 @@ def scan(paths, words, allow_file=None, skip=True):
                 hits += 1
                 print(f"{shown}: file name: {name}")
             text = read_text(f)
+            if message and text is not None:
+                text = message_text(text)
             if text is None:  # not text: the scan can't read it, so it counts as a hit unless deliberately allowed
                 if f.suffix.lower() in IMAGES:
                     # Listed in .privacy-allow after a look by eye, with that exact phrase: a line allowing some
@@ -229,6 +245,9 @@ def main():
     ap.add_argument("--allow", help="allow file of deliberate exceptions (default: <folder>/.privacy-allow)")
     ap.add_argument("--no-skip", action="store_true",
                     help="scan every file, including __pycache__ and .git folders (the pre-commit hook uses it)")
+    ap.add_argument("--message", action="store_true",
+                    help="the files are commit messages: the diff below git's scissors line is left out, and a "
+                         "co-author trailer's no-reply address is not a hit (the commit-msg and pre-push hooks)")
     a = ap.parse_args()
     P = Paths(a.data)
     f = terms_file(P, a.terms)
@@ -251,7 +270,7 @@ def main():
     if missing:
         print("Nothing to scan at: " + ", ".join(missing) + ". Check the path; nothing was scanned.")
         sys.exit(2)
-    hits = scan(targets, words, a.allow, skip=not a.no_skip)
+    hits = scan(targets, words, a.allow, skip=not a.no_skip, message=a.message)
     print(f"{hits} hit{'' if hits == 1 else 's'} in {', '.join(t.name for t in targets)} "
           f"({len(words)} private terms + {len(PATTERNS)} patterns)")
     sys.exit(1 if hits else 0)

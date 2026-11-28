@@ -100,15 +100,29 @@ LEGAL_SUFFIXES = {"inc", "incorporated", "llc", "ltd", "limited", "corp", "corpo
 
 
 def company_key(name):
-    """One key per employer, for grouping several roles at a company: the whole name, without a note in parentheses
+    """One key per employer: the whole name, without a note in parentheses
     ("Acme (through a staffing firm)"), a leading "The", or trailing legal words ("Acme, Inc.", "Acme Group"). The
-    first word alone is not a key: "The Home Depot" and "The Trade Desk" are different companies."""
+    first word alone is not a key: "The Home Depot" and "The Trade Desk" are different companies.
+    Every script that compares employers builds on this one rule (norm_name underneath): company groups in the
+    report and the apply queue use it as it is; match_key adds the listing-side cleanup; the blocklist matches
+    whole words of norm_name instead, because a blocklist entry may name a unit ("Acme Defense")."""
     words = norm_name(str(name or "").split(" (")[0]).split()
     if len(words) > 1 and words[0] == "the":
         words = words[1:]
     while len(words) > 1 and words[-1] in LEGAL_SUFFIXES:
         words = words[:-1]
     return " ".join(words)
+
+
+def match_key(name):
+    """company_key for a name as a listing shows it, used wherever two sources must agree on the employer (triage
+    cards against earlier decisions, the saved-jobs list against job records, the repost check): the saved-jobs
+    list adds an applicant-system tag to some names ("Acme - GH"), which is dropped first.
+    Deliberate (code reviews, 2026-11-25; one rule for every matcher since 2026-11-28): legal words at the end of a
+    name are dropped because one employer shows under several of them ("Acme" on a card, "Acme Technologies" on
+    the posting). Two different employers that collide this way are rare, and in triage a collision only skips a
+    card whose title also matches and whose terms haven't changed."""
+    return company_key(re.sub(r"\s+-\s+[A-Za-z]{1,4}\s*$", " ", str(name or "")))
 
 
 def read_job(path):

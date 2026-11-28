@@ -26,7 +26,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import TERMINAL, Paths, iso_date, past_date, read_json, write_json, tombstones, to_date  # noqa: E402
+from paths import (TERMINAL, Paths, iso_date, norm_name, past_date, read_json, write_json, tombstones,  # noqa: E402
+                   to_date)
 from paths import company_key as paths_company_key  # noqa: E402
 
 STAGES = ["kit", "applied", "response", "interview", "offer"]
@@ -103,7 +104,7 @@ def resolve(jobs, kitmap, key):
     for jid, k in kitmap.items():
         if k["folder"] == key and jid in jobs:
             return jid
-    norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())  # "acmecorp" matches "Acme Corp Partners"
+    norm = lambda s: norm_name(s).replace(" ", "")  # "acmecorp" matches "Acme Corp Partners"; accents aside
     hits = [jid for jid, j in jobs.items() if norm(key) and norm(key) in norm(j.get("company"))]
     if len(hits) == 1:
         return hits[0]

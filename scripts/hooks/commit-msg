@@ -1,0 +1,28 @@
+#!/bin/sh
+# Commit-message privacy check: the message is published with the commit, so it is scanned like a file.
+# git passes the path of the message file as $1.
+#
+# Blocks the commit when the message holds a private term, a home-folder path, an email address or a LinkedIn
+# profile link. One address is allowed: the no-reply address of a co-author trailer
+# ("Co-Authored-By: Name <...noreply...>"); the name beside it is still checked. The diff that `git commit -v` shows
+# below its scissors line is not part of the message and is left out (pre-commit scans those files).
+
+hook=commit-msg
+. "$(dirname "$0")/lib.sh"
+need_terms
+
+if [ -z "$1" ] || [ ! -f "$1" ]; then
+    echo "commit-msg: no message file to check; commit blocked."
+    exit 1
+fi
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+if ! cp "$1" "$tmp/commit-message.txt"; then
+    echo "commit-msg: could not copy the message for the privacy scan; commit blocked."
+    exit 1
+fi
+if ! PYTHONDONTWRITEBYTECODE=1 python engine/privacy_scan.py "$tmp/commit-message.txt" --terms "$terms" --strict --no-skip --message; then
+    echo "commit-msg: the commit message failed the privacy scan; reword it and commit again."
+    exit 1
+fi
+exit 0

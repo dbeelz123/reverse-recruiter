@@ -25,7 +25,7 @@ git config core.hooksPath scripts/hooks
 git config reverse-recruiter.privateTerms "<path to your private-terms.txt>"
 ```
 
-`private-terms.txt` is one term per line: your name, home town, employers, products you worked on, contacts and interviewers, account names (see `sample-data/private-terms.example.txt`). Every commit is then scanned for those terms plus home-folder paths, email addresses and profile links, and blocked on any hit. Run the same check by hand with `python -B engine/privacy_scan.py [PATH ...] --terms <file>`.
+`private-terms.txt` is one term per line: your name, home town, employers, products you worked on, contacts and interviewers, account names (see `sample-data/private-terms.example.txt`). Every commit is then scanned for those terms plus home-folder paths, email addresses and profile links, and blocked on any hit. Four hooks do it: `pre-commit` and `pre-merge-commit` check the files, `commit-msg` checks the message (a co-author line's no-reply address is the one address allowed), and `pre-push` checks every commit again before it leaves your machine, because git runs no commit hook for a cherry-pick, a rebase or a revert. Run the same check by hand with `python -B engine/privacy_scan.py [PATH ...] --terms <file>`.
 
 ## 3. Create your data folder
 
