@@ -28,6 +28,11 @@ funnel entry) and left out of the known funnel: totals() (and with it the per-10
 images) leaves them out of every stage, qualified targets included. The round table shows their stages 1-2 as
 unknown. A phone save that matches a search card already counted is that card's listing, as for a direct save.
 
+Recommendation saves (added 2026-11-27): saves from LinkedIn's job recommendations rather than a search, also with no
+result cards behind them. A run file with "triage_type": "recommendations" lists them in "saved_job_ids". They are
+handled exactly like phone-triage saves (counted apart, left out of the known funnel and every per-100 number) and
+only labelled differently: each round's entry also carries "rec" (and "rec_ids"), the recommendation share of "phone".
+
 Writes 6-system/metrics.json: one entry per round. Each entry keeps the set of job IDs seen so far, so the next
 round's "PDF saved" is an exact difference. Rounds 1-6 were backfilled on 2026-11-17 from the run files and the
 round summaries in the user's own project notes (marked "backfilled"; R2 and R3 ranked counts are approximate).
@@ -58,14 +63,33 @@ def saved_postings(P):
                   if (j.get("company") or j.get("title")) else None) for jid, j in out.items()}
 
 
-def phone_saves(P):
-    """Job IDs listed by phone-triage run files ("triage_type": "phone", "saved_job_ids"). See the module docstring."""
-    out = set()
+UNTRACKED = {"phone": "phone triage", "recommendations": "recommendation saves"}  # triage types with no cards
+
+
+def untracked_saves(P):
+    """{job ID: triage type} for saves listed by run files whose listings are unknown ("triage_type" "phone" or
+    "recommendations", "saved_job_ids"). See the module docstring."""
+    out = {}
     for f in sorted(P.search_runs.glob("*.json")):
         d = read_json(f)
-        if isinstance(d, dict) and d.get("triage_type") == "phone":
-            out |= {i for i in d.get("saved_job_ids") or [] if isinstance(i, str)}
+        if isinstance(d, dict) and d.get("triage_type") in UNTRACKED:
+            out.update({i: d["triage_type"] for i in d.get("saved_job_ids") or [] if isinstance(i, str)})
     return out
+
+
+def phone_saves(P):
+    """Job IDs of every save with unknown listings behind it: phone triage and recommendation saves."""
+    return set(untracked_saves(P))
+
+
+def untracked_label(phone, rec):
+    """'phone triage', 'recommendation saves' or both, for a count of such saves of which `rec` are recommendations."""
+    return ", ".join(UNTRACKED[k] for k, n in (("phone", phone - rec), ("recommendations", rec)) if n)
+
+
+def untracked_split(phone, rec):
+    """'3 phone triage', '2 recommendation saves', or both joined with a comma."""
+    return ", ".join(f"{n} {UNTRACKED[k]}" for k, n in (("phone", phone - rec), ("recommendations", rec)) if n)
 
 
 def snapshot(r):
@@ -161,9 +185,11 @@ def funnel_from_runs(P):
     saves, early, first = saves_by_round(P, rounds)
     seen, claimed, decided, per = set(), set(), set(), {}
     counted = set()  # job IDs of saved postings already counted, as a card or as a direct save
-    phone = phone_saves(P)
+    kinds = untracked_saves(P)
+    phone = set(kinds)
     entry = lambda rnd: per.setdefault(rnd, {"processed": 0, "cards": 0, "direct": 0, "decided": 0, "keep": 0,
-                                             "maybe": 0, "dq": 0, "runs": [], "phone": 0, "phone_ids": []})
+                                             "maybe": 0, "dq": 0, "runs": [], "phone": 0, "phone_ids": [],
+                                             "rec": 0, "rec_ids": []})
 
     def add_saves(rnd, jids):
         n = 0
@@ -181,6 +207,9 @@ def funnel_from_runs(P):
             if jid in phone:  # phone triage: counted apart, never as a listing processed
                 entry(rnd)["phone"] += 1
                 entry(rnd)["phone_ids"].append(jid)
+                if kinds[jid] == "recommendations":
+                    entry(rnd)["rec"] += 1
+                    entry(rnd)["rec_ids"].append(jid)
                 continue
             n += 1
         entry(rnd)["direct"] += n
@@ -340,10 +369,11 @@ def table(P):
         dec = f"{f['decided']} ({f['keep']} / {f['maybe']} / {f['dq']})" if f["decided"] else "–"
         proc = (f"{f['processed']} ({f.get('cards', 0)} + {f['direct']})" if f.get("direct")
                 else str(f["processed"] or "–"))
-        if f.get("phone"):  # phone triage: the listings seen and decided behind these saves are unknown
-            proc = f"{proc} + unknown (phone triage)" if f["processed"] else "unknown (phone triage)"
-            dec = f"{dec} + unknown (phone triage)" if f["decided"] else "unknown (phone triage)"
-            split = f"{split} (incl. {f['phone']} phone triage)"
+        if f.get("phone"):  # phone triage / recommendation saves: the listings behind these saves are unknown
+            lab = untracked_label(f["phone"], f.get("rec", 0))
+            proc = f"{proc} + unknown ({lab})" if f["processed"] else f"unknown ({lab})"
+            dec = f"{dec} + unknown ({lab})" if f["decided"] else f"unknown ({lab})"
+            split = f"{split} (incl. {untracked_split(f['phone'], f.get('rec', 0))})"
         out.append(f"| {r['round']} | {proc} | {dec} | {r.get('pdfs_new', 0)}{split} "
                    f"| {approx}{r['ranked_end']} |")
         rows.append(r)
@@ -351,10 +381,15 @@ def table(P):
         t = totals(P)
         pct = lambda a, b: f"{100 * a / b:.0f}%" if b else "–"
         if t["phone_pdfs"]:
-            out.append(f"| **Total, known funnel** (leaves out phone triage) | **{t['processed']}** | **{t['decided']}** "
+            lab = untracked_label(t["phone_pdfs"], t["rec_pdfs"]).replace(", ", " and ")
+            out.append(f"| **Total, known funnel** (leaves out {lab}) | **{t['processed']}** | **{t['decided']}** "
                        f"| **{t['pdfs']}** | **{t['ranked']}** (now) |")
-            out.append(f"| Phone triage (listings unknown) | unknown | unknown | {t['phone_pdfs']} "
-                       f"| {t['phone_ranked']} (now) |")
+            if t["phone_pdfs"] - t["rec_pdfs"]:
+                out.append(f"| Phone triage (listings unknown) | unknown | unknown | {t['phone_pdfs'] - t['rec_pdfs']} "
+                           f"| {t['phone_ranked'] - t['rec_ranked']} (now) |")
+            if t["rec_pdfs"]:
+                out.append(f"| Recommendation saves (listings unknown) | unknown | unknown | {t['rec_pdfs']} "
+                           f"| {t['rec_ranked']} (now) |")
         else:
             out.append(f"| **Total** | **{t['processed']}** | **{t['decided']}** | **{t['pdfs']}** "
                        f"| **{t['ranked']}** (now) |")
@@ -365,11 +400,18 @@ def table(P):
                    f"{pct(t['ranked'], t['pdfs'])} of deep-fit reviews are qualified targets now. Out of "
                    f"{t['processed']} job listings, {t['ranked']} are qualified targets "
                    f"({pct(t['ranked'], t['processed'])}).")
-        if t["phone_pdfs"]:
+        if t["phone_pdfs"] - t["rec_pdfs"]:
             out.append("")
-            out.append(f"Phone triage: {t['phone_pdfs']} saves made on a phone from LinkedIn alerts, judged on LinkedIn's "
-                       f"match signal alone; how many listings were seen behind them is unknown. They are left out of "
-                       f"the known funnel and the per-100 numbers; {t['phone_ranked']} of them are qualified targets now.")
+            out.append(f"Phone triage: {t['phone_pdfs'] - t['rec_pdfs']} saves made on a phone from LinkedIn alerts, "
+                       f"judged on LinkedIn's match signal alone; how many listings were seen behind them is unknown. "
+                       f"They are left out of the known funnel and the per-100 numbers; "
+                       f"{t['phone_ranked'] - t['rec_ranked']} of them are qualified targets now.")
+        if t["rec_pdfs"]:
+            out.append("")
+            out.append(f"Recommendation saves: {t['rec_pdfs']} saves from LinkedIn's job recommendations, judged on "
+                       f"LinkedIn's match signal alone; how many recommendations were seen behind them is unknown. They "
+                       f"are left out of the known funnel and the per-100 numbers; {t['rec_ranked']} of them are "
+                       f"qualified targets now.")
     return "\n".join(out)
 
 
@@ -383,12 +425,15 @@ def totals(P):
     # targets included, and reported apart. Qualified targets are the last recorded round's, less the phone saves
     # on the ranked list today.
     phone = set().union(*[set(per.get(r["round"], {}).get("phone_ids", [])) for r in rs])
+    rec = set().union(*[set(per.get(r["round"], {}).get("rec_ids", [])) for r in rs])
     phone_ranked = len(phone & ranked_ids(P)) if phone else 0
+    rec_ranked = len(rec & ranked_ids(P)) if rec else 0
     return {"processed": sum(per.get(r["round"], {}).get("processed", 0) for r in rs),
             "decided": sum(per.get(r["round"], {}).get("decided", 0) for r in rs),
             "pdfs": sum(r.get("pdfs_new", 0) for r in rs) - len(phone),
             "ranked": rs[-1]["ranked_end"] - phone_ranked, "round": rs[-1]["round"],
-            "phone_pdfs": len(phone), "phone_ranked": phone_ranked, "phone_ids": sorted(phone)}
+            "phone_pdfs": len(phone), "phone_ranked": phone_ranked, "phone_ids": sorted(phone),
+            "rec_pdfs": len(rec), "rec_ranked": rec_ranked}  # rec: the recommendation-save share of phone
 
 
 def funnel_svg(P, path):
@@ -415,7 +460,9 @@ def funnel_svg(P, path):
               f'<text x="{left + w + 8}" y="{y + bar / 2 + 5}" font-size="13" fill="#0B0B0B">'
               f'<tspan font-weight="600">{v}</tspan></text>']  # no % on bars: the bar length shows the share
     if t["phone_pdfs"]:
-        s.append(f'<text x="16" y="{H - 14}" font-size="12" fill="#52514E">Leaves out {t["phone_pdfs"]} phone-triage '
+        kind = ("phone-triage" if not t["rec_pdfs"] else "recommendation" if t["rec_pdfs"] == t["phone_pdfs"]
+                else "phone-triage and recommendation")
+        s.append(f'<text x="16" y="{H - 14}" font-size="12" fill="#52514E">Leaves out {t["phone_pdfs"]} {kind} '
                  f'saves ({t["phone_ranked"]} qualified targets now): the listings behind them are unknown.</text>')
     s.append("</svg>")
     path.write_text("\n".join(s), encoding="utf-8")

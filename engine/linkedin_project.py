@@ -51,6 +51,7 @@ def current(P):
         raise SystemExit("No recorded rounds: run engine/metrics.py --round N first.")
     return {"round": t["round"], "processed": t["processed"], "decided": t["decided"], "pdfs": t["pdfs"],
             "ranked": t["ranked"], "phone_pdfs": t["phone_pdfs"], "phone_ranked": t["phone_ranked"],
+            "rec_pdfs": t.get("rec_pdfs", 0),
             "applications_in_progress": pipeline.in_progress_count(P),
             "grades": linkedin_images.grade_counts(P)}
 
@@ -74,7 +75,9 @@ def check(P):
     print(f"Now (round {now['round']}): per 100 {show(now)} (real {now['processed']} / {now['decided']} / "
           f"{now['pdfs']} / {now['ranked']})")
     if now.get("phone_pdfs"):
-        print(f"Left out: {now['phone_pdfs']} phone-triage saves ({now['phone_ranked']} qualified targets now); the "
+        kind = ("phone-triage" if not now.get("rec_pdfs") else "recommendation" if now["rec_pdfs"] == now["phone_pdfs"]
+                else "phone-triage and recommendation")
+        print(f"Left out: {now['phone_pdfs']} {kind} saves ({now['phone_ranked']} qualified targets now); the "
               f"listings behind them are unknown, so they stay out of every per-100 number.")
     if rec.get("ready"):
         r = rec["ready"]

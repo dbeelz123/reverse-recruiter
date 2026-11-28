@@ -153,6 +153,7 @@ def rows(P):
         out.append({
             "round": n, "date": r.get("date"), "mode": r.get("mode"), "processed": processed, "rules": rules[n],
             "phone": f.get("phone", 0),  # phone-triage saves: no cards, so no triage volume or rates
+            "rec": f.get("rec", 0),  # the recommendation-save share of "phone"
             "rules_per_100": 100 * rules[n] / processed if processed else None,
             "cards": c["cards"], "already": c["already"] / c["cards"] if c["cards"] else None,
             "keep_rate": 100 * c["keep"] / c["cards"] if c["cards"] else None,
@@ -200,7 +201,9 @@ def signals_md(P):
         calls = (f"{r['agree']}/{r['firm']} ({100 * r['agree'] / r['firm']:.0f}%) / {r['hedge']} of {r['predicted']}"
                  if r["predicted"] and r["firm"] else f"0 firm / {r['hedge']} of {r['predicted']}" if r["predicted"]
                  else "–")
-        shown = (r["processed"] or "–") if not r["phone"] else             (f"{r['processed']} + unknown (phone triage)" if r["processed"] else "unknown (phone triage)")
+        lab = metrics.untracked_label(r["phone"], r.get("rec", 0))
+        shown = (r["processed"] or "–") if not r["phone"] else \
+            (f"{r['processed']} + unknown ({lab})" if r["processed"] else f"unknown ({lab})")
         out.append(f"| {r['round']} | {r['mode'] or '–'} | {shown} | {r['rules']} | "
                    f"{fmt(r['rules_per_100'], '.1f')} | {fmt(r['already'] and 100 * r['already'], '.0f')}"
                    f"{'%' if r['already'] is not None else ''} | {fmt(r['keep_rate'], '.0f')} | {calls} |")

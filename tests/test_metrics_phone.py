@@ -120,3 +120,41 @@ class PhoneRunInModes(SampleCase):
             {"round": 2, "triage_type": "phone", "result_count": None, "saved_job_ids": [], "listings": []}),
             encoding="utf-8")
         modes.backlog(Paths(str(self.data)))  # raised IndexError before 2026-11-27
+
+
+class RecommendationSaves(PhoneTriage):
+    """Recommendation saves (added 2026-11-27): LinkedIn job recommendations, no cards behind them. Counted exactly
+    like phone triage, labelled apart."""
+
+    def add_rec_save(self, jid, company, title, tier="B", rnd=2):
+        self.add_phone_save(jid, company, title, tier, rnd)
+        run = self.data / "6-system/search-runs/phone-run-2026-11-26.json"
+        d = json.loads(run.read_text(encoding="utf-8"))
+        d["saved_job_ids"].remove(jid)
+        run.write_text(json.dumps(d), encoding="utf-8")
+        rrun = self.data / "6-system/search-runs/recs-run-2026-11-27.json"
+        r = json.loads(rrun.read_text(encoding="utf-8")) if rrun.exists() else {
+            "round": rnd, "triage_type": "recommendations", "result_count": None, "saved_job_ids": [], "listings": []}
+        r["saved_job_ids"].append(jid)
+        rrun.write_text(json.dumps(r), encoding="utf-8")
+
+    def test_a_recommendation_save_is_counted_apart_and_labelled(self):
+        P = self.P()
+        self.add_rec_save("9100000700", "Nowhere Card Co", "Senior Product Manager, Recommended")
+        f = metrics.funnel_from_runs(P)[2]
+        self.assertEqual((f["phone"], f["rec"], f["rec_ids"]), (1, 1, ["9100000700"]))
+        t = metrics.totals(P)
+        self.assertEqual((t["phone_pdfs"], t["rec_pdfs"], t["rec_ranked"]), (1, 1, 1))
+        table = metrics.table(P)
+        self.assertIn("unknown (recommendation saves)", table)
+        self.assertIn("Recommendation saves (listings unknown)", table)
+        self.assertNotIn("Phone triage (listings unknown)", table)
+
+    def test_both_kinds_in_one_round_are_split(self):
+        P = self.P()
+        self.add_phone_save("9100000701", "Nowhere Card Co", "Senior Product Manager, Phone Save")
+        self.add_rec_save("9100000702", "Elsewhere Co", "Senior Product Manager, Recommended")
+        table = metrics.table(P)
+        self.assertIn("unknown (phone triage, recommendation saves)", table)
+        self.assertIn("incl. 1 phone triage, 1 recommendation saves", table)
+        self.assertIn("leaves out phone triage and recommendation saves", table)
