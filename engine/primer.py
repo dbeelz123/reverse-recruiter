@@ -234,6 +234,9 @@ def draft(P, job, kit):
     return "\n".join(lines), count
 
 
+MIN_QUESTIONS = 15  # likely interview questions a primer should have (prompts/interview-primer.md)
+
+
 def fit_rows(text):
     """[(row ID, rating or None, cells)] for a fit map's R and N rows. The rating is read from the Rating column
     only (found in the table's header row; the third column when there is none): a requirement such as "Have 5+
@@ -291,9 +294,12 @@ def check(P, job, kit):
         problems.append("interview-prep.md has no 'Likely interview questions' section")
     else:
         qn = len(re.findall(r"^\| *\d+ *\|", m.group(1), re.M))
+        # The primer rules (prompts/interview-primer.md) ask for 15 or more, and the check holds a primer to that:
+        # it used to pass from 10 up, so a primer could be reported complete below its own rule.
         notes.append(f"likely questions: {qn}")
-        if qn < 10:
-            problems.append(f"only {qn} likely questions (aim for 15 or more across the interviewer groups)")
+        if qn < MIN_QUESTIONS:
+            problems.append(f"only {qn} likely questions: the primer rules ask for {MIN_QUESTIONS} or more across "
+                            f"the interviewer groups ({MIN_QUESTIONS - qn} short)")
     print(f"{job['company']} - {job['title']} (`{kit['folder']}`)")
     for n in notes:
         print(f"  - {n}")

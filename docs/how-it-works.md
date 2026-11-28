@@ -81,6 +81,27 @@ A round processes new saved jobs and re-ranks everything. In order:
 
 The mode lives in `5-criteria/searches.json` → `mode`. A new user starts in Catch-up with a short setup interview (goal, lookback, pace, what still feels fuzzy). The agent **asks** before switching and never switches on its own. It asks when volume is met and at least 2 of 4 stability signals hold: fewer than 1 new rule per 100 search cards for two rounds; its triage calls match yours 90% of the time; 70% of a run's cards are already decided; a steady keep rate. In Keep-up it suggests a short Catch-up burst after a long gap or when drift shows.
 
+## The platform's match line: two scales
+
+LinkedIn shows a match line on each job's page (a search card doesn't show it), and triage leans on it. What it says depends on the account, so the save rule below is written for both. The wording is LinkedIn's as seen in November 2026; it may change.
+
+| Account | What the page says | Recorded as `linkedin_match` | Usual triage decision |
+|---|---|---|---|
+| Free | "Your profile and resume match the required qualifications well" | `well` (a "strong match") | Save |
+| Free | "You match some of the qualifications" | `some` | DQ |
+| Free | "You are missing some qualifications" | `missing` | DQ |
+| Free | "Job match summary not available" | `not available` | No signal: decide on the posting itself |
+| Premium | "You'd be a top applicant" | `top` | Save |
+| Premium | "Job match is high, we can help you stand out" | `high` | Save |
+| Premium | "Job match is medium, review match details" | `medium` | DQ |
+| Premium | "Job match is low, review match details" | `low` | DQ |
+
+- **The two scales are not the same measurement.** The free line has three levels and Premium has four, and nothing here assumes that a free "strong match" equals a Premium "high" or "top applicant". If your account changes mid-search, expect the share of saves to shift, and say so in the round's notes.
+- **The decisions are defaults, and you can make them more or less restrictive.** They are the ones this project was built with. Your own rule is the text in `5-criteria/searches.json` → `triage_flow`: save only "top applicant", say, or also look at "matches some". It is a written rule that you and Claude follow in triage, not a setting a script enforces.
+- **Either way it is a pre-screen.** A save is a candidate, never a verdict: a top match still gets the full read, and about half of one round's strong matches hit a written dealbreaker.
+- **Where it is recorded:** `linkedin_match` on the run's row for a search card. For a save made from LinkedIn's recommendations (no card), the strength is asked for only when the job passes review, and goes on the review as `premium_match`.
+- **The match gate:** a DQ made on the match line (`some`, `missing`, `medium` or `low`) is something the agent couldn't have seen on the card, so `precision.py` reports agreement with and without those cards. That list is fixed in the code: under a stricter rule of your own, a DQ on `high` counts as an ordinary disagreement with the agent's call.
+
 ## The agent's triage calls, measured
 
 Before you decide each card, Claude records its own call: `likely keep`, `lean keep`, `possible: <missing fact>`, `lean DQ`, or `weak` (likely DQ). `precision.py` compares those calls with your decisions, with and without the cards decided by the platform's match line (which a search card doesn't show), follows your keeps to their final tier, and lists every miss with both sides' reasons. Miss patterns become explicit calling guidance in `searches.json` → `triage_flow` (how to call, never criteria). In Keep-up, these calls become the pre-sort you confirm in bulk.

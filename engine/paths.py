@@ -77,6 +77,19 @@ def past_date(s):
     return s
 
 
+def round_number(s):
+    """argparse type for --round: a whole number from 1 up. 0 reads as "no round given" to a plain truth test and
+    was silently ignored; a negative round was recorded, and its snapshot made the next real round look empty."""
+    import argparse
+    try:
+        n = int(s)
+    except (TypeError, ValueError):
+        n = 0
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"a round is a whole number from 1 up, not {s!r}")
+    return n
+
+
 LEGAL_SUFFIXES = {"inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation", "co", "company", "plc",
                   "gmbh", "group", "holdings", "technologies", "technology"}
 
@@ -95,8 +108,8 @@ def company_key(name):
 
 def read_run(path):
     """A search-run file (6-system/search-runs/*.json), checked for the shape every reader relies on: an object;
-    'round', when present, a whole number; 'listings', when present, a list of objects; 'unrecorded_cards', when
-    present, a whole number. Anything else stops with the file named, instead of a traceback or, worse, a run that
+    'round', when present, a whole number; 'listings', when present, a list of objects; 'saved_job_ids', when
+    present, a list of IDs as text; 'unrecorded_cards', when present, a whole number. Anything else stops with the file named, instead of a traceback or, worse, a run that
     silently drops out of the funnel."""
     d = read_json(path, expect=dict)
     whole = lambda v: isinstance(v, int) and not isinstance(v, bool)
@@ -105,6 +118,11 @@ def read_run(path):
     ls = d.get("listings")
     if ls is not None and not (isinstance(ls, list) and all(isinstance(x, dict) for x in ls)):
         raise DataFileError(f"Malformed {path}: 'listings' must be a list of objects.")
+    ids = d.get("saved_job_ids")  # phone-triage and recommendation runs: the saves themselves, no cards
+    if ids is not None and not (isinstance(ids, list) and all(isinstance(i, str) and i.strip() for i in ids)):
+        # One ID written as text would be read a character at a time ("9", "1", "0" as three saves).
+        raise DataFileError(f"Malformed {path}: 'saved_job_ids' must be a list of job IDs as text, "
+                            f"e.g. [\"4482029334\"].")
     if d.get("unrecorded_cards") is not None and not whole(d["unrecorded_cards"]):
         raise DataFileError(f"Malformed {path}: 'unrecorded_cards' must be a whole number, "
                             f"not {d['unrecorded_cards']!r}.")

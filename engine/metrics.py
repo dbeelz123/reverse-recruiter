@@ -41,7 +41,7 @@ import argparse
 import datetime as dt
 import json
 
-from paths import DataFileError, Paths, latest_reviews, read_json, read_run, write_json, tombstones
+from paths import DataFileError, Paths, latest_reviews, read_json, read_run, round_number, write_json, tombstones
 from triaged import key
 
 # Display names for the four stages (decided 2026-11-18; also used on the LinkedIn project images).
@@ -301,6 +301,9 @@ def load(P):
                                                and not isinstance(r.get("round"), bool) for r in rounds):
         raise DataFileError(f"Malformed {P.metrics}: 'rounds' must be a list of objects, each with a whole-number "
                             f"'round'.")
+    # In round order, whatever order a hand-edited file lists them in: "the last recorded round" (totals, the
+    # public per-100 numbers) means the highest-numbered one.
+    rounds.sort(key=lambda r: r["round"])
     return m
 
 
@@ -596,7 +599,7 @@ def timing_table(P):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--round", type=int)
+    ap.add_argument("--round", type=round_number)
     ap.add_argument("--event", choices=list(STAGES), help="log a timing event for --round (stage boundary or batch)")
     ap.add_argument("--note", default=None)
     ap.add_argument("--at", default=None, help="ISO time for the event (default: now)")
@@ -604,12 +607,12 @@ def main():
     args = ap.parse_args()
     P = Paths(args.data)
     if args.event:
-        if not args.round:
+        if args.round is None:
             raise SystemExit("--event needs --round")
         add_event(P, args.round, args.event, args.note, args.at)
         print(f"logged {args.event} for round {args.round}")
         return
-    if args.round:
+    if args.round is not None:
         record(P, args.round)
     print(table(P))
     tt = timing_table(P)

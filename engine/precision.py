@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from modes import call_strength, likely_call, match_gated  # noqa: E402
-from paths import Paths, latest_reviews, read_json, read_run, tombstones  # noqa: E402
+from paths import Paths, latest_reviews, read_json, read_run, round_number, tombstones  # noqa: E402
 
 GOOD = ("A", "B")
 
@@ -146,7 +146,7 @@ def report(P, rnd):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", default=None)
-    ap.add_argument("--round", type=int, default=None)
+    ap.add_argument("--round", type=round_number, default=None)
     a = ap.parse_args()
     report(Paths(a.data), a.round)
 

@@ -249,11 +249,19 @@ def build(P):
 
     # Outcome funnel: current ranked jobs plus removed jobs that had got as far as an application.
     counts = collections.Counter()
-    pool = [(j.get("pipeline"), j["job_id"] in kitmap) for j in ranked + unranked]
+    pool = {j["job_id"]: (j.get("pipeline"), j["job_id"] in kitmap) for j in ranked + unranked}
     # The funnel is cumulative: a job counts in every stage up to the furthest it reached, so an application counts
     # as "Kit built" whether or not a kit folder exists (has_kit only matters for jobs not yet applied).
-    pool += [(t["pipeline"], False) for t in tombs if reached(t.get("pipeline"), False) >= STAGES.index("applied")]
-    for pl, has_kit in pool:
+    # One entry per job ID: a job removed after an application and saved again has a current record and a tombstone,
+    # and is one job, at the furthest stage either of them shows.
+    for t in tombs:
+        if reached(t.get("pipeline"), False) >= STAGES.index("applied"):
+            now = pool.get(t["job_id"])
+            if now is None:
+                pool[t["job_id"]] = (t["pipeline"], False)
+            elif reached(t["pipeline"], now[1]) > reached(now[0], now[1]):
+                pool[t["job_id"]] = (t["pipeline"], now[1])
+    for pl, has_kit in pool.values():
         counts["ranked"] += 1
         for i in range(reached(pl, has_kit) + 1):
             counts[STAGES[i]] += 1

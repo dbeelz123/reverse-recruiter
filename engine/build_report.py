@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from paths import (Paths, company_key, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
+from paths import (Paths, company_key, round_number, blocked_by, blocklist, case_by_case, latest_reviews, read_json, review_score_problems,
                    write_json)
 from urllib.parse import quote
 
@@ -110,7 +110,7 @@ def main():
     ap = argparse.ArgumentParser()
     root = Path(__file__).resolve().parent.parent
     ap.add_argument("--data", default=None)
-    ap.add_argument("--round", type=int, required=True)
+    ap.add_argument("--round", type=round_number, required=True)
     args = ap.parse_args()
     P = Paths(args.data)
     data = P.data

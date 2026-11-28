@@ -91,6 +91,11 @@ def call_strength(v):
     return "hedge" if likely_call(v) == "hedge" else "firm"
 
 
+# linkedin_match values below the save line, on either scale (docs/how-it-works.md -> The platform's match line): a
+# free account shows well / some / missing, a Premium account top / high / medium / low.
+MATCH_BELOW_SAVE = ("some", "missing", "some/missing", "below strong", "medium", "low")
+
+
 def match_gated(x):
     """True when the user's DQ came from LinkedIn's match line (below strong), which the agent can't see on the card.
     engine/precision.py reports agreement with and without these (2026-11-18)."""
@@ -98,7 +103,7 @@ def match_gated(x):
         return False
     m = str(x.get("linkedin_match") or "").lower()
     return str(x.get("reason") or "").lower().startswith("linkedin match below strong") or \
-        m in ("some", "missing", "some/missing", "below strong")
+        m in MATCH_BELOW_SAVE
 
 
 def rules_per_round(P):

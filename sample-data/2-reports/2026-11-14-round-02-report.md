@@ -20,11 +20,11 @@ Conversion so far: 30% of job listings processed reached a LinkedIn baseline mat
 
 ### Triage mode
 
-**Catch-up progress:** Goal: 200 listings. Search cards processed: 90 (45%). Left: 110. At the last 14 days' pace (90 a day), about 2026-11-26. Backlog not yet captured: 66 listings LinkedIn reported beyond what the latest runs captured; no result count recorded for S2, S3. Lookback: each search’s own window. Pace plan: two sessions a week, about an hour each.
+**Catch-up progress:** Goal: 200 listings. Search cards processed: 90 (45%). Left: 110. At the last 14 days' pace (90 a day), about 2026-11-29. Backlog not yet captured: 66 listings LinkedIn reported beyond what the latest runs captured; no result count recorded for S2, S3. Lookback: each search’s own window. Pace plan: two sessions a week, about an hour each.
 
 Mode: **catch-up**
 
-| Round | Mode | Search cards processed | New criteria rules | Rules per 100 | Already decided | Keeps per 100 cards | Agent calls (firm agree / hedged) |
+| Round | Mode | Search cards processed | New criteria rules | Rules per 100 | Already decided | Keeps per 100 recorded cards | Agent calls (firm agree / hedged) |
 |---|---|---|---|---|---|---|---|
 | 1 | catch-up | 44 | 5 | 11.4 | 0% | 40 | – |
 | 2 | catch-up | 46 | 2 | 4.3 | 0% | 38 | 5/7 (71%) / 1 of 8 |

@@ -24,4 +24,7 @@
 | 9 | Why Northwind, and why a marketplace? | The carrier network was always half a marketplace |
 | 10 | You haven't run payments. How would you get up to speed? | N2: name it, then the pricing work |
 | 11 | How do you use AI tools in your own work? | Daily prototypes and analysis |
-| 12 | What questions do you have for us? | Contract or conversion; who owns pricing |
+| 12 | Tell us about a disagreement with engineering and how it ended. | Carrier certification suite: agreeing what to test first |
+| 13 | When shippers and carriers want opposite things, who wins? | Marketplace health: fill rate and repeat carriers before margin |
+| 14 | How do you keep a roadmap honest when priorities change? | Parcelwise portfolio retirement: what was stopped, and why |
+| 15 | What questions do you have for us? | Contract or conversion; who owns pricing |

@@ -245,6 +245,12 @@ def main():
             sys.exit(2)
         print(f"Note: the private-terms list has no terms in it ({f}); only the generic patterns are checked.")
     targets = [Path(p).resolve() for p in a.paths] or [ROOT / "engine"]
+    # A path that isn't there has no files, so it would scan as "0 hits": a typo in the path must not pass as a
+    # clean scan.
+    missing = [str(t) for t in targets if not t.exists()]
+    if missing:
+        print("Nothing to scan at: " + ", ".join(missing) + ". Check the path; nothing was scanned.")
+        sys.exit(2)
     hits = scan(targets, words, a.allow, skip=not a.no_skip)
     print(f"{hits} hit{'' if hits == 1 else 's'} in {', '.join(t.name for t in targets)} "
           f"({len(words)} private terms + {len(PATTERNS)} patterns)")

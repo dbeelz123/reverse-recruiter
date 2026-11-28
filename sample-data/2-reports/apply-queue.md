@@ -1,4 +1,4 @@
-# Apply queue (2026-11-25)
+# Apply queue (2026-11-28)
 
 Built by `engine/pipeline.py queue` from the ranked jobs, the kit folders and each job's recorded steps. Rebuilt whenever you report a step (messaged, applied, heard back, interview) and at the end of every round.
 
@@ -6,9 +6,9 @@ Built by `engine/pipeline.py queue` from the ranked jobs, the kit folders and ea
 
 Owed now or in the next 3 days (`engine/interviews.py due`): debriefs, thank-you notes and follow-ups.
 
-- **7 days overdue** · Northwind Freight (through Summit Staffing): Send the round 1 thank-you to the recruiter (draft in the kit folder)
-- **6 days overdue** · Harborline Logistics: no response since applying: send a short follow-up or ask Sam Ortiz (fictional) for a nudge (last step applied 2026-11-12)
-- **1 day overdue** · Northwind Freight (through Summit Staffing): Debrief round 2 (2026-11-24): tell me how it went
+- **10 days overdue** · Northwind Freight (through Summit Staffing): Send the round 1 thank-you to the recruiter (draft in the kit folder)
+- **9 days overdue** · Harborline Logistics: no response since applying: send a short follow-up or ask Sam Ortiz (fictional) for a nudge (last step applied 2026-11-12)
+- **4 days overdue** · Northwind Freight (through Summit Staffing): Debrief round 2 (2026-11-24): tell me how it went
 
 ## Outcome funnel
 
@@ -25,8 +25,8 @@ Owed now or in the next 3 days (`engine/interviews.py due`): debriefs, thank-you
 
 | Job | Score | Stage | Last step | Next |
 |---|---|---|---|---|
-| [Northwind Freight (through Summit Staffing): Senior Product Manager, Freight Marketplace](../3-applications/northwind-freight-sr-pm-marketplace/job-description.txt) | 76 | interview: round 2 on 2026-11-24 | interview 2026-11-25 (today) | Send the round 1 thank-you to the recruiter (draft in the kit folder) |
-| [Harborline Logistics: Senior Product Manager, Shipment Visibility](https://example.com/jobs/9100000001) | 90 | applied | applied 2026-11-12 (13 days ago) | no response since applying: send a short follow-up or ask Sam Ortiz (fictional) for a nudge (last step applied 2026-11-12) |
+| [Northwind Freight (through Summit Staffing): Senior Product Manager, Freight Marketplace](../3-applications/northwind-freight-sr-pm-marketplace/job-description.txt) | 76 | interview: round 2 on 2026-11-24 | interview 2026-11-28 (today) | Send the round 1 thank-you to the recruiter (draft in the kit folder) |
+| [Harborline Logistics: Senior Product Manager, Shipment Visibility](https://example.com/jobs/9100000001) | 90 | applied | applied 2026-11-12 (16 days ago) | no response since applying: send a short follow-up or ask Sam Ortiz (fictional) for a nudge (last step applied 2026-11-12) |
 
 ## Apply next
 

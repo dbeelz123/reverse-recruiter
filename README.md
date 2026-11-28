@@ -20,7 +20,7 @@ Reverse Recruiter treats every save as a *candidate*, not a preference, and does
 
 **1. Screens every word, not just the headline.** For each saved posting it extracts role, level, pay, work arrangement, location, travel, requirements, industry and 1st-degree connections, then:
 - **excludes** jobs that hit a dealbreaker, and says which one;
-- **scores** the rest: a 0–100 fit judgment plus visible adjustments (core-domain bonus, travel scale, scored negatives, connection bonus), so a strong fit with bonuses can total above 100, and sorts them into tiers A–D;
+- **scores** the rest: a 0–100 fit judgment plus visible adjustments (core-domain bonus, travel scale, scored negatives, and a connection bonus that can be graded by how well you know the person), so a strong fit with bonuses can total above 100, and sorts them into tiers A–D;
 - **flags "looks good, but…"** details a skim misses.
 
 **2. Learns your criteria, continuously.**
@@ -35,7 +35,7 @@ Where they disagree, the agent asks instead of guessing, and each answer becomes
 
 **3. Improves your materials as a side effect.** Comparing what jobs ask for with what your profile shows separates *real gaps* (a ranked development list) from *hidden strengths* (things you've done that your resume doesn't say), which become resume and profile wording.
 
-**4. Finds jobs you didn't save.** Top-ranked jobs seed ready-to-run searches, and "similar jobs" become leads.
+**4. Finds jobs you didn't save.** Top-ranked jobs seed ready-to-run searches, and "similar jobs" become leads. Search results you paste in are triaged card by card: listings you already decided are skipped, and a repost watch reports the ones that keep coming back. Saves made straight from a phone or from the platform's recommendations are counted apart, because the listings behind them are unknown. A job from anywhere else (a recruiter's document, another site) goes in as a regular job record.
 
 **5. Helps you apply and interview.**
 - **Application kits** ("prep <company>"): a *stretch review* first (each requirement you don't clearly meet, and what a cover letter would have to ask the employer to accept), then a fit map, a one-page cover letter, a tailored resume copy with Word tracked changes, and a log.
@@ -69,7 +69,7 @@ The round ends with a **re-screen** (every current job against the latest rules)
 
 ## Results from the author's own search
 
-Seven rounds over about a week, several hundred listings, shown **per 100 job listings processed** (raw volume says more about the backlog than about the system):
+**A snapshot as of round 7 (18 November 2026)**: seven rounds over about a week, several hundred listings, shown **per 100 job listings processed** (raw volume says more about the backlog than about the system). The search has continued since, and this section is not updated every round.
 
 | Stage | Per 100 listings |
 |---|---|
@@ -80,8 +80,8 @@ Seven rounds over about a week, several hundred listings, shown **per 100 job li
 
 What the numbers taught, and what changed because of them:
 - **A strong platform match isn't a fit.** In one round, about half the postings that passed the platform's "strong match" line hit a written dealbreaker on a full read. That's the gap this tool closes.
-- **New rules per 100 listings fall each round** (from about 12 to about 4), which is the signal that the criteria are settling. The agent uses it to suggest when to move from high-touch *Catch-up* triage to low-touch *Keep-up*.
-- **The agent's own triage calls are measured.** Its "likely DQ" calls agreed with the human decision 28 of 29 times; its "likely keep" calls only 2 of 7, and it hedged on more than half the cards. Those misses became explicit calling rules (commit to a lean, treat titles that point at a dealbreaker as lean DQ). See `engine/precision.py`.
+- **New rules per 100 listings fell over those rounds** (from about 12 to about 4, not in a straight line), which is the signal that the criteria are settling. The agent uses it to suggest when to move from high-touch *Catch-up* triage to low-touch *Keep-up*.
+- **The agent's own triage calls are measured.** At that point its "likely DQ" calls agreed with the human decision 28 of 29 times; its "likely keep" calls only 2 of 7, and it hedged on more than half the cards. Those misses became explicit calling rules (commit to a lean, treat titles that point at a dealbreaker as lean DQ). See `engine/precision.py`.
 
 ## How it's built
 
@@ -91,7 +91,7 @@ What the numbers taught, and what changed because of them:
 | **Claude** (in Claude Code) | The judgment steps: reading each posting in full, scoring, writing caveats, calibration, resume and profile wording, application kits, primers. Rules for these are in `engine/prompts/` and `CLAUDE.md`. |
 | **You** | Saving jobs, answering calibration questions, approving every criteria change and removal, and everything outward-facing: applying, messaging, editing your profile. |
 
-Data and engine are separate. The engine never contains personal data; your data lives in its own folder (default `my-data/`, git-ignored) and every script takes `--data <folder>`, or reads the folder from the `REVERSE_RECRUITER_DATA` environment variable when it's set (handy when your data lives outside the repo; set it once, for example in Claude Code's project settings). A pre-commit hook runs `engine/privacy_scan.py` so personal details can't be committed by accident.
+Data and engine are separate. The engine never contains personal data; your data lives in its own folder (default `my-data/`, git-ignored) and every script that works on the data folder takes `--data <folder>` (the two file-to-file tools, `ingest_results.py` and `tailor_resume.py`, take the file paths themselves and no `--data`), or reads the folder from the `REVERSE_RECRUITER_DATA` environment variable when it's set (handy when your data lives outside the repo; set it once, for example in Claude Code's project settings). A pre-commit hook runs `engine/privacy_scan.py` so personal details can't be committed by accident.
 
 ## What it deliberately doesn't do
 
@@ -112,7 +112,7 @@ python -B engine/pipeline.py queue --data demo-data            # what to apply t
 python -B engine/interviews.py --data demo-data due --soon 14  # follow-ups owed
 ```
 
-Run the test suite (standard library only; pytest runs it too):
+Run the test suite (unittest from the standard library; it needs the one package in `requirements.txt`, and pytest runs it too):
 
 ```bash
 python -B -m unittest discover -s tests
@@ -152,6 +152,7 @@ reverse-recruiter/
 │   ├─ staleness.py        is the posting still open?
 │   ├─ primer.py           interview primer: requirement draft and completeness check
 │   ├─ connections.py      connection levels (recommendation / plus / neutral) → network points
+│   ├─ recommendations.py  recommendations given and received, read by connections.py
 │   ├─ prep_pdf.py         interview prep → phone-friendly PDFs, a combined master and an anonymized copy
 │   ├─ interviews.py       interview rounds, debriefs, thank-yous, follow-up timers
 │   ├─ tailor_resume.py    tailored resume copy with Word tracked changes

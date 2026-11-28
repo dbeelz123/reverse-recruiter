@@ -605,23 +605,34 @@ def use_data(folder):
     ROOT, DATA, OUT = P.data.parent, P.data, P.triaged
 
 
-if __name__ == "__main__":
-    if "--data" in sys.argv:  # accepted anywhere on the line, like the other scripts
-        i = sys.argv.index("--data")
-        use_data(sys.argv[i + 1])
-        del sys.argv[i:i + 2]
-    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    if cmd == "seed":
-        seed()
-    elif cmd == "keeps" and len(sys.argv) == 3:
-        keeps(sys.argv[2])
-    elif cmd == "match-saved" and len(sys.argv) == 3:
-        match_saved(sys.argv[2])
-    elif cmd == "add" and len(sys.argv) == 3:
-        add(sys.argv[2])
-    elif cmd == "check" and len(sys.argv) == 3:
-        check(sys.argv[2])
-    elif cmd == "reposts" and len(sys.argv) == 2:
-        reposts()
-    else:
+COMMANDS = {"seed": (seed, None), "reposts": (reposts, None), "add": (add, "<run.json>"),
+            "check": (check, "<cards.json>"), "keeps": (keeps, "<run.json>"), "match-saved": (match_saved, "<run.json>")}
+
+
+def main(argv):
+    """Run one command. A mistyped command or a missing file name stops with a message and a failing exit code:
+    printing the usage and exiting 0 read as success to whoever ran it."""
+    argv = list(argv)
+    if "-h" in argv or "--help" in argv:
         print(__doc__)
+        return
+    if "--data" in argv:  # accepted anywhere on the line, like the other scripts
+        i = argv.index("--data")
+        if i + 1 >= len(argv):
+            sys.exit("--data needs a folder after it.")
+        use_data(argv[i + 1])
+        del argv[i:i + 2]
+    names = ", ".join(COMMANDS)
+    if not argv:
+        sys.exit(f"No command given. Use one of: {names} (python engine/triaged.py --help for details).")
+    cmd, rest = argv[0], argv[1:]
+    if cmd not in COMMANDS:
+        sys.exit(f"Unknown command {cmd!r}. Use one of: {names} (python engine/triaged.py --help for details).")
+    fn, arg = COMMANDS[cmd]
+    if len(rest) != (1 if arg else 0):
+        sys.exit(f"Usage: python engine/triaged.py {cmd}{' ' + arg if arg else ''} [--data <folder>]")
+    fn(*rest)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

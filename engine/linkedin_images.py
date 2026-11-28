@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 
 import metrics
-from paths import Paths, read_json
+from paths import Paths, read_json, round_number
 
 W, H, SCALE = 1088, 707, 3
 BROWSERS = [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -174,7 +174,7 @@ def grade_counts(P):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--round", type=int, default=None)
+    ap.add_argument("--round", type=round_number, default=None)
     ap.add_argument("--data", default=None)
     ap.add_argument("--raw", action="store_true", help="real counts instead of per 100 listings processed")
     ap.add_argument("--grades", help="a chosen split for the grade image, e.g. A=2,B=3,C=3,D=1 (per-100 images only; "
